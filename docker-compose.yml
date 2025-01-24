@@ -1,7 +1,7 @@
 version: '3'
 services:
   whatsapp_platform:
-    container_name: whatsapp_platform
+    container_name: test_whatsapp_platform
     build:
       context: .
       dockerfile: Dockerfile
