@@ -1,4 +1,3 @@
-```markdown
 # WhatsApp Business API Backend
 
 **Built with FastAPI (v0.115.5)**, this backend provides endpoints to integrate your WhatsApp Business API with a simple webhook flow to receive and respond to messages, and includes a test endpoint to send a WhatsApp template message.
@@ -179,4 +178,3 @@ services:
 
 - Logs are written to `logs/whatsapp.log` and also printed to stdout. 
 - Adjust `logger` in `app/core/logger.py` as needed for your environment or log rotation preferences.
-
