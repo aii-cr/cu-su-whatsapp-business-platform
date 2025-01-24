@@ -65,13 +65,13 @@ whatsapp_backend/
 
 ## Environment Variables
 
-Create a `.env` file in the project root with values appropriate for your environment. For example:
+Create a `.env` file in the project root with values appropriate for the environment. For example:
 
 ```bash
-WHATSAPP_ACCESS_TOKEN=your_access_token
+WHATSAPP_ACCESS_TOKEN=access_token
 WHATSAPP_VERIFY_TOKEN=verify_token_string
-WHATSAPP_BUSINESS_ID=526160010584086
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_BUSINESS_ID=whatsapp_bussiness_id
+WHATSAPP_PHONE_NUMBER_ID=phone_number_id
 ENVIRONMENT=development
 ```
 
@@ -85,7 +85,7 @@ If you prefer running the project **locally** without Docker:
 
 1. **Clone** this repository:
    ```bash
-   git clone https://github.com/your-org/whatsapp_backend.git
+   git clone git@github.com:aii-cr/cu-su-backend.git
    cd whatsapp_backend
    ```
 2. **Create/Activate** a virtual environment (recommended):
@@ -105,7 +105,7 @@ If you prefer running the project **locally** without Docker:
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
-Your FastAPI app should now be available at `http://localhost:8000`.
+FastAPI app should now be available at `http://localhost:8000`.
 
 ---
 
@@ -124,7 +124,7 @@ We provide a **`Dockerfile`** and **`docker-compose.yml`** for easy containeriza
    docker-compose up -d
    ```
    - The app will run on container port 8000. 
-   - In the compose file, it’s mapped to **50337** on your host, so you can reach it at `http://localhost:50337/`.
+   - In the compose file, it’s mapped to **50337** fot the host, so you can reach it at `http://localhost:50337/`.
 
 3. **Container Management**:
    - **Check Logs**: `docker-compose logs -f whatsapp_platform`
@@ -148,7 +148,7 @@ services:
     env_file:
       - .env
 ```
-> - Maps port **50337** (on your machine) to port **8000** (inside the container).
+> - Maps port **50337** (on machine) to port **8000** (inside the container).
 > - Uses `.env` for environment variables.
 
 ---
@@ -156,8 +156,8 @@ services:
 ## Usage
 
 1. **Webhook Setup**:  
-   - In Meta’s Developer Portal, configure your webhook callback URL as `https://your-domain/whatsapp/webhook`.  
-   - Provide your **verify token** (must match `WHATSAPP_VERIFY_TOKEN` in `.env`).
+   - In Meta’s Developer Portal, configure the webhook callback URL as `https://domain/whatsapp/webhook`.  
+   - Provide the **verify token** (must match `WHATSAPP_VERIFY_TOKEN` in `.env`).
 
 2. **Verify Endpoint**:  
    - Handles GET requests to `/whatsapp/webhook` for verification.  
@@ -175,4 +175,3 @@ services:
 ## Logging
 
 - Logs are written to `logs/whatsapp.log` and also printed to stdout. 
-- Adjust `logger` in `app/core/logger.py` as needed for your environment or log rotation preferences.
