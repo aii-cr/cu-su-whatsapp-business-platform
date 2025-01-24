@@ -1,6 +1,6 @@
 # CU-SU WhatsApp Business Platform Backend
 
-**Built with FastAPI (v0.115.5)**, this backend provides endpoints to integrate your WhatsApp Business API with a simple webhook flow to receive and respond to messages, and includes a test endpoint to send a WhatsApp template message.
+**Built with FastAPI (v0.115.5)**, this backend provides endpoints to integrate WhatsApp Business API with a simple webhook flow to receive and respond to messages, and includes a test endpoint to send a WhatsApp template message.
 
 ## Table of Contents
 - [Features](#features)
