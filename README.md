@@ -168,7 +168,7 @@ services:
 
 4. **Send Test Message**:  
    - Hit `GET http://localhost:50337/whatsapp/send-test-message` (in Docker)  
-   - This triggers a template message to the test phone number **50684716592** (hardcoded in the route, or as you configure).
+   - This triggers a template message to the test phone number (hardcoded in the route).
 
 ---
 
