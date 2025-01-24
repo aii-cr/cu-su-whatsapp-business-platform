@@ -1,125 +1,182 @@
-# Heimdal - User Manager Microservice AII
-This is the first microservice of AII. It's a base for management of users and roles. 
+```markdown
+# WhatsApp Business API Backend
+
+**Built with FastAPI (v0.115.5)**, this backend provides endpoints to integrate your WhatsApp Business API with a simple webhook flow to receive and respond to messages, and includes a test endpoint to send a WhatsApp template message.
 
 ## Table of Contents
-
-- [Technologies](#technologies)
-    - [Pytho Requirements](#pytho_requirements)
-- [Directories Structure](#directories_structure)
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Environment Variables](#environment-variables)
+- [Installation](#installation)
+- [Running with Docker](#running-with-docker)
 - [Usage](#usage)
-- [APP](#example)
-- [Contributing](#app)
-    - [main.py](#main.py)
-    - [config.py](#config.py)
-    - [API](#api)
-    - [CORE](#core)
-    - [DB](#db)
-    - [Schema](#schema)
+- [Logging](#logging)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Technologies
+---
 
-In this project, we use a FastAPI schema:
-- FastAPI: is a Python API generator, it is very popular nowadays and as a backend, it is faster and more efficient than technologies such as Django and Flask.
-- Mongo: is one of the most popular NoSQL databases, its structure is like json, which makes it easy to understand and with the right modules, python makes it look like dictionary management. 
+## Features
+- **Receive and log WhatsApp messages** through a configured [Meta Webhook](https://developers.facebook.com/docs/whatsapp/cloud-api).
+- **Simple test endpoint** (`/whatsapp/send-test-message`) to send a WhatsApp template message.
+- **Logger setup** using Python’s built-in `logging` module, with console and file outputs.
+- **Flexible project structure** for future scalability (AI chatbot, additional business logic, etc.).
 
-### Pytho Requirements
+---
 
-Some of the modules are:
-- email_validator==2.2.0: This module confirm that a email exist when the user register his email.
-- fastapi==0.115.5: It's the main module. 
-- motor==3.6.0: The mongo connector.
-- pydantic==2.10.0: This module is very important because valid the data structure. 
-- python-dotenv==1.0.1: Access to the .env file. 
-- python-jose==3.3.0: Manage JWT tokens.
+## Project Structure
 
-## Directories Structure
+A typical directory structure might look like this:
+
 ```
-heimdal/
+whatsapp_backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py          # Entry Point
-│   ├── config.py        # Configurations and global variables
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── routes/
-│   │   │   ├── __init__.py
-│   │   │   ├── auth_routes.py    # Rutas de autenticación
-│   │   │   ├── user_routes.py    # Rutas de gestión de usuarios
-│   │   └── dependencies.py       # Dependencies
-│   ├── db/
-│   │   ├── __init__.py
-│   │   ├── mongo.py       # MongoDB Configuration
-│   │   └── models/
-│   │       ├── __init__.py
-│   │       ├── user_model.py     # User Model
+│   │   └── routes/
+│   │       └── whatsapp.py
 │   ├── core/
-│   │   ├── __init__.py
-│   │   ├── security.py    # Security Core
-│   │   └── utils.py       # Util function
-│   └── schemas/
-│       ├── __init__.py
-│       ├── auth_schema.py # Login/register schema
-│       └── user_schema.py # User schema
-├── tests/
-├── venv/                  # Virtual Enveroment
-├── .env                   # Enveroment Variables
-├── .gitignore
-├── requirements.txt       # Dependencies
-├── Dockerfile             # Docker Configuration
+│   │   ├── config.py
+│   │   ├── logger.py
+│   │   └── utils.py
+│   └── main.py
+├── logs/
+├── .env
+├── Dockerfile
 ├── docker-compose.yml
-└── README.md              # Documentación
+├── requirements.txt
+└── README.md
 ```
 
-## APP
-The app directory is the core of the project and contains the main logic. Here you organize the components of your application into modules and sub-modules to keep the code clean, modular and scalable.
+- **`app/main.py`**: Application entry point for FastAPI.
+- **`app/api/routes/whatsapp.py`**: Contains WhatsApp webhook routes and a test message endpoint.
+- **`app/core/logger.py`**: Sets up and configures the logger.
+- **`app/core/config.py`**: Loads environment variables from `.env`.
+- **`app/core/utils.py`**: Utility functions (e.g., sending WhatsApp messages).
+- **`logs/`**: Directory for log files.
 
-### main.py
-The main.py file is the main entry point of your FastAPI application. It defines and configures the application instance, registers routes and middlewares, and handles global events such as initializing and closing connections.
+---
 
-**Typical content:**
-- FastAPI instance creation.
-- Registration of routes and middlewares.
-- Configuration of events such as startup and shutdown.
+## Prerequisites
 
-### config.py
-The config.py file centralizes the application settings. It allows you to handle sensitive or environment-specific variables, such as database connections, secret keys and server settings.
+1. **Python 3.10+**  
+2. **Meta (Facebook) Developer Account** with WhatsApp Business Cloud API access.
+3. **.env file** containing necessary environment variables (e.g., tokens, phone number IDs).
+4. (Optional) **Docker** and **Docker Compose** for containerization.
 
-**Typical content:**
-- Configuration of variables such as DATABASE_URL, SECRET_KEY, and external service values.
-- Use of Pydantic BaseSettings to load settings from environment variables.
+---
 
-### API
-The API directory organizes the application's routes and drivers. Each file within this directory represents a set of specific routes, such as authentication, user management or logs.
+## Environment Variables
 
-**Typical content:**
-- Subdirectories such as routes/ to define specific endpoints.
-- Common dependencies for data injection or authentication.
+Create a `.env` file in the project root with values appropriate for your environment. For example:
 
-### CORE
-The CORE directory contains essential and reusable logic for the application. It focuses on general functionality that does not pertain directly to a specific model or controller.
+```bash
+WHATSAPP_ACCESS_TOKEN=your_access_token
+WHATSAPP_VERIFY_TOKEN=verify_token_string
+WHATSAPP_BUSINESS_ID=526160010584086
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+ENVIRONMENT=development
+```
 
-**Typical content:**
-- Security functions, such as password hashing and JWT token handling.
-- General utilities, such as mailing or validations.
+> **Important**: Never commit `.env` with real credentials to source control. 
 
-### DB
-The DB directory manages the connection to the database and defines the models used in MongoDB or other databases.
+---
 
-**Typical contents:**
-- Database connection configuration.
-- Definition of models used to interact with the database.
+## Installation
 
-**Important subdirectories:**
-- mongo.py: Configures the connection to MongoDB and manages events such as initialization or closing.
-- models/: Defines the models used in the database
+If you prefer running the project **locally** without Docker:
 
-### Schema
-The schemas directory defines the Pydantic schemas used to validate and structure the data sent or received through the API.
+1. **Clone** this repository:
+   ```bash
+   git clone https://github.com/your-org/whatsapp_backend.git
+   cd whatsapp_backend
+   ```
+2. **Create/Activate** a virtual environment (recommended):
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   # or
+   .\venv\Scripts\activate  # Windows
+   ```
+3. **Install** dependencies:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+4. **Run** the server:
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+   ```
 
-**Typical content:**
-- Validation schemas for endpoint inputs and outputs.
-- Data structures for automatic API documentation.
+Your FastAPI app should now be available at `http://localhost:8000`.
 
-**Common files:**
-- auth_schema.py: Schemas for registration and login.
-- log_schema.py: Schemas for creating and updating logs.
+---
+
+## Running with Docker
+
+We provide a **`Dockerfile`** and **`docker-compose.yml`** for easy containerization.
+
+1. **Build** the image:
+   ```bash
+   docker-compose build
+   ```
+   - This uses the Dockerfile in the current directory.
+
+2. **Start** the container:
+   ```bash
+   docker-compose up -d
+   ```
+   - The app will run on container port 8000. 
+   - In the compose file, it’s mapped to **50337** on your host, so you can reach it at `http://localhost:50337/`.
+
+3. **Container Management**:
+   - **Check Logs**: `docker-compose logs -f whatsapp_platform`
+   - **Stop**: `docker-compose down`
+
+### Docker Compose Overview
+
+A minimal `docker-compose.yml` includes:
+```yaml
+version: '3.8'
+
+services:
+  whatsapp_platform:
+    container_name: whatsapp_platform
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50337:8000"
+    restart: unless-stopped
+    env_file:
+      - .env
+```
+> - Maps port **50337** (on your machine) to port **8000** (inside the container).
+> - Uses `.env` for environment variables.
+
+---
+
+## Usage
+
+1. **Webhook Setup**:  
+   - In Meta’s Developer Portal, configure your webhook callback URL as `https://your-domain/whatsapp/webhook`.  
+   - Provide your **verify token** (must match `WHATSAPP_VERIFY_TOKEN` in `.env`).
+
+2. **Verify Endpoint**:  
+   - Handles GET requests to `/whatsapp/webhook` for verification.  
+
+3. **Receive Messages**:  
+   - Postbacks from Meta (Facebook) will come to `/whatsapp/webhook` as a **POST** request.  
+   - The application logs and can auto-reply with a WhatsApp template if you choose.
+
+4. **Send Test Message**:  
+   - Hit `GET http://localhost:50337/whatsapp/send-test-message` (in Docker)  
+   - This triggers a template message to the test phone number **50684716592** (hardcoded in the route, or as you configure).
+
+---
+
+## Logging
+
+- Logs are written to `logs/whatsapp.log` and also printed to stdout. 
+- Adjust `logger` in `app/core/logger.py` as needed for your environment or log rotation preferences.
+

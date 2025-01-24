@@ -1,21 +1,47 @@
+"""
+Main entry point for the FastAPI WhatsApp integration app.
+Initializes the application, includes routers, and configures logging
+using the new lifespan context approach.
+"""
+
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from app.db.mongo import MongoDBClient
-from app.api.routes.auth_routes import router as auth_router
+from app.api.routes.whatsapp import router as whatsapp_router
+from app.core.logger import logger
 
-app = FastAPI()
 
-# Events
-@app.on_event("startup")
-async def startup_event():
-    MongoDBClient.get_client()
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """
+    Using a context manager for lifecycle events:
+    1. Code before "yield" acts like "startup".
+    2. Code after "yield" acts like "shutdown".
+    """
+    # Startup logic here
+    logger.info("WhatsApp Business API Backend is starting up...")
+    
+    yield  # ---- The point at which FastAPI runs your application ----
+    
+    # Shutdown logic here
+    logger.info("WhatsApp Business API Backend is shutting down...")
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    MongoDBClient.close_client()
 
-# Routes
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+def create_app() -> FastAPI:
+    """
+    Application factory that creates and configures the FastAPI instance,
+    attaching the new lifespan context.
+    """
+    app = FastAPI(
+        title="WhatsApp Business API Backend",
+        version="1.0.0",
+        lifespan=app_lifespan  # Use the custom lifespan context
+    )
 
-@app.get("/")
-def read_root():
-    return {"message": "Heimdal is here!"}
+    # Include the WhatsApp routes
+    app.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])
+
+    return app
+
+
+app = create_app()

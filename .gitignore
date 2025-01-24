@@ -1,0 +1,82 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Editor and IDE specific files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs and debug files
+*.log
+*.out
+*.err
+logs/
+*.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Dependency directories
+pip-wheel-metadata/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment variables
+.env
+.env.*
+
+# Static and media files
+staticfiles/
+mediafiles/
+
+# Docker
+*.dockerignore
+Dockerfile
+docker-compose.override.yml
+__MACOSX
+
+# FastAPI specific
+instance/    # If using instance folders for configs
+app.db       # SQLite database (if used)
+
+# Pytest and testing artifacts
+htmlcov/
+.tox/
+.nox/
+.coverage
+.cache
+pytest_cache/
+*.cover
+coverage.xml
+
+# Mypy and type checking artifacts
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Bandit security checks
+.bandit/
+
+# Linting
+.pylint.d/
+flake8.log
+.pyre/
+.sorcery/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+

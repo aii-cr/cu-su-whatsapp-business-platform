@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  whatsapp_platform:
+    container_name: whatsapp_platform
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "50337:8000"
+    restart: unless-stopped
+    env_file:
+      - .env
