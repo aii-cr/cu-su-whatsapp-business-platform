@@ -4,7 +4,7 @@ from datetime import timedelta, datetime
 from jose import jwt, JWTError
 
 from app.schemas.auth_schema import RegisterSchema, LoginSchema
-from app.db.mongo import MongoDBClient
+from app.db.chat_platform_db import MongoDBClient
 from app.core.security import hash_password, verify_password, create_access_token
 from app.config import settings
 from app.core.utils import send_password_recovery_email

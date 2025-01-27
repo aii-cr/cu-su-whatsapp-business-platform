@@ -1,11 +1,9 @@
-"""
-API endpoints for WhatsApp Webhook verification, message reception, and auto-response.
-"""
-
 from fastapi import APIRouter, Request, HTTPException
 from app.core.config import settings
 from app.core.logger import logger
 from app.core.utils import send_whatsapp_template_message
+from datetime import datetime
+from app.services.database_service import ChatPlatformService
 
 router = APIRouter()
 
@@ -71,6 +69,7 @@ async def receive_whatsapp_message(request: Request):
         
         if messages:
             for message in messages:
+                conversation_id = value["id"]
                 from_number = message["from"]
                 msg_body = message.get("text", {}).get("body")
                 logger.info(f"Received message from {from_number}: {msg_body}")
@@ -84,12 +83,22 @@ async def receive_whatsapp_message(request: Request):
                 # This logic can be improved for real production usage.
 
                 # Simple auto-response with a known template (customize "sample_issue_resolution" or "hello_world").
+                
+                message = {
+                    "conversation_id": conversation_id,
+                    "sender_id": from_number,
+                    "sender_role": "customer",
+                    "message": msg_body,
+                    "timestamp": datetime.utcnow(),
+                    "message_type": "text",
+                }
+                await ChatPlatformService.create_message(message)
                 send_whatsapp_template_message(
                     to_number=from_number,
                     template_name="hello_world"
                 )
 
-        return {"status": "success"}
+        return {"status": "received"}
     except (KeyError, IndexError) as e:
         logger.error(f"Malformed payload structure: {e}")
         raise HTTPException(status_code=400, detail="Invalid payload structure")

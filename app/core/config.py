@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     WHATSAPP_BUSINESS_ID: str
     WHATSAPP_PHONE_NUMBER_ID: str
     ENVIRONMENT: str = "development"
+    
+    # MongoDB-related settings
+    MONGODB_URI: str
+    DATABASE_NAME: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
