@@ -8,21 +8,27 @@ from app.services.database_service import ChatPlatformService
 router = APIRouter()
 
 
+from fastapi import APIRouter, Request, HTTPException
+from app.core.config import settings
+from app.core.logger import logger
+
+router = APIRouter()
+
 @router.get("/webhook")
-def verify_webhook(
-    hub_mode: str = None,
-    hub_challenge: str = None,
-    hub_verify_token: str = None
-):
+async def verify_webhook(request: Request):
     """
     Endpoint for Meta (Facebook) Webhook verification.
-    Meta sends a GET request with these query params:
-    - hub.mode
-    - hub.challenge
-    - hub.verify_token
-
-    We must return the hub.challenge if the verify_token matches.
+    Extracts query parameters from the request object, allowing
+    the function to not explicitly require them as arguments.
     """
+    query_params = request.query_params
+
+    # Extract required query parameters
+    hub_mode = query_params.get("hub.mode")
+    hub_challenge = query_params.get("hub.challenge")
+    hub_verify_token = query_params.get("hub.verify_token")
+
+    # Perform verification
     if hub_mode and hub_challenge and hub_verify_token:
         if hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
             logger.info("Webhook verified successfully.")
@@ -32,6 +38,7 @@ def verify_webhook(
             raise HTTPException(status_code=403, detail="Invalid verification token")
     logger.error("Bad request for webhook verification.")
     raise HTTPException(status_code=400, detail="Missing required query parameters")
+
 
 
 @router.post("/webhook")
