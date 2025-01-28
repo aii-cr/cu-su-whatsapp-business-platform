@@ -51,6 +51,23 @@ class ChatPlatformService:
         except Exception as e:
             logger.error(f"Error inserting message: {e}")
             raise
+        
+    @staticmethod
+    async def mark_messages_as_read(conversation_id: str, sender_id: str):
+        """
+        Marks all received messages as 'read'.
+        """
+        try:
+            result = await mongo.db.messages.update_many(
+                {"conversation_id": conversation_id, "sender_id": sender_id, "status": "received"},
+                {"$set": {"status": "read", "read_at": datetime.now()}}
+            )
+
+            logger.info(f"✅ Marked {result.modified_count} messages as read in conversation {conversation_id}.")
+            return {"updated_count": result.modified_count}
+        except Exception as e:
+            logger.error(f"❌ Error marking messages as read: {e}")
+            raise HTTPException(status_code=500, detail="Error marking messages as read")
 
     @staticmethod
     async def get_messages_by_conversation(conversation_id: str):

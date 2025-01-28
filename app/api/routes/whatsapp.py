@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from app.core.config import settings
 from app.core.logger import logger
-from app.core.utils import send_whatsapp_template_message
+from app.core.utils import send_whatsapp_template_message, mark_message_as_read_on_whatsapp
 from datetime import datetime
 from app.db.chat_platform_db import mongo
 from app.services.database_service import ChatPlatformService
@@ -44,14 +44,10 @@ async def receive_whatsapp_message(request: Request):
     logger.info(f"Incoming WhatsApp message data: {data}")
 
     try:
-        if not isinstance(data, dict) or "entry" not in data:
-            raise ValueError("Invalid payload structure")
-
         entry = data["entry"][0]
         change = entry["changes"][0]
-        
+
         if change["field"] != "messages":
-            logger.info(f"Skipping non-message event: {change['field']}")
             return {"status": "ignored"}
 
         value = change["value"]
@@ -59,12 +55,11 @@ async def receive_whatsapp_message(request: Request):
         phone_number_id = value["metadata"]["phone_number_id"]
 
         for message in value.get("messages", []):
-            message_id = message.get("id")
-            from_number = message.get("from")
-            timestamp = message.get("timestamp")
+            message_id = message["id"]
+            from_number = message["from"]
+            timestamp = message["timestamp"]
             message_body = message.get("text", {}).get("body", "")
 
-            # Unique conversation ID format: "business_number_customer_number"
             conversation_id = f"{phone_number_id}_{from_number}"
 
             chat_message = {
@@ -81,14 +76,16 @@ async def receive_whatsapp_message(request: Request):
 
             await ChatPlatformService.create_message(chat_message)
 
-            # Auto-reply
             await send_message(business_number, from_number, "hello_world")
+
+            await ChatPlatformService.mark_messages_as_read(conversation_id, from_number)
+            
+            await mark_message_as_read_on_whatsapp(phone_number_id, message_id)
 
         return {"status": "received"}
     except Exception as e:
         logger.error(f"Error processing webhook: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
 
 async def send_message(business_number: str, customer_number: str, template: str):
     """
