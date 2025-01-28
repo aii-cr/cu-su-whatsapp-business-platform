@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.api.routes.whatsapp import router as whatsapp_router
+from app.db.chat_platform_db import mongo
+from app.services.database_service import initialize_database
 from app.core.logger import logger
 
 
@@ -14,9 +16,15 @@ async def app_lifespan(app: FastAPI):
     # Startup logic here
     logger.info("WhatsApp Business API Backend is starting up...")
     
+    await mongo.connect()
+    
+    # Initialize database collections and indexes
+    await initialize_database()
+    
     yield  # ---- The point at which FastAPI runs your application ----
     
     # Shutdown logic here
+    await mongo.disconnect()
     logger.info("WhatsApp Business API Backend is shutting down...")
 
 

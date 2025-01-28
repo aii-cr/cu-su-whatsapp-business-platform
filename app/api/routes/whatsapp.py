@@ -3,16 +3,11 @@ from app.core.config import settings
 from app.core.logger import logger
 from app.core.utils import send_whatsapp_template_message
 from datetime import datetime
+from app.db.chat_platform_db import mongo
 from app.services.database_service import ChatPlatformService
 
 router = APIRouter()
 
-
-from fastapi import APIRouter, Request, HTTPException
-from app.core.config import settings
-from app.core.logger import logger
-
-router = APIRouter()
 
 @router.get("/webhook")
 async def verify_webhook(request: Request):
@@ -40,8 +35,6 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=400, detail="Missing required query parameters")
 
 
-
-
 @router.post("/webhook")
 async def receive_whatsapp_message(request: Request):
     """
@@ -60,12 +53,14 @@ async def receive_whatsapp_message(request: Request):
             raise ValueError("Invalid payload structure: 'entry' is empty or not a list")
         
         for entry_item in entry:
+            logger.debug(f"Processing entry item: {entry_item}")
             changes = entry_item.get("changes", [])
             if not isinstance(changes, list) or len(changes) == 0:
                 logger.warning("No changes in entry. Skipping this webhook.")
                 continue
             
             for change in changes:
+                logger.debug(f"Processing change: {change}")
                 # Process only `messages` field for now
                 field = change.get("field")
                 if field != "messages":
@@ -74,15 +69,22 @@ async def receive_whatsapp_message(request: Request):
                 
                 value = change.get("value", {})
                 if not value:
-                    raise ValueError("Invalid payload structure: Missing 'value' object")
+                    logger.warning("Missing 'value' object in changes. Skipping.")
+                    continue
 
+                logger.debug(f"Value object: {value}")
                 # Validate and process the `messages`
-                messages = value.get("messages", [])
-                if not isinstance(messages, list) or len(messages) == 0:
-                    logger.info("No messages found in the webhook. Skipping.")
+                messages = value.get("messages")
+                if not messages or not isinstance(messages, list):
+                    logger.warning("No valid 'messages' found. Skipping this change.")
                     continue
 
                 for message in messages:
+                    # Ensure `message` is a valid dictionary
+                    if not isinstance(message, dict):
+                        logger.warning(f"Invalid message structure: {message}. Skipping.")
+                        continue
+
                     # Extract required fields
                     msg_id = message.get("id")
                     from_number = message.get("from")
@@ -91,7 +93,8 @@ async def receive_whatsapp_message(request: Request):
                     conversation_id = value.get("metadata", {}).get("phone_number_id")  # Example use of `phone_number_id`
 
                     if not msg_id or not from_number:
-                        raise ValueError("Invalid message structure: Missing required fields (id, from)")
+                        logger.error("Invalid message structure: Missing required fields (id, from).")
+                        continue
 
                     logger.info(f"Message received: ID={msg_id}, From={from_number}, Body={msg_body}")
 
@@ -102,7 +105,7 @@ async def receive_whatsapp_message(request: Request):
                         "sender_id": from_number,
                         "sender_role": "customer",
                         "message": msg_body,
-                        "timestamp": datetime.utcnow(),
+                        "timestamp": datetime.now(),
                         "message_type": "text",
                     }
                     await ChatPlatformService.create_message(chat_message)
@@ -120,6 +123,23 @@ async def receive_whatsapp_message(request: Request):
     except Exception as e:
         logger.error(f"Unexpected error processing webhook: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+
+@router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(conversation_id: str):
+    """
+    Retrieve all messages for a given conversation, sorted by timestamp.
+    """
+    try:
+        messages = await ChatPlatformService.get_messages_by_conversation(conversation_id)
+        return {"conversation_id": conversation_id, "messages": messages}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving messages: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     
     
 # -------------- NEW TEST ENDPOINT --------------
@@ -143,3 +163,16 @@ def send_test_message():
         return {"detail": "Test message sent successfully", "to": to_number}
     else:
         raise HTTPException(status_code=response.status_code, detail=response.text)
+
+
+@router.get("/test-db")
+async def test_db():
+    """
+    Test the MongoDB connection and list collections.
+    """
+    try:
+        collections = await mongo.db.list_collection_names()
+        return {"collections": collections}
+    except Exception as e:
+        logger.error(f"Error testing database connection: {e}")
+        raise HTTPException(status_code=500, detail="Database connection failed")

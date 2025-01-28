@@ -1,41 +1,82 @@
+from datetime import datetime
+from fastapi import HTTPException
 from app.db.chat_platform_db import mongo
 from bson.objectid import ObjectId
-
+from app.core.logger import logger
 
 class ChatPlatformService:
     @staticmethod
-    async def create_user(user: dict):
+    async def create_conversation(conversation_id: str, participants: list):
         """
-        Create a new user document in the users collection.
+        Create a new conversation if it doesn't exist.
         """
-        await mongo.db.users.insert_one(user)
-
-    @staticmethod
-    async def get_user(user_id: str):
-        """
-        Retrieve a user by ID.
-        """
-        return await mongo.db.users.find_one({"_id": ObjectId(user_id)})
+        existing_conversation = await mongo.db.conversations.find_one({"conversation_id": conversation_id})
+        if not existing_conversation:
+            conversation_data = {
+                "conversation_id": conversation_id,
+                "participants": participants,
+                "last_message": None,
+                "created_at": datetime.now(),
+                "updated_at": datetime.now()
+            }
+            await mongo.db.conversations.insert_one(conversation_data)
+            logger.info(f"Created new conversation: {conversation_id}")
 
     @staticmethod
     async def create_message(message: dict):
         """
-        Add a new message to the messages collection.
+        Save a message and ensure conversation exists.
         """
-        await mongo.db.messages.insert_one(message)
+        try:
+            # Convert WhatsApp timestamp (string) to datetime
+            if "timestamp" in message:
+                message["timestamp"] = datetime.fromtimestamp(int(message["timestamp"]))
+
+            # Ensure the conversation exists before adding the message
+            await ChatPlatformService.create_conversation(
+                message["conversation_id"], 
+                [message["sender_id"], message["receiver_id"]]
+            )
+
+            # Insert the message into MongoDB
+            result = await mongo.db.messages.insert_one(message)
+
+            # Update conversation with last message
+            await mongo.db.conversations.update_one(
+                {"conversation_id": message["conversation_id"]},
+                {"$set": {"last_message": message, "updated_at": datetime.utcnow()}}
+            )
+
+            return result.inserted_id
+        except Exception as e:
+            logger.error(f"Error inserting message: {e}")
+            raise
 
     @staticmethod
-    async def get_conversation(conversation_id: str):
+    async def get_messages_by_conversation(conversation_id: str):
         """
-        Retrieve a conversation by ID.
+        Retrieve all messages in a conversation, sorted by timestamp.
         """
-        return await mongo.db.conversations.find_one({"_id": ObjectId(conversation_id)})
+        try:
+            messages_cursor = mongo.db.messages.find({"conversation_id": conversation_id}).sort("timestamp", 1)
+            messages = await messages_cursor.to_list(length=1000)
+            return messages
+        except Exception as e:
+            logger.error(f"Error fetching messages: {e}")
+            raise HTTPException(status_code=500, detail="Error fetching messages")
 
-    @staticmethod
-    async def update_conversation(conversation_id: str, updates: dict):
-        """
-        Update conversation details.
-        """
-        await mongo.db.conversations.update_one(
-            {"_id": ObjectId(conversation_id)}, {"$set": updates}
-        )
+async def initialize_database():
+    """
+    Initializes MongoDB collections and ensures indexes.
+    """
+    try:
+        messages_collection = mongo.db.messages
+        conversations_collection = mongo.db.conversations
+
+        await messages_collection.create_index("message_id", unique=True)
+        await conversations_collection.create_index("conversation_id", unique=True)
+
+        logger.info("Database initialized with indexes.")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
+        raise
