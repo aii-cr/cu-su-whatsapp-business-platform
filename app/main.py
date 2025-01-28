@@ -1,11 +1,4 @@
-"""
-Main entry point for the FastAPI WhatsApp integration app.
-Initializes the application, includes routers, and configures logging
-using the new lifespan context approach.
-"""
-
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from app.api.routes.whatsapp import router as whatsapp_router
 from app.core.logger import logger
@@ -42,6 +35,6 @@ def create_app() -> FastAPI:
     app.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])
 
     return app
-
+    
 
 app = create_app()
