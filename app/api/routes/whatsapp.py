@@ -22,7 +22,7 @@ async def verify_webhook(request: Request):
     hub_mode = query_params.get("hub.mode")
     hub_challenge = query_params.get("hub.challenge")
     hub_verify_token = query_params.get("hub.verify_token")
-
+    
     # Perform verification
     if hub_mode and hub_challenge and hub_verify_token:
         if hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
@@ -38,108 +38,90 @@ async def verify_webhook(request: Request):
 @router.post("/webhook")
 async def receive_whatsapp_message(request: Request):
     """
-    Endpoint to handle WhatsApp webhooks, currently supporting only `messages` field.
+    Handles incoming WhatsApp messages.
     """
     data = await request.json()
-    logger.info(f"Incoming WhatsApp webhook data: {data}")
+    logger.info(f"Incoming WhatsApp message data: {data}")
 
     try:
-        # Validate the general payload structure
         if not isinstance(data, dict) or "entry" not in data:
-            raise ValueError("Invalid payload structure: Missing 'entry' key")
+            raise ValueError("Invalid payload structure")
+
+        entry = data["entry"][0]
+        change = entry["changes"][0]
         
-        entry = data["entry"]
-        if not isinstance(entry, list) or len(entry) == 0:
-            raise ValueError("Invalid payload structure: 'entry' is empty or not a list")
-        
-        for entry_item in entry:
-            logger.debug(f"Processing entry item: {entry_item}")
-            changes = entry_item.get("changes", [])
-            if not isinstance(changes, list) or len(changes) == 0:
-                logger.warning("No changes in entry. Skipping this webhook.")
-                continue
-            
-            for change in changes:
-                logger.debug(f"Processing change: {change}")
-                # Process only `messages` field for now
-                field = change.get("field")
-                if field != "messages":
-                    logger.info(f"Skipping unsupported webhook field: {field}")
-                    continue
-                
-                value = change.get("value", {})
-                if not value:
-                    logger.warning("Missing 'value' object in changes. Skipping.")
-                    continue
+        if change["field"] != "messages":
+            logger.info(f"Skipping non-message event: {change['field']}")
+            return {"status": "ignored"}
 
-                logger.debug(f"Value object: {value}")
-                # Validate and process the `messages`
-                messages = value.get("messages")
-                if not messages or not isinstance(messages, list):
-                    logger.warning("No valid 'messages' found. Skipping this change.")
-                    continue
+        value = change["value"]
+        business_number = value["metadata"]["display_phone_number"]
+        phone_number_id = value["metadata"]["phone_number_id"]
 
-                for message in messages:
-                    # Ensure `message` is a valid dictionary
-                    if not isinstance(message, dict):
-                        logger.warning(f"Invalid message structure: {message}. Skipping.")
-                        continue
+        for message in value.get("messages", []):
+            message_id = message.get("id")
+            from_number = message.get("from")
+            timestamp = message.get("timestamp")
+            message_body = message.get("text", {}).get("body", "")
 
-                    # Extract required fields
-                    msg_id = message.get("id")
-                    from_number = message.get("from")
-                    timestamp = message.get("timestamp")
-                    msg_body = message.get("text", {}).get("body", "")
-                    conversation_id = value.get("metadata", {}).get("phone_number_id")  # Example use of `phone_number_id`
+            # Unique conversation ID format: "business_number_customer_number"
+            conversation_id = f"{phone_number_id}_{from_number}"
 
-                    if not msg_id or not from_number:
-                        logger.error("Invalid message structure: Missing required fields (id, from).")
-                        continue
+            chat_message = {
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "sender_id": from_number,
+                "receiver_id": business_number,
+                "sender_role": "customer",
+                "message": message_body,
+                "timestamp": timestamp,
+                "message_type": message["type"],
+                "status": "received"
+            }
 
-                    logger.info(f"Message received: ID={msg_id}, From={from_number}, Body={msg_body}")
+            await ChatPlatformService.create_message(chat_message)
 
-                    # Save message to database
-                    chat_message = {
-                        "conversation_id": conversation_id,
-                        "message_id": msg_id,
-                        "sender_id": from_number,
-                        "sender_role": "customer",
-                        "message": msg_body,
-                        "timestamp": datetime.now(),
-                        "message_type": "text",
-                    }
-                    await ChatPlatformService.create_message(chat_message)
-
-                    # Send auto-reply using a template
-                    send_whatsapp_template_message(
-                        to_number=from_number,
-                        template_name="hello_world"
-                    )
+            # Auto-reply
+            await send_message(business_number, from_number, "hello_world")
 
         return {"status": "received"}
-    except ValueError as e:
-        logger.error(f"Payload validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error processing webhook: {e}")
+        logger.error(f"Error processing webhook: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+async def send_message(business_number: str, customer_number: str, template: str):
+    """
+    Saves and sends a WhatsApp template message.
+    """
+    try:
+        chat_message = {
+            "conversation_id": f"{business_number}_{customer_number}",
+            "message_id": f"auto_{datetime.now().timestamp()}",
+            "sender_id": business_number,
+            "receiver_id": customer_number,
+            "sender_role": "business",
+            "message": f"Template: {template}",
+            "timestamp": int(datetime.now().timestamp()),
+            "message_type": "template",
+            "status": "sent"
+        }
+
+        await ChatPlatformService.create_message(chat_message)
+        send_whatsapp_template_message(to_number=customer_number, template_name=template)
+    except Exception as e:
+        logger.error(f"Error sending message: {e}")
 
 @router.get("/conversations/{conversation_id}/messages")
 async def get_conversation_messages(conversation_id: str):
     """
-    Retrieve all messages for a given conversation, sorted by timestamp.
+    Retrieves all messages for a conversation in order.
     """
     try:
         messages = await ChatPlatformService.get_messages_by_conversation(conversation_id)
         return {"conversation_id": conversation_id, "messages": messages}
     except HTTPException as e:
         raise e
-    except Exception as e:
-        logger.error(f"Unexpected error retrieving messages: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
     
     
 # -------------- NEW TEST ENDPOINT --------------

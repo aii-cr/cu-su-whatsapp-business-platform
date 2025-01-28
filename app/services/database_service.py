@@ -28,8 +28,8 @@ class ChatPlatformService:
         Save a message and ensure conversation exists.
         """
         try:
-            # Convert WhatsApp timestamp (string) to datetime
-            if "timestamp" in message:
+            # Convert WhatsApp timestamp (Unix timestamp string) to datetime
+            if "timestamp" in message and isinstance(message["timestamp"], str):
                 message["timestamp"] = datetime.fromtimestamp(int(message["timestamp"]))
 
             # Ensure the conversation exists before adding the message
