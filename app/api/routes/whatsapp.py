@@ -41,74 +41,85 @@ async def verify_webhook(request: Request):
 
 
 
+
 @router.post("/webhook")
 async def receive_whatsapp_message(request: Request):
     """
-    Endpoint to receive messages from WhatsApp.
-    Logs the data for now, and auto-responds if it's the first message.
+    Endpoint to handle WhatsApp webhooks, currently supporting only `messages` field.
     """
     data = await request.json()
-    logger.info(f"Incoming WhatsApp message data: {data}")
-
-    # Typically, the payload structure is:
-    # {
-    #   "entry": [
-    #     {
-    #       "changes": [
-    #         {
-    #           "value": {
-    #             "messages": [ ... ],
-    #             "contacts": [ ... ],
-    #             ...
-    #           }
-    #         }
-    #       ]
-    #     }
-    #   ]
-    # }
-    # We will do a simple check here, but in production, handle carefully.
+    logger.info(f"Incoming WhatsApp webhook data: {data}")
 
     try:
-        entry = data["entry"][0]
-        changes = entry["changes"][0]
-        value = changes["value"]
-        messages = value.get("messages", [])
+        # Validate the general payload structure
+        if not isinstance(data, dict) or "entry" not in data:
+            raise ValueError("Invalid payload structure: Missing 'entry' key")
         
-        if messages:
-            for message in messages:
-                conversation_id = value["id"]
-                from_number = message["from"]
-                msg_body = message.get("text", {}).get("body")
-                logger.info(f"Received message from {from_number}: {msg_body}")
-
-                # If we want to automatically respond to the first user message, 
-                # we could store conversation states in a database or cache.
-                # For demonstration, let's just respond to every incoming message once.
+        entry = data["entry"]
+        if not isinstance(entry, list) or len(entry) == 0:
+            raise ValueError("Invalid payload structure: 'entry' is empty or not a list")
+        
+        for entry_item in entry:
+            changes = entry_item.get("changes", [])
+            if not isinstance(changes, list) or len(changes) == 0:
+                logger.warning("No changes in entry. Skipping this webhook.")
+                continue
+            
+            for change in changes:
+                # Process only `messages` field for now
+                field = change.get("field")
+                if field != "messages":
+                    logger.info(f"Skipping unsupported webhook field: {field}")
+                    continue
                 
-                # Check message type: e.g., "text", "interactive", etc.
-                # For now, let's send a template reply only if it's the first text message.
-                # This logic can be improved for real production usage.
+                value = change.get("value", {})
+                if not value:
+                    raise ValueError("Invalid payload structure: Missing 'value' object")
 
-                # Simple auto-response with a known template (customize "sample_issue_resolution" or "hello_world").
-                
-                message = {
-                    "conversation_id": conversation_id,
-                    "sender_id": from_number,
-                    "sender_role": "customer",
-                    "message": msg_body,
-                    "timestamp": datetime.utcnow(),
-                    "message_type": "text",
-                }
-                await ChatPlatformService.create_message(message)
-                send_whatsapp_template_message(
-                    to_number=from_number,
-                    template_name="hello_world"
-                )
+                # Validate and process the `messages`
+                messages = value.get("messages", [])
+                if not isinstance(messages, list) or len(messages) == 0:
+                    logger.info("No messages found in the webhook. Skipping.")
+                    continue
+
+                for message in messages:
+                    # Extract required fields
+                    msg_id = message.get("id")
+                    from_number = message.get("from")
+                    timestamp = message.get("timestamp")
+                    msg_body = message.get("text", {}).get("body", "")
+                    conversation_id = value.get("metadata", {}).get("phone_number_id")  # Example use of `phone_number_id`
+
+                    if not msg_id or not from_number:
+                        raise ValueError("Invalid message structure: Missing required fields (id, from)")
+
+                    logger.info(f"Message received: ID={msg_id}, From={from_number}, Body={msg_body}")
+
+                    # Save message to database
+                    chat_message = {
+                        "conversation_id": conversation_id,
+                        "message_id": msg_id,
+                        "sender_id": from_number,
+                        "sender_role": "customer",
+                        "message": msg_body,
+                        "timestamp": datetime.utcnow(),
+                        "message_type": "text",
+                    }
+                    await ChatPlatformService.create_message(chat_message)
+
+                    # Send auto-reply using a template
+                    send_whatsapp_template_message(
+                        to_number=from_number,
+                        template_name="hello_world"
+                    )
 
         return {"status": "received"}
-    except (KeyError, IndexError) as e:
-        logger.error(f"Malformed payload structure: {e}")
-        raise HTTPException(status_code=400, detail="Invalid payload structure")
+    except ValueError as e:
+        logger.error(f"Payload validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error processing webhook: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
     
     
 # -------------- NEW TEST ENDPOINT --------------
