@@ -105,7 +105,13 @@ async def send_message(business_number: str, customer_number: str, template: str
         }
 
         await ChatPlatformService.create_message(chat_message)
-        send_whatsapp_template_message(to_number=customer_number, template_name=template)
+        response = await send_whatsapp_template_message(to_number=customer_number, template_name=template)
+
+        if response:
+            logger.info(f"✅ Auto-reply message sent to {customer_number}")
+        else:
+            logger.error(f"❌ Failed to send auto-reply message to {customer_number}")
+            
     except Exception as e:
         logger.error(f"Error sending message: {e}")
 
