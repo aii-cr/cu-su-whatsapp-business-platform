@@ -4,6 +4,7 @@ from app.core.logger import logger
 
 
 class MongoDB:
+    
     def __init__(self):
         self.client = None
         self.db = None

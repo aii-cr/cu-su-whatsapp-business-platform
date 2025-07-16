@@ -13,15 +13,13 @@ async def app_lifespan(app: FastAPI):
     1. Code before "yield" acts like "startup".
     2. Code after "yield" acts like "shutdown".
     """
-    # Startup logic here
     logger.info("WhatsApp Business API Backend is starting up...")
     
     await mongo.connect()
-    
     # Initialize database collections and indexes
     await initialize_database()
     
-    yield  # ---- The point at which FastAPI runs your application ----
+    yield
     
     # Shutdown logic here
     await mongo.disconnect()
@@ -36,7 +34,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="WhatsApp Business API Backend",
         version="1.0.0",
-        lifespan=app_lifespan  # Use the custom lifespan context
+        lifespan=app_lifespan  
     )
 
     # Include the WhatsApp routes
