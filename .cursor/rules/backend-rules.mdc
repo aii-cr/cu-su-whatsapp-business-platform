@@ -1,0 +1,49 @@
+---
+description: FastAPI Backend Rules to Follow 
+globs:
+alwaysApply: true
+---
+## Rules to Follow
+
+[Configuration Management]
+ - Use Pydantic Settings in `core/config.py` for every environment variable (WhatsApp tokens, Mongo URI, session timeouts, department thresholds, log levels).  
+ - Expose all changeable behavior (chat-expiry, department timeouts, AI thresholds) via settings so no code changes are needed for tweaks.
+
+[Commenting]
+ - Never address the developer in comments; only include concise explanations at complex or non-obvious parts (function/class docstrings).
+
+[Code Structure & Organization]
+ - Encapsulate business logic in service classes under `app/services/` (e.g., `ConversationService`, `NotificationService`).  
+ - Place reusable helpers in `app/utils/<feature>/`; group routes by feature in `app/routes/<feature>/`.  
+ - Avoid files >300 lines; split large features into multiple, well-named modules.
+
+[Validation & Schemas]
+ - Validate **all** incoming data with Pydantic request schemas under `db/schemas/<feature>_in.py`; enforce strict types.  
+ - Define output schemas in `db/schemas/<feature>_out.py` and bind them to endpoints so `/docs` remains accurate.  
+ - Model **every** MongoDB collection with a Pydantic model in `db/models/<feature>.py` for clear mapping of DB records.
+
+[Error Handling & Logging]
+ - Wrap endpoint code in `try/except`; on exception, log full details via `core/logger.py` and return a sanitized error response.  
+ - Centralize error codes and user-friendly messages in `config/error_code.py`; reference these codes in all HTTPExceptions.  
+ - Document possible HTTP status codes and error payloads for each route in `docs/errors/`, integrated with OpenAPI.
+
+[Security & Access Control]
+ - Secure endpoints with JWT auth and enforce RBAC via FastAPI dependencies.  
+ - Never expose raw exception traces to clients; only generic messages.  
+ - Sanitize and validate every input to prevent injections.
+
+[API Documentation]
+ - Write clear FastAPI docstrings for each endpoint, parameter, and response model so `/docs` (Swagger UI) is comprehensive.  
+ - After each feature, update `README.md` with new endpoints, usage examples, and required env vars.
+
+[Audit Trail]
+ - Log every chat activity—transfers, notes, participant changes—to an `audit_logs` collection via a dedicated service, including timestamps and user IDs.
+
+[Media Handling]
+ - Implement media upload and retrieval endpoints that support WhatsApp media types (images, audio, video, documents) within official size limits; render metadata consistently.
+
+[Data Persistence & History]
+ - Persist chat sessions indefinitely in MongoDB; provide service-layer methods to fetch historical conversations and participant history for any client.
+
+[Docker & Dependencies]
+ - After modifying dependencies, run automated checks to confirm `Dockerfile` and `docker-compose.yml` continue to build and deploy correctly.
