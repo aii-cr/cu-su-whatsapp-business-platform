@@ -1,12 +1,19 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
 from app.db.models.base import PyObjectId
 
 class MessageSend(BaseModel):
-    """Schema for sending a text message."""
-    conversation_id: str = Field(..., description="Conversation ID")
+    """Schema for sending a text message. Accepts either conversation_id or customer_phone."""
+    conversation_id: Optional[str] = Field(None, description="Conversation ID")
+    customer_phone: Optional[str] = Field(None, description="Customer phone number (WhatsApp ID)")
     text_content: str = Field(..., min_length=1, max_length=496, description="Message text")
     reply_to_message_id: Optional[str] = Field(None, description="Message ID to reply to")
+
+    @model_validator(mode='after')
+    def require_conversation_id_or_phone(self):
+        if not self.conversation_id and not self.customer_phone:
+            raise ValueError("Either conversation_id or customer_phone must be provided.")
+        return self
 
 class TemplateMessageSend(BaseModel):
     """Schema for sending a template message."""

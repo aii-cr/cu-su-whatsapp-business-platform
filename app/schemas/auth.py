@@ -14,7 +14,7 @@ class LoginRequest(BaseModel):
     remember_me: bool = Field(default=False, description="Extended session duration")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "agent@company.com",
                 "password": "securepassword123",
@@ -31,7 +31,7 @@ class LoginResponse(BaseModel):
     user: dict = Field(..., description="User information")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
                 "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -50,7 +50,7 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., description="JWT refresh token")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
             }
@@ -69,7 +69,7 @@ class PasswordChangeRequest(BaseModel):
     confirm_password: str = Field(..., min_length=8, description="Password confirmation")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "current_password": "oldpassword123",
                 "new_password": "newpassword123",
@@ -82,7 +82,7 @@ class PasswordResetRequest(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "user@company.com"
             }
@@ -99,7 +99,7 @@ class TwoFactorAuthRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=6, description="2FA code")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "code": "123456"
             }
@@ -115,7 +115,7 @@ class RegisterRequest(BaseModel):
     role_ids: List[str] = Field(default_factory=list, description="Role IDs")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "John Doe",
                 "email": "john.doe@company.com",

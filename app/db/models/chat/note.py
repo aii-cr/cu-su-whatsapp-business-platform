@@ -137,7 +137,7 @@ class Note(BaseModel):
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "content": "Customer mentioned they prefer morning calls between 9-11 AM",
                 "note_type": "customer_info",

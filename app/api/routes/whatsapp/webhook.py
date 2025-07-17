@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.schemas.whatsapp import (
     WebhookChallenge, WhatsAppWebhookPayload, ProcessedWebhookData,
@@ -196,7 +196,7 @@ async def process_webhook_payload(
         await db.webhook_logs.insert_one({
             "webhook_id": webhook_id,
             "result": result.dict(),
-            "processed_at": datetime.utcnow()
+            "processed_at": datetime.now(timezone.utc)
         })
         
     except Exception as e:
@@ -233,9 +233,9 @@ async def process_incoming_message(
             "status": "active",
             "priority": "normal",
             "channel": "whatsapp",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            "last_message_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "last_message_at": datetime.now(timezone.utc),
             "message_count": 0,
             "unread_count": 0,
             "tags": [],
@@ -305,9 +305,9 @@ async def process_incoming_message(
         "sender_role": "customer",
         "content": content,
         "status": "received",
-        "timestamp": datetime.fromtimestamp(int(incoming_msg.timestamp)),
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
         "metadata": {
             "business_account_id": business_account_id,
             "phone_number_id": message_data.get("metadata", {}).get("phone_number_id")
@@ -328,8 +328,8 @@ async def process_incoming_message(
         {"_id": conversation_id},
         {
             "$set": {
-                "last_message_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "last_message_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             },
             "$inc": {
                 "message_count": 1,
@@ -362,7 +362,7 @@ async def process_message_status(
     # Update message status
     update_data = {
         "status": message_status.status,
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.now(timezone.utc)
     }
     
     # Add error information if status is failed
@@ -418,7 +418,7 @@ async def test_webhook_connection():
     """
     return {
         "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "webhook_url": f"{settings.WHATSAPP_WEBHOOK_URL}/webhook",
         "verify_token_configured": bool(settings.WHATSAPP_VERIFY_TOKEN)
     } 

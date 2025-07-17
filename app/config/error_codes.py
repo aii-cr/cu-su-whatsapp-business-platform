@@ -59,6 +59,8 @@ class ErrorCode(str, Enum):
     CONVERSATION_ALREADY_CLOSED = "CONV_2102"
     CONVERSATION_TRANSFER_FAILED = "CONV_2103"
     CONVERSATION_INVALID_STATUS = "CONV_2104"
+    CONVERSATION_ALREADY_ACTIVE = "CONV_2105"
+    CONVERSATION_ACCESS_DENIED = "CONV_2106"
     MESSAGE_NOT_FOUND = "MSG_2105"
     MESSAGE_SEND_FAILED = "MSG_2106"
     MESSAGE_INVALID_TYPE = "MSG_2107"
@@ -194,6 +196,16 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Conversation is already closed",
         "status_code": 400,
         "detail": "Cannot perform action on closed conversation"
+    },
+    ErrorCode.CONVERSATION_ALREADY_ACTIVE: {
+        "message": "Conversation is already active",
+        "status_code": 409,
+        "detail": "An active or pending conversation already exists for this customer"
+    },
+    ErrorCode.CONVERSATION_ACCESS_DENIED: {
+        "message": "Access denied to conversation",
+        "status_code": 403,
+        "detail": "You do not have permission to access this conversation"
     },
     ErrorCode.MESSAGE_TOO_LARGE: {
         "message": "Message content exceeds size limit",

@@ -179,7 +179,7 @@ class Message(BaseModel):
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "conversation_id": "60a7c8b9f123456789abcdef",
                 "sender_role": "customer",

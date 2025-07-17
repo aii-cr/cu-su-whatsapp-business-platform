@@ -77,7 +77,7 @@ class User(BaseModel):
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "John Doe",
                 "email": "john.doe@company.com",

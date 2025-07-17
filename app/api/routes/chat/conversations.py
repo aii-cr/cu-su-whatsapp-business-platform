@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
+from pprint import pformat
 
 from app.schemas.chat import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
@@ -28,51 +29,47 @@ async def create_conversation(
     Requires 'conversations:create' permission.
     """
     db = database.db
-    
+    logger.info(f"[create_conversation] Received payload: {pformat(conversation_data.model_dump())}")
+    logger.info(f"[create_conversation] Current user: {pformat(current_user.model_dump())}")
     try:
-        # Check if active conversation already exists for this customer
+        logger.info("[create_conversation] Checking for existing active conversation...")
         existing_conversation = await db.conversations.find_one({
             "customer_phone": conversation_data.customer_phone,
             "status": {"$in": ["active", "pending"]}
         })
-        
         if existing_conversation:
+            logger.warning(f"[create_conversation] Active conversation already exists: {pformat(existing_conversation)}")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=ErrorCode.CONVERSATION_ALREADY_ACTIVE
             )
-        
-        # Prepare conversation data
-        conversation_dict = conversation_data.dict()
+        logger.info("[create_conversation] Preparing conversation data for insert...")
+        conversation_dict = conversation_data.model_dump()
         conversation_dict.update({
             "status": "pending",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "message_count": 0,
             "unread_count": 0,
-            "created_by": current_user["_id"]
+            "created_by": current_user.id
         })
-        
-        # Insert conversation
+        logger.info(f"[create_conversation] Inserting conversation: {pformat(conversation_dict)}")
         result = await db.conversations.insert_one(conversation_dict)
-        
-        # Fetch created conversation
+        logger.info(f"[create_conversation] Inserted conversation with id: {result.inserted_id}")
         created_conversation = await db.conversations.find_one({"_id": result.inserted_id})
-        
-        # Log conversation creation
+        logger.info(f"[create_conversation] Created conversation: {pformat(created_conversation)}")
         log_conversation_event(
             "created", 
             str(result.inserted_id),
             customer_phone=conversation_data.customer_phone,
-            created_by=str(current_user["_id"])
+            created_by=str(current_user.id)
         )
-        
         return ConversationResponse(**created_conversation)
-        
-    except HTTPException:
+    except HTTPException as he:
+        logger.error(f"[create_conversation] HTTPException: {he.detail}")
         raise
     except Exception as e:
-        logger.error(f"Failed to create conversation: {str(e)}")
+        logger.error(f"[create_conversation] Exception: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorCode.INTERNAL_SERVER_ERROR
@@ -194,10 +191,10 @@ async def update_conversation(
         )
     
     # Prepare update data
-    update_data = conversation_update.dict(exclude_unset=True)
+    update_data = conversation_update.model_dump(exclude_unset=True)
     if update_data:
-        update_data["updated_at"] = datetime.utcnow()
-        update_data["updated_by"] = current_user["_id"]
+        update_data["updated_at"] = datetime.now(timezone.utc)
+        update_data["updated_by"] = current_user.id
         
         result = await db.conversations.update_one(
             {"_id": conversation_obj_id},
@@ -214,7 +211,7 @@ async def update_conversation(
         log_conversation_event(
             "updated",
             conversation_id,
-            updated_by=str(current_user["_id"]),
+            updated_by=str(current_user.id),
             changes=list(update_data.keys())
         )
     

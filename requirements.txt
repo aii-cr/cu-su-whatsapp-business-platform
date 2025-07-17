@@ -1,165 +1,233 @@
-# FastAPI and server dependencies
-fastapi==0.115.5
-uvicorn[standard]==0.34.0
-gunicorn==23.0.0
-starlette==0.41.3
-
-# Database dependencies (MongoDB)
-motor==3.6.0
-pymongo==4.9.2
-dnspython==2.7.0
-
-# Authentication and security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+aiofiles==24.1.0
+aiohappyeyeballs==2.6.1
+aiohttp==3.12.14
+aioredis==2.0.1
+aiosignal==1.4.0
+aiosmtplib==4.0.1
+amqp==5.3.1
+annotated-types==0.7.0
+anyio==4.6.2.post1
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
+arrow==1.3.0
+asttokens==3.0.0
+async-lru==2.0.5
+async-timeout==5.0.1
+attrs==25.3.0
+babel==2.17.0
+backports-datetime-fromisoformat==2.0.3
+backports.asyncio.runner==1.2.0
+backrefs==5.9
 bcrypt==4.2.1
-python-multipart==0.0.9
-
-# Configuration and environment
+beautifulsoup4==4.13.4
+bidict==0.23.1
+billiard==4.2.1
+black==25.1.0
+bleach==6.2.0
+cachetools==6.1.0
+celery==5.5.3
+certifi==2024.12.14
+cffi==1.17.1
+cfgv==3.4.0
+chardet==5.2.0
+charset-normalizer==3.4.1
+click==8.1.7
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+colorama==0.4.6
+comm==0.2.2
+coverage==7.9.2
+cryptography==45.0.5
+cssselect==1.3.0
+cssutils==2.11.1
+debugpy==1.8.12
+decorator==5.1.1
+defusedxml==0.7.1
+Deprecated==1.2.18
+distlib==0.3.9
+dnspython==2.7.0
+ecdsa==0.19.0
+email_validator==2.2.0
+emails==0.6
+et_xmlfile==2.0.0
+exceptiongroup==1.2.2
+executing==2.2.0
+factory_boy==3.3.3
+Faker==37.4.2
+fastapi==0.115.5
+fastapi-cache2==0.2.2
+fastapi-limiter==0.1.6
+fastapi-users==14.0.1
+fastjsonschema==2.21.1
+filelock==3.18.0
+filetype==1.2.0
+fqdn==1.5.1
+frozenlist==1.7.0
+ghp-import==2.1.0
+gunicorn==23.0.0
+h11==0.14.0
+h2==4.1.0
+hpack==4.1.0
+httpcore==1.0.7
+httpx==0.28.1
+hyperframe==6.1.0
+identify==2.6.12
+idna==3.10
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
+iniconfig==2.1.0
+ipdb==0.13.13
+ipykernel==6.29.5
+ipython==8.31.0
+ipywidgets==8.1.7
+isoduration==20.11.0
+jedi==0.19.2
+Jinja2==3.1.6
+joblib==1.5.1
+json5==0.12.0
+jsonpointer==3.0.0
+jsonschema==4.24.0
+jsonschema-specifications==2025.4.1
+jupyter==1.1.1
+jupyter-console==6.6.3
+jupyter-events==0.12.0
+jupyter-lsp==2.2.5
+jupyter_client==8.6.3
+jupyter_core==5.7.2
+jupyter_server==2.16.0
+jupyter_server_terminals==0.5.3
+jupyterlab==4.4.4
+jupyterlab_pygments==0.3.0
+jupyterlab_server==2.27.3
+jupyterlab_widgets==3.0.15
+kombu==5.5.4
+langdetect==1.0.9
+limits==5.4.0
+lxml==6.0.0
+makefun==1.16.0
+Markdown==3.8.2
+MarkupSafe==3.0.2
+marshmallow==4.0.0
+matplotlib-inline==0.1.7
+memory-profiler==0.61.0
+mergedeep==1.3.4
+mistune==3.1.3
+mkdocs==1.6.1
+mkdocs-get-deps==0.2.0
+mkdocs-material==9.6.15
+mkdocs-material-extensions==1.3.1
+more-itertools==10.7.0
+motor==3.6.0
+moviepy==2.2.1
+multidict==6.6.3
+mypy==1.17.0
+mypy_extensions==1.1.0
+nbclient==0.10.2
+nbconvert==7.16.6
+nbformat==5.10.4
+nest-asyncio==1.6.0
+nltk==3.9.1
+nodeenv==1.9.1
+notebook==7.4.4
+notebook_shim==0.2.4
+numpy==2.2.6
+opencv-python-headless==4.12.0.88
+openpyxl==3.1.5
+orjson==3.11.0
+overrides==7.7.0
+packaging==24.2
+paginate==0.5.7
+pandas==2.3.1
+pandocfilters==1.5.1
+parso==0.8.4
+passlib==1.7.4
+pathspec==0.12.1
+pendulum==3.1.0
+pexpect==4.9.0
+phonenumbers==9.0.9
+pillow==11.3.0
+platformdirs==4.3.6
+pluggy==1.6.0
+pre_commit==4.2.0
+premailer==3.10.0
+proglog==0.1.12
+prometheus_client==0.22.1
+prompt_toolkit==3.0.50
+propcache==0.3.2
+psutil==6.1.1
+ptyprocess==0.7.0
+pure_eval==0.2.3
+pwdlib==0.2.1
+pyasn1==0.6.1
+pycparser==2.22
 pydantic==2.10.6
 pydantic-settings==2.7.1
 pydantic_core==2.27.2
-python-dotenv==1.0.1
-
-# HTTP client for WhatsApp API
-httpx==0.28.1
-requests==2.32.3
-aiohttp==3.10.10
-
-# WebSocket support
-websockets==13.1
-python-socketio==5.11.2
-
-# Redis for caching and sessions
-redis==5.2.0
-aioredis==2.0.1
-
-# Background tasks and job queues
-celery==5.4.0
-kombu==5.4.2
-
-# File handling and media processing
-Pillow==10.4.0
-python-magic==0.4.27
-filetype==1.2.0
-
-# Email sending
-emails==0.6.0
-aiosmtplib==3.0.2
-
-# Validation and data processing
-email-validator==2.2.0
-phonenumbers==8.13.51
-validators==0.34.0
-
-# Date and time handling
+Pygments==2.19.1
+PyJWT==2.10.1
+pymdown-extensions==10.16
+pymongo==4.9.2
+pytest==8.4.1
+pytest-asyncio==1.1.0
+pytest-cov==6.2.1
+pytest-mock==3.14.1
 python-dateutil==2.9.0.post0
-pytz==2024.2
-
-# Logging and monitoring
-structlog==24.4.0
-sentry-sdk[fastapi]==2.19.2
-prometheus-client==0.21.1
-
-# Rate limiting
-slowapi==0.1.9
-limits==3.13.0
-
-# CORS and middleware
-# CORS is handled by FastAPI's built-in CORSMiddleware
-
-# Testing dependencies
-pytest==8.3.4
-pytest-asyncio==0.24.0
-pytest-mock==3.14.0
-pytest-cov==6.0.0
-httpx==0.28.1
-factory-boy==3.3.1
-
-# Development tools
-black==24.10.0
-ruff==0.8.4
-mypy==1.13.0
-pre-commit==4.0.1
-
-# Documentation
-mkdocs==1.6.1
-mkdocs-material==9.5.47
-
-# Encryption and hashing
-cryptography==43.0.3
-argon2-cffi==23.1.0
-
-# Data export and reporting
-openpyxl==3.1.5
-pandas==2.2.3
-reportlab==4.2.5
-
-# Image and video processing
-opencv-python-headless==4.10.0.84
-moviepy==1.0.3
-
-# Text processing and NLP (for sentiment analysis)
-textblob==0.18.0
-langdetect==1.0.9
-
-# Timezone handling
-# zoneinfo is built-in to Python 3.9+
-
-# WebDAV support (for file storage)
-webdavclient3==3.14.6
-
-# Metrics and health checks
-psutil==6.1.1
-
-# Additional utility libraries
-click==8.1.7
-packaging==24.2
-typing_extensions==4.12.2
-idna==3.10
-certifi==2024.12.14
-urllib3==2.3.0
-charset-normalizer==3.4.1
-anyio==4.6.2.post1
-sniffio==1.3.1
-h11==0.14.0
-
-# Development and debugging (optional)
-ipython==8.31.0
-jupyter==1.1.1
-ipdb==0.13.13
-
-# API documentation enhancement
-# redoc is handled by FastAPI's built-in ReDoc support
-
-# Additional FastAPI utilities
-fastapi-limiter==0.1.6
-fastapi-users[sqlalchemy]==13.0.0
-fastapi-cache2==0.2.2
-
-# Data validation utilities
-marshmallow==3.23.1
-
-# File upload utilities
-aiofiles==24.1.0
-
-# XML processing (for some WhatsApp webhook formats)
-lxml==5.3.0
-
-# JSON processing utilities
-orjson==3.10.12
-
-# Compression utilities
-# gzip is built-in to Python
-
-# Base64 and encoding utilities
-# base64 is built-in to Python
-
-# UUID utilities
-# uuid is built-in to Python
-
-# Regular expressions utilities
+python-dotenv==1.0.1
+python-engineio==4.12.2
+python-jose==3.3.0
+python-json-logger==3.3.0
+python-magic==0.4.27
+python-multipart==0.0.20
+python-socketio==5.13.0
+pytz==2025.2
+PyYAML==6.0.2
+pyyaml_env_tag==1.1
+pyzmq==26.2.0
+redis==6.2.0
+referencing==0.36.2
 regex==2024.11.6
-
-# Memory profiling (development)
-memory-profiler==0.61.0
+reportlab==4.4.2
+requests==2.32.3
+rfc3339-validator==0.1.4
+rfc3986-validator==0.1.1
+rpds-py==0.26.0
+rsa==4.9
+ruff==0.12.3
+Send2Trash==1.8.3
+sentry-sdk==2.33.0
+simple-websocket==1.1.0
+six==1.16.0
+slowapi==0.1.9
+sniffio==1.3.1
+soupsieve==2.7
+stack-data==0.6.3
+starlette==0.41.3
+structlog==25.4.0
+terminado==0.18.1
+textblob==0.19.0
+tinycss2==1.4.0
+tomli==2.2.1
+tornado==6.4.2
+tqdm==4.67.1
+traitlets==5.14.3
+types-python-dateutil==2.9.0.20250708
+typing_extensions==4.12.2
+tzdata==2025.2
+uri-template==1.3.0
+urllib3==2.3.0
+uvicorn==0.34.0
+validators==0.35.0
+vine==5.1.0
+virtualenv==20.31.2
+watchdog==6.0.0
+wcwidth==0.2.13
+webcolors==24.11.1
+webdavclient3==3.14.6
+webencodings==0.5.1
+websocket-client==1.8.0
+websockets==15.0.1
+widgetsnbextension==4.0.14
+wrapt==1.17.2
+wsproto==1.2.0
+yarl==1.20.1

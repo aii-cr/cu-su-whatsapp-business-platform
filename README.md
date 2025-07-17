@@ -301,6 +301,47 @@ pytest --cov=app tests/
 - `GET /api/v1/media/{id}` - Get media metadata
 - `GET /api/v1/media/{id}/download` - Download media file
 
+## WhatsApp Message Sending API
+
+### POST /messages/send
+
+Send a WhatsApp message to a customer. You can now provide either a `conversation_id` (to send in an existing conversation) or just a `customer_phone` (to auto-create or reuse a conversation for that customer).
+
+#### Request Payload (Option 1: Use existing conversation)
+```json
+{
+  "conversation_id": "<existing_conversation_id>",
+  "text_content": "Hello!"
+}
+```
+
+#### Request Payload (Option 2: Auto-create or reuse by phone)
+```json
+{
+  "customer_phone": "+1234567890",
+  "text_content": "Hello!"
+}
+```
+
+- If `conversation_id` is omitted, the backend will look up an active/pending conversation for the phone, or create a new one if none exists.
+- The response will always include the used/created `conversation_id`.
+
+#### Response Example
+```json
+{
+  "message": {
+    "conversation_id": "<conversation_id>",
+    "text_content": "Hello!",
+    ...
+  },
+  "whatsapp_response": { ... }
+}
+```
+
+#### Why?
+- This change improves developer experience and reduces the need for manual conversation management in your client/frontend code.
+- You can now send a message to any customer with a single API call, and the backend will handle conversation context for you.
+
 ## 🤝 Contributing
 
 1. Fork the repository

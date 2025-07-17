@@ -144,7 +144,7 @@ class Conversation(BaseModel):
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "customer_phone": "+1234567890",
                 "customer_name": "John Doe",

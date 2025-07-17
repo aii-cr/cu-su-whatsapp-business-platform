@@ -10,7 +10,7 @@ Routes are organized into logical categories:
 """
 
 from fastapi import APIRouter
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import route modules
 from .auth.users import router as users_router
@@ -50,7 +50,7 @@ async def health_check():
     
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
         "database": database_status,

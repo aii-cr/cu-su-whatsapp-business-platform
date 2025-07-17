@@ -17,6 +17,8 @@ from .message import (
     MessageSearchParams, MessageExportRequest, QuickReply, MessageReaction,
     WhatsAppWebhookMessage
 )
+from .message_in import *
+from .message_out import *
 
 from .media import (
     MediaUpload, MediaUpdate, MediaResponse, MediaListResponse,

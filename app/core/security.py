@@ -3,7 +3,7 @@ Security utilities for JWT authentication and RBAC authorization.
 Provides password hashing, token generation/validation, and permission checking.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Union
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -74,7 +74,7 @@ def create_access_token(
         Encoded JWT token string
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire, "type": "access"})
     
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -95,7 +95,7 @@ def create_refresh_token(
         Encoded JWT refresh token string
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
     to_encode.update({"exp": expire, "type": "refresh"})
     
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -120,7 +120,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, A
             return None
             
         # Check expiration
-        if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp", 0)):
+        if datetime.now(timezone.utc) > datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc):
             return None
             
         return payload
@@ -191,7 +191,7 @@ async def get_current_user(token_data: TokenData = Depends(get_current_user_toke
         HTTPException: If user not found or inactive
     """
     from app.db.client import database
-    from app.db.models import User, UserStatus
+    from app.db.models.auth.user import User, UserStatus
     
     try:
         user_id = ObjectId(token_data.user_id)
@@ -427,3 +427,4 @@ RequireConversationAccess = require_permissions(["conversations.read"])
 RequireMessageSend = require_permissions(["messages.create"])
 RequireMediaUpload = require_permissions(["media.upload"])
 RequireSystemAdmin = require_permissions(["system.admin"])
+

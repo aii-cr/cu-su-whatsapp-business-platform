@@ -114,7 +114,7 @@ class Department(BaseModel):
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "customer_service",
                 "display_name": "Customer Service",

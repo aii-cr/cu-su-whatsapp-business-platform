@@ -20,7 +20,7 @@ from app.core.security import (
 from app.db.models.auth import User
 from app.db.client import database
 from app.config.error_codes import ErrorCode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -51,8 +51,8 @@ async def register_user(
     user_dict["password_hash"] = hashed_password
     user_dict["status"] = "active"
     user_dict["is_active"] = True
-    user_dict["created_at"] = datetime.utcnow()
-    user_dict["updated_at"] = datetime.utcnow()
+    user_dict["created_at"] = datetime.now(timezone.utc)
+    user_dict["updated_at"] = datetime.now(timezone.utc)
     
     result = await db.users.insert_one(user_dict)
     
@@ -75,16 +75,13 @@ async def login_user(user_credentials: UserLogin):
             detail=ErrorCode.INVALID_CREDENTIALS
         )
     
-    if not user["is_active"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ErrorCode.USER_INACTIVE
-        )
+    if user.get("status") != "active":
+        raise HTTPException(...)
     
     # Update last login
     await db.users.update_one(
         {"_id": user["_id"]},
-        {"$set": {"last_login": datetime.utcnow()}}
+        {"$set": {"last_login": datetime.now(timezone.utc)}}
     )
     
     # Create tokens
@@ -196,7 +193,7 @@ async def update_current_user_profile(
     # Prepare update data
     update_data = user_update.dict(exclude_unset=True)
     if update_data:
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now(timezone.utc)
         
         result = await db.users.update_one(
             {"_id": current_user["_id"]},
@@ -236,7 +233,7 @@ async def change_user_password(
         {"_id": current_user["_id"]},
         {"$set": {
             "password_hash": new_password_hash,
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         }}
     )
     
@@ -358,7 +355,7 @@ async def update_user(
     # Prepare update data
     update_data = user_update.dict(exclude_unset=True)
     if update_data:
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = datetime.now(timezone.utc)
         
         result = await db.users.update_one(
             {"_id": user_obj_id},
@@ -400,7 +397,7 @@ async def delete_user(
         {"$set": {
             "is_active": False,
             "status": "deleted",
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.now(timezone.utc)
         }}
     )
     
@@ -444,7 +441,7 @@ async def get_user_statistics(
     users_by_department = {item["_id"][0] if item["_id"] else "Unassigned": item["count"] for item in dept_stats}
     
     # Get recent logins (last 24 hours)
-    yesterday = datetime.utcnow() - timedelta(days=1)
+    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
     recent_logins = await db.users.count_documents({
         "last_login": {"$gte": yesterday}
     })

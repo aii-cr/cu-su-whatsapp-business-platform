@@ -3,7 +3,7 @@
 import logging
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from pathlib import Path
 
@@ -14,7 +14,7 @@ class JSONFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -39,6 +39,55 @@ class JSONFormatter(logging.Formatter):
         
         return json.dumps(log_entry, default=str)
 
+class ConsoleFormatter(logging.Formatter):
+    """Human-friendly formatter for console output with colors and line breaks."""
+    
+    # ANSI color codes
+    COLORS = {
+        'DEBUG': '\033[36m',    # Cyan
+        'INFO': '\033[32m',     # Green
+        'WARNING': '\033[33m',  # Yellow
+        'ERROR': '\033[31m',    # Red
+        'CRITICAL': '\033[35m', # Magenta
+        'RESET': '\033[0m',     # Reset
+        'BOLD': '\033[1m',      # Bold
+        'DIM': '\033[2m',       # Dim
+    }
+    
+    def format(self, record: logging.LogRecord) -> str:
+        # Get color for log level
+        level_color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
+        reset_color = self.COLORS['RESET']
+        
+        # Format timestamp
+        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).strftime('%H:%M:%S')
+        
+        # Format the main message
+        formatted = f"{self.COLORS['DIM']}{timestamp}{reset_color} "
+        formatted += f"{level_color}{record.levelname:8}{reset_color} "
+        formatted += f"{self.COLORS['BOLD']}{record.module}.{record.funcName}:{record.lineno}{reset_color} "
+        formatted += f"{record.getMessage()}"
+        
+        # Add extra fields if present (API requests, responses, etc.)
+        extra_fields = []
+        for key, value in record.__dict__.items():
+            if key not in {
+                'name', 'msg', 'args', 'levelname', 'levelno', 'pathname', 
+                'filename', 'module', 'exc_info', 'exc_text', 'stack_info',
+                'lineno', 'funcName', 'created', 'msecs', 'relativeCreated',
+                'thread', 'threadName', 'processName', 'process', 'getMessage'
+            }:
+                extra_fields.append(f"{key}={value}")
+        
+        if extra_fields:
+            formatted += f"\n{self.COLORS['DIM']}  └─ {', '.join(extra_fields)}{reset_color}"
+        
+        # Add exception info if present
+        if record.exc_info:
+            formatted += f"\n{self.COLORS['ERROR']}{self.formatException(record.exc_info)}{reset_color}"
+        
+        return formatted
+
 def setup_logging():
     """Configure application logging."""
     
@@ -53,22 +102,13 @@ def setup_logging():
     # Clear existing handlers
     root_logger.handlers.clear()
     
-    # Create formatters
-    if settings.LOG_FORMAT.lower() == "json":
-        formatter = JSONFormatter()
-    else:
-        formatter = logging.Formatter(
-            fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S"
-        )
-    
-    # Console handler
+    # Console handler with human-friendly formatter
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(ConsoleFormatter())
     console_handler.setLevel(logging.INFO)
     root_logger.addHandler(console_handler)
     
-    # File handler with rotation
+    # File handler with JSON formatter for structured logging
     try:
         from logging.handlers import RotatingFileHandler
         file_handler = RotatingFileHandler(
@@ -76,7 +116,7 @@ def setup_logging():
             maxBytes=10 * 1024 * 1024,  # 10MB
             backupCount=5
         )
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(JSONFormatter())
         file_handler.setLevel(getattr(logging, settings.LOG_LEVEL.upper()))
         root_logger.addHandler(file_handler)
     except Exception as e:
