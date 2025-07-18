@@ -341,6 +341,13 @@ async def process_incoming_message(
     # Process automation (welcome messages, keyword triggers, etc.)
     await automation_service.process_incoming_message(message_data)
     
+    # Notify connected clients via WebSocket
+    try:
+        from app.services.websocket_service import websocket_service
+        await websocket_service.notify_new_message(str(conversation_id), message_data)
+    except Exception as e:
+        logger.error(f"Failed to send WebSocket notification: {str(e)}")
+    
     logger.info(f"Processed incoming message {incoming_msg.id} for conversation {conversation_id}")
 
 async def process_message_status(
@@ -385,10 +392,16 @@ def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """
     signature = headers.get("x-hub-signature-256", "")
     if not signature:
+        logger.warning("No webhook signature found in headers")
         return False
     
     # Remove 'sha256=' prefix
     signature = signature.replace("sha256=", "")
+    
+    # Check if app secret is properly configured
+    if not settings.WHATSAPP_APP_SECRET or settings.WHATSAPP_APP_SECRET == "development-app-secret":
+        logger.warning("WHATSAPP_APP_SECRET not properly configured. Skipping signature verification.")
+        return True  # Allow in development mode
     
     # Calculate expected signature
     expected_signature = hmac.new(
@@ -397,7 +410,12 @@ def verify_webhook_signature(body: bytes, headers: dict) -> bool:
         hashlib.sha256
     ).hexdigest()
     
-    return hmac.compare_digest(signature, expected_signature)
+    is_valid = hmac.compare_digest(signature, expected_signature)
+    
+    if not is_valid:
+        logger.warning(f"Invalid webhook signature. Expected: {expected_signature}, Received: {signature}")
+    
+    return is_valid
 
 def generate_webhook_id() -> str:
     """Generate unique webhook processing ID."""

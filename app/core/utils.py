@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.core.logger import logger
 
 WHATSAPP_API_BASE_URL = "https://graph.facebook.com"
-WHATSAPP_API_VERSION = "v21.0"  # Update to latest Meta API version
+WHATSAPP_API_VERSION = "v22.0"  # Update to latest Meta API version
 WHATSAPP_ACCESS_TOKEN = settings.WHATSAPP_ACCESS_TOKEN
 
 async def send_whatsapp_template_message(to_number: str, template_name: str, language_code: str = "en_US"):

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     WHATSAPP_BUSINESS_ID: str
     WHATSAPP_PHONE_NUMBER_ID: str
     WHATSAPP_WEBHOOK_URL: str = "https://your-domain.com/api/v1/whatsapp"
-    WHATSAPP_API_VERSION: str = "v21.0"
+    WHATSAPP_API_VERSION: str = "v22.0"
     WHATSAPP_BASE_URL: str = "https://graph.facebook.com"
     
     # WhatsApp Media Settings

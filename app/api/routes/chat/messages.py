@@ -206,6 +206,13 @@ async def send_message(
             sent_by=str(current_user.id)
         )
         
+        # ===== WEBSOCKET NOTIFICATION =====
+        try:
+            from app.services.websocket_service import websocket_service
+            await websocket_service.notify_new_message(conversation_id, created_message)
+        except Exception as e:
+            logger.error(f"Failed to send WebSocket notification: {str(e)}")
+        
         # ===== RESPONSE =====
         created_message = await db.messages.find_one({"_id": result.inserted_id})
         logger.info(f"🎉 [SEND_MESSAGE] Successfully completed for conversation {conversation_id}")

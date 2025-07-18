@@ -17,6 +17,7 @@ from .auth.users import router as users_router
 from .whatsapp.webhook import router as webhook_router
 from .chat.conversations import router as conversations_router
 from .chat.messages import router as messages_router
+from .websocket import router as websocket_router
 
 # Create main API router
 api_router = APIRouter()
@@ -30,6 +31,9 @@ api_router.include_router(webhook_router)
 # Include chat routes
 api_router.include_router(conversations_router)
 api_router.include_router(messages_router)
+
+# Include WebSocket routes
+api_router.include_router(websocket_router)
 
 # Health check endpoint
 @api_router.get("/health")
