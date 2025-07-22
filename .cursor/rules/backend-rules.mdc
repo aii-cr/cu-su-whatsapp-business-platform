@@ -30,7 +30,7 @@
 [API Documentation]
  - Write clear FastAPI docstrings for each endpoint, parameter, and response model so `/docs` (Swagger UI) is comprehensive.  
  - After each feature, update `README.md` with new endpoints, usage examples, and required env vars.
-
+ 
 [Audit Trail]
  - Log every chat activity—transfers, notes, participant changes—to an `audit_logs` collection via a dedicated service, including timestamps and user IDs.
 

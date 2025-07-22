@@ -65,10 +65,12 @@ async def health_check():
     }
 
 # TODO: Add these routes as they are implemented
+# from .whatsapp.media import router as media_router
 # from .business.departments import router as departments_router
 # from .business.company import router as company_router
 # from .system.audit import router as audit_router
 
+# api_router.include_router(media_router, prefix="/media")
 # api_router.include_router(departments_router, prefix="/departments")
 # api_router.include_router(company_router, prefix="/company")
 # api_router.include_router(audit_router, prefix="/system")

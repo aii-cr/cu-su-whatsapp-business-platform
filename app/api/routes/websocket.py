@@ -39,6 +39,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
+        
 
 async def handle_websocket_message(user_id: str, message: dict):
     """

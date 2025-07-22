@@ -2,7 +2,6 @@
 Main FastAPI application for WhatsApp Business Platform Backend.
 Production-ready configuration with comprehensive middleware, error handling, and API routes.
 """
-
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -28,6 +27,7 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for FastAPI application.
     Handles startup and shutdown events.
     """
+    
     # Startup
     logger.info("Starting WhatsApp Business Platform Backend")
     

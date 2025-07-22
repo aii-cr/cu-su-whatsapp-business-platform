@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime, timezone
 from bson import ObjectId
 
-from app.core.security import require_permissions
+from app.services.auth import require_permissions
 from app.db.models.auth import User
 from app.db.client import database
 from app.config.error_codes import ErrorCode
@@ -13,7 +13,9 @@ from app.schemas.whatsapp.chat.message_in import MessageSend
 from app.schemas.whatsapp.chat.message_out import MessageSendResponse, MessageResponse
 from app.services.whatsapp.whatsapp_service import WhatsAppService
 
-router = APIRouter(prefix="/messages", tags=["WhatsApp Messages"])
+router = APIRouter()
+
+# Initialize WhatsApp service
 whatsapp_service = WhatsAppService()
 
 @router.post("/send", response_model=MessageSendResponse, status_code=status.HTTP_201_CREATED)
@@ -115,10 +117,12 @@ async def send_message(
         logger.info(f"📋 [SEND_MESSAGE] Using conversation: {conversation_id} (Status: {conversation.get('status')}, Phone: {conversation.get('customer_phone')})")
         
         # ===== PERMISSION CHECK =====
+        from app.services.auth import check_user_permission
+        
         if (conversation.get("assigned_agent_id") != current_user.id and 
             conversation.get("created_by") != current_user.id and
             not current_user.is_super_admin and
-            not await has_permission(current_user, "messages:send_all")):
+            not await check_user_permission(current_user.id, "messages:send_all")):
             logger.warning(f"🚫 [SEND_MESSAGE] Access denied for user {current_user.id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -219,25 +223,4 @@ async def send_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorCode.INTERNAL_SERVER_ERROR
-        )
-
-
-async def has_permission(user: User, permission: str) -> bool:
-    """
-    Check if user has specific permission.
-    This is a simplified check - you should implement proper RBAC
-    """
-    user_roles = await database.db.roles.find(
-        {"_id": {"$in": user.role_ids}}
-    ).to_list(None)
-    
-    for role in user_roles:
-        role_permissions = await database.db.permissions.find(
-            {"_id": {"$in": role.get("permission_ids", [])}}
-        ).to_list(None)
-        
-        for perm in role_permissions:
-            if perm.get("key") == permission:
-                return True
-    
-    return False 
+        ) 
