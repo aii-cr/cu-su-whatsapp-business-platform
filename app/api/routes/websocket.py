@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timezone
 
 from app.core.logger import logger
-from app.services.websocket_service import manager, websocket_service
+from app.services.websocket.websocket_service import manager, websocket_service
 from app.db.client import database
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])

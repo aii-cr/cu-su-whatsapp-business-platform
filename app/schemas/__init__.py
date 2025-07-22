@@ -3,34 +3,30 @@ Comprehensive request/response schemas package with organized submodules.
 
 Schemas are organized into logical categories:
 - auth: Authentication and authorization schemas
-- chat: Messaging and conversation schemas  
+- whatsapp: WhatsApp integration and chat schemas  
 - business: Organization and company schemas
 - system: System and compliance schemas
-- whatsapp: WhatsApp API integration schemas
 """
 
 # Import from organized subpackages
 from .auth import *
-from .chat import *
+from .whatsapp import *
 from .business import *
 from .system import *
-from .whatsapp import *
 
 # Re-export commonly used schemas
 from .auth import (
     UserRegister, UserLogin, UserResponse, TokenResponse,
     RoleCreate, RoleResponse, PermissionResponse
 )
-from .chat import (
+from .whatsapp import (
     ConversationCreate, ConversationResponse, ConversationListResponse,
     MessageCreate, MessageResponse, MessageListResponse,
-    MediaUpload, MediaResponse, TagCreate, TagResponse, NoteCreate, NoteResponse
+    MediaUpload, MediaResponse, TagCreate, TagResponse, NoteCreate, NoteResponse,
+    WhatsAppWebhookPayload, IncomingMessage, OutboundMessageRequest, WebhookChallenge
 )
 from .business import (
     DepartmentCreate, DepartmentResponse, CompanyProfileUpdate, CompanyProfileResponse
-)
-from .whatsapp import (
-    WhatsAppWebhookPayload, IncomingMessage, OutboundMessageRequest, WebhookChallenge
 )
 
 # Common response schemas
@@ -46,9 +42,10 @@ class SuccessResponse(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response."""
     success: bool = False
-    error_code: str
-    error_message: str
+    error: str
+    message: str
     details: Optional[Dict[str, Any]] = None
+    timestamp: str
 
 class PaginatedResponse(BaseModel):
     """Standard paginated response."""

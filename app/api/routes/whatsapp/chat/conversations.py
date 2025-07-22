@@ -6,7 +6,7 @@ from bson import ObjectId
 from datetime import datetime, timezone
 from pprint import pformat
 
-from app.schemas.chat import (
+from app.schemas.whatsapp.chat import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
     ConversationListResponse, ConversationQueryParams, ConversationStatsResponse
 )

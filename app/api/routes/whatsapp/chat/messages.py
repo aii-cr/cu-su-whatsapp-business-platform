@@ -9,18 +9,18 @@ from app.db.models.auth import User
 from app.db.client import database
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger, log_conversation_event
-from app.schemas.chat.message_in import (
+from app.schemas.whatsapp.chat.message_in import (
     MessageSend, TemplateMessageSend, MediaMessageSend, 
     InteractiveMessageSend, LocationMessageSend, ContactMessageSend,
     MessageStatusUpdate, BulkMessageSend
 )
-from app.schemas.chat.message_out import (
+from app.schemas.whatsapp.chat.message_out import (
     MessageResponse, MessageListResponse, MessageStatsResponse,
     MessageSendResponse, TemplateListResponse
 )
 from app.db.models.base import PyObjectId
 from app.core.utils import send_whatsapp_template_message
-from app.services.whatsapp_service import WhatsAppService
+from app.services.whatsapp.whatsapp_service import WhatsAppService
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -208,7 +208,7 @@ async def send_message(
         
         # ===== WEBSOCKET NOTIFICATION =====
         try:
-            from app.services.websocket_service import websocket_service
+            from app.services.websocket.websocket_service import websocket_service
             await websocket_service.notify_new_message(conversation_id, created_message)
         except Exception as e:
             logger.error(f"Failed to send WebSocket notification: {str(e)}")

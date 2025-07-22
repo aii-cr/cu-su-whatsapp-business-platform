@@ -1,8 +1,3 @@
----
-description: FastAPI Backend Rules to Follow 
-globs:
-alwaysApply: true
----
 ## Rules to Follow
 
 [Configuration Management]
@@ -47,3 +42,17 @@ alwaysApply: true
 
 [Docker & Dependencies]
  - After modifying dependencies, run automated checks to confirm `Dockerfile` and `docker-compose.yml` continue to build and deploy correctly.
+
+[Documentation Maintenance]
+ - Whenever a change, new feature, or structural update is made that affects documentation, always update the relevant files: `README.md`, `WEBHOOK_SETUP_GUIDE.md`, and `WHATSAPP_SETUP_GUIDE.md` to ensure they remain accurate and up to date.
+
+[Index Maintenance]
+ - Whenever you add, remove, or modify MongoDB models or make structural changes to the database, update the indexes in `app/db/client.py` accordingly. Ensure new fields are indexed as needed for performance, and remove or adjust indexes that are no longer required or could cause conflicts.
+
+[File & Folder Organization]
+ - Place new models in the appropriate subfolder under `app/db/models/` based on their feature or domain. If a relevant subfolder does not exist, create a new one.
+ - Place new request and response schemas in the correct subfolder under `app/schemas/` according to their feature or endpoint. Create a new subfolder if needed.
+ - Place new route files in the appropriate subfolder under `app/api/routes/` by feature. If a suitable subfolder does not exist, create one.
+
+[Route File Size & Specificity]
+ - Each route file in `app/api/routes/` should contain only one endpoint. Avoid large files with multiple endpoints; instead, create more specific route files under the correct subfolder to keep files small and focused.

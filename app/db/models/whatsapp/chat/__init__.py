@@ -1,4 +1,4 @@
-"""Chat and messaging models package."""
+"""WhatsApp chat and messaging models package."""
 
 from .conversation import Conversation
 from .message import Message

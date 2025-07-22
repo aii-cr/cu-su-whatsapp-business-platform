@@ -1,4 +1,4 @@
-"""Chat and messaging schemas package."""
+"""WhatsApp chat and messaging schemas package."""
 
 from .conversation import (
     ConversationCreate, ConversationUpdate, ConversationTransfer, ConversationClose,

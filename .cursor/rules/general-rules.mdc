@@ -1,13 +1,8 @@
----
-description: General rules for the project.
-globs:
-alwaysApply: true
----
 ## Rules to Follow
 
 [Version Control]
- - Create a new branch for every complete feature using the prefix `feature/<short-description>` (or `bugfix/`, `hotfix/`, `release/`), following Git Flow conventions.  
- - Write detailed, imperative-mood commit messages referencing issue or ticket IDs; summarize **what** and **why** in ≤50 characters.
+ - Always create a new branch for every distinct fix or new feature using the prefix `feature/<short-description>`, `bugfix/`, `hotfix/`, or `release/`, following Git Flow conventions. If multiple queries or changes are related to the same ongoing feature, continue using the same branch; otherwise, start a new branch.
+ - Make a commit for every change, referencing issue or ticket IDs, and summarizing **what** and **why** in ≤50 characters using the imperative mood.
 
 [Configuration Management]
  - Centralize **all** mutable settings (tokens, IDs, URIs, timeouts, feature flags) in `core/config.py` via Pydantic `BaseSettings`, loading from `.env`.  
@@ -24,6 +19,11 @@ alwaysApply: true
 [Containerization & Deployment]
  - Use a multi-stage `Dockerfile` (slim base, non-root user, cached dependencies) and maintain `docker-compose.yml` for local dev.  
  - On each dependency or code change, verify Docker images build and containers start successfully.
+
+[Lessons Learned & Continuous Improvement]
+ - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  
+ - After adding/updating any dependency, confirm that Docker, CI, and local runs remain green to avoid “works on my machine” issues.
+
 
 [Lessons Learned & Continuous Improvement]
  - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  

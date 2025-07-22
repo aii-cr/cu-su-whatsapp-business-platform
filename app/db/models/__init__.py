@@ -3,7 +3,7 @@ Database models package with organized submodules.
 
 Models are organized into logical categories:
 - auth: Authentication and authorization models
-- chat: Messaging and conversation models  
+- whatsapp: WhatsApp messaging and conversation models  
 - business: Organization and company models
 - system: System and compliance models
 """
@@ -11,8 +11,8 @@ Models are organized into logical categories:
 # Authentication models
 from .auth import User, Role, Permission
 
-# Chat and messaging models
-from .chat import Conversation, Message, Media, Tag, Note
+# WhatsApp and messaging models
+from .whatsapp import Conversation, Message, Media, Tag, Note
 
 # Business and organizational models
 from .business import Department, CompanyProfile
@@ -24,7 +24,7 @@ __all__ = [
     # Auth models
     "User", "Role", "Permission",
     
-    # Chat models
+    # WhatsApp models
     "Conversation", "Message", "Media", "Tag", "Note",
     
     # Business models

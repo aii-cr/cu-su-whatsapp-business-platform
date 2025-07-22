@@ -17,7 +17,7 @@ from app.schemas import SuccessResponse
 from app.core.config import settings
 from app.db.client import database
 from app.core.logger import logger
-from app.services.automation_service import automation_service
+from app.services.whatsapp.automation_service import automation_service
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])
 
@@ -343,7 +343,7 @@ async def process_incoming_message(
     
     # Notify connected clients via WebSocket
     try:
-        from app.services.websocket_service import websocket_service
+        from app.services.websocket.websocket_service import websocket_service
         await websocket_service.notify_new_message(str(conversation_id), message_data)
     except Exception as e:
         logger.error(f"Failed to send WebSocket notification: {str(e)}")

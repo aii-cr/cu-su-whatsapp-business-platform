@@ -1,6 +1,6 @@
 from typing import Dict, Any
 from app.db.client import database
-from app.services.whatsapp_service import WhatsAppService
+from .whatsapp_service import WhatsAppService
 from app.core.logger import logger
 
 class AutomationService:
