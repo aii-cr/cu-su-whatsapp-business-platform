@@ -263,6 +263,7 @@ class DatabaseClient:
         """Create indexes for audit_logs collection."""
         collection = self.db.audit_logs
         indexes = [
+            # Original general audit indexes
             IndexModel([("action", ASCENDING)], name="idx_audit_action"),
             IndexModel([("user_id", ASCENDING)], name="idx_audit_user"),
             IndexModel([("resource_type", ASCENDING)], name="idx_audit_resource_type"),
@@ -278,7 +279,30 @@ class DatabaseClient:
                 ("action", ASCENDING), 
                 ("timestamp", DESCENDING)
             ], name="idx_audit_compound"),
-            IndexModel([("description", TEXT)], name="idx_audit_search")
+            IndexModel([("description", TEXT)], name="idx_audit_search"),
+            
+            # New domain-specific WhatsApp Business indexes
+            IndexModel([
+                ("conversation_id", ASCENDING),
+                ("created_at", DESCENDING)
+            ], name="idx_audit_conversation_created"),
+            IndexModel([
+                ("actor_id", ASCENDING),
+                ("created_at", DESCENDING)
+            ], name="idx_audit_actor_created"),
+            IndexModel([
+                ("customer_phone", ASCENDING),
+                ("created_at", DESCENDING)
+            ], name="idx_audit_customer_created"),
+            IndexModel([
+                ("department_id", ASCENDING),
+                ("created_at", DESCENDING)
+            ], name="idx_audit_department_created"),
+            IndexModel([
+                ("action", ASCENDING),
+                ("created_at", DESCENDING)
+            ], name="idx_audit_action_created"),
+            IndexModel([("created_at", DESCENDING)], name="idx_audit_created_at")
         ]
         await collection.create_indexes(indexes)
         logger.info("Created indexes for audit_logs collection")

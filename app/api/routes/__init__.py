@@ -3,20 +3,21 @@ API routes package for the WhatsApp Business Platform.
 
 Routes are organized into logical categories:
 - auth: Authentication and user management routes
-- whatsapp: WhatsApp API integration and chat routes  
+- whatsapp: WhatsApp API integration and chat routes
 - business: Department and company management routes
 - system: System administration and audit routes
 """
 
-from fastapi import APIRouter
 from datetime import datetime, timezone
+
+from fastapi import APIRouter
 
 # Import route modules
 from .auth.users import router as users_router
-from .whatsapp.webhook import router as webhook_router
+from .websocket import router as websocket_router
 from .whatsapp.chat.conversations import router as conversations_router
 from .whatsapp.chat.messages import router as messages_router
-from .websocket import router as websocket_router
+from .whatsapp.webhook import router as webhook_router
 
 # Create main API router
 api_router = APIRouter()
@@ -34,6 +35,7 @@ api_router.include_router(messages_router)
 # Include WebSocket routes
 api_router.include_router(websocket_router)
 
+
 # Health check endpoint
 @api_router.get("/health")
 async def health_check():
@@ -42,7 +44,7 @@ async def health_check():
     """
     from app.core.config import settings
     from app.db.client import database
-    
+
     # Check database connectivity
     try:
         db = database.db
@@ -50,7 +52,7 @@ async def health_check():
         database_status = "healthy"
     except Exception as e:
         database_status = f"unhealthy: {str(e)}"
-    
+
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -61,18 +63,23 @@ async def health_check():
             "whatsapp_api": "configured" if settings.WHATSAPP_ACCESS_TOKEN else "not_configured",
             "mongodb": database_status,
             "redis": "not_implemented",  # TODO: Add Redis health check
-        }
+        },
     }
+
+
+# System routes
+from .system.audit.get_logs import router as audit_router
+
+# Include system routes
+api_router.include_router(audit_router, prefix="/system")
 
 # TODO: Add these routes as they are implemented
 # from .whatsapp.media import router as media_router
 # from .business.departments import router as departments_router
 # from .business.company import router as company_router
-# from .system.audit import router as audit_router
 
 # api_router.include_router(media_router, prefix="/media")
 # api_router.include_router(departments_router, prefix="/departments")
 # api_router.include_router(company_router, prefix="/company")
-# api_router.include_router(audit_router, prefix="/system")
 
-__all__ = ["api_router"] 
+__all__ = ["api_router"]

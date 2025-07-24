@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logger import logger, log_api_request, log_api_response, setup_logging
+from app.core.middleware import setup_middleware
 from app.api.routes import api_router
 from app.db.client import database
 from app.config.error_codes import ErrorCode
@@ -104,6 +105,9 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
+
+# Setup custom middleware (correlation ID, user context)
+setup_middleware(app)
 
 # Request tracking middleware
 @app.middleware("http")
