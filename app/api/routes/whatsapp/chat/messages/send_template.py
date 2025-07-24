@@ -55,10 +55,15 @@ async def send_template_message(
                 detail=ErrorCode.WHATSAPP_API_ERROR
             )
         
+        # Extract WhatsApp message ID from response
+        whatsapp_message_id = None
+        if whatsapp_response.get("messages") and len(whatsapp_response["messages"]) > 0:
+            whatsapp_message_id = whatsapp_response["messages"][0].get("id")
+        
         # Create message record
         message_dict = {
             "conversation_id": ObjectId(template_data.conversation_id),
-            "whatsapp_message_id": whatsapp_response.get("messages", [{}])[0].get("id"),
+            "whatsapp_message_id": whatsapp_message_id,
             "type": "template",
             "direction": "outbound",
             "sender_role": "agent",
@@ -75,10 +80,7 @@ async def send_template_message(
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
             "is_automated": False,
-            "whatsapp_data": {
-                "phone_number_id": whatsapp_response.get("messages", [{}])[0].get("phone_number_id"),
-                "business_account_id": whatsapp_response.get("messages", [{}])[0].get("business_account_id")
-            }
+            "whatsapp_data": whatsapp_response
         }
         
         # Insert message

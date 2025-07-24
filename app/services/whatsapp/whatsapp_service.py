@@ -79,8 +79,88 @@ class WhatsAppService:
         return cleaned
 
     async def send_template_message(self, to_number: str, template_name: str, language_code: str = "en_US", parameters: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
-        logger.info(f"Pretend to send template message '{template_name}' to {to_number}")
-        return {"status": "success"}
+        """
+        Send a template message via WhatsApp Business API.
+        
+        Args:
+            to_number: Recipient phone number
+            template_name: Name of the approved template
+            language_code: Template language code (default: en_US)
+            parameters: List of parameters for template variables
+            
+        Returns:
+            WhatsApp API response or None if failed
+        """
+        # Ensure phone number is in international format
+        formatted_number = self._format_phone_number(to_number)
+        
+        url = f"{self.base_url}/{self.phone_number_id}/messages"
+        
+        # Build template payload
+        template_payload = {
+            "name": template_name,
+            "language": {"code": language_code}
+        }
+        
+        # Add parameters if provided
+        if parameters:
+            template_payload["components"] = []
+            
+            # Group parameters by component type
+            header_params = []
+            body_params = []
+            
+            for param in parameters:
+                if param.get("type") == "header":
+                    header_params.append(param)
+                else:
+                    body_params.append(param)
+            
+            # Add header component if parameters exist
+            if header_params:
+                template_payload["components"].append({
+                    "type": "header",
+                    "parameters": header_params
+                })
+            
+            # Add body component if parameters exist
+            if body_params:
+                template_payload["components"].append({
+                    "type": "body",
+                    "parameters": body_params
+                })
+        
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": formatted_number,
+            "type": "template",
+            "template": template_payload
+        }
+        
+        logger.info(f"[WHATSAPP_API] Sending template message '{template_name}' to {formatted_number} via {url}")
+        logger.info(f"[WHATSAPP_API] Request payload: {payload}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.post(url, headers=self.headers, json=payload)
+                logger.info(f"[WHATSAPP_API] Response status: {response.status_code}")
+                logger.info(f"[WHATSAPP_API] Response body: {response.text}")
+                
+                if response.status_code // 100 != 2:
+                    try:
+                        error_json = response.json()
+                    except Exception:
+                        error_json = None
+                    raise WhatsAppAPIError(response.status_code, response.text, error_json)
+                
+                return response.json()
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"[WHATSAPP_API] HTTP error: {e.response.status_code} - {e.response.text}")
+            raise WhatsAppAPIError(e.response.status_code, e.response.text)
+        except Exception as e:
+            logger.error(f"[WHATSAPP_API] Unexpected error: {str(e)}")
+            raise WhatsAppAPIError(-1, str(e))
 
     async def get_message_templates(self) -> List[Dict[str, Any]]:
         logger.info("Pretend to fetch WhatsApp message templates")
