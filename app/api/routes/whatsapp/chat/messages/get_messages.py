@@ -46,10 +46,10 @@ async def get_conversation_messages(
                 detail=ErrorCode.CONVERSATION_ACCESS_DENIED
             )
         
-        # Get messages
+        # Get messages in chronological order (oldest first)
         messages = await db.messages.find(
             {"conversation_id": ObjectId(conversation_id)}
-        ).sort("timestamp", -1).skip(offset).limit(limit).to_list(limit)
+        ).sort("timestamp", 1).skip(offset).limit(limit).to_list(limit)
         
         # Count total
         total = await db.messages.count_documents(
