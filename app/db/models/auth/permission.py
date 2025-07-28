@@ -167,6 +167,8 @@ SYSTEM_PERMISSIONS = [
      "category": PermissionCategory.CONVERSATION_MANAGEMENT, "action": PermissionAction.TRANSFER, "resource": "conversations"},
     {"key": "conversations.close", "name": "Close Conversations", "description": "Close and resolve conversations", 
      "category": PermissionCategory.CONVERSATION_MANAGEMENT, "action": PermissionAction.UPDATE, "resource": "conversations"},
+    {"key": "conversations.delete", "name": "Delete Conversations", "description": "Delete conversations and all associated data", 
+     "category": PermissionCategory.CONVERSATION_MANAGEMENT, "action": PermissionAction.DELETE, "resource": "conversations"},
     
     # Message Management
     {"key": "messages.create", "name": "Send Messages", "description": "Send messages in conversations", 
