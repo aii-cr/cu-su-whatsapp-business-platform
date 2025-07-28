@@ -74,9 +74,9 @@ class AuditService:
                 "metadata": audit_metadata,
             }
 
-            # Insert with write concern for durability
+            # Insert audit document
             collection: AsyncIOMotorCollection = database.db.audit_logs
-            result = await collection.insert_one(audit_doc, write_concern={"w": 1, "j": True})
+            result = await collection.insert_one(audit_doc)
 
             # Log successful audit entry
             logger.info(
