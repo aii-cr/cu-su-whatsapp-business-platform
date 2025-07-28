@@ -304,6 +304,7 @@ async def process_incoming_message(
         "direction": "inbound",
         "sender_role": "customer",
         "content": content,
+        "text_content": content.get("text") if content and "text" in content else None,
         "status": "received",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "created_at": datetime.now(timezone.utc),

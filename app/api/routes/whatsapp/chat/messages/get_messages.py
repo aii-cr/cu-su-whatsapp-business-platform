@@ -39,6 +39,7 @@ async def get_conversation_messages(
         
         # Check access permissions
         if (conversation.get("assigned_agent_id") != current_user.id and 
+            not current_user.is_super_admin and
             not await check_user_permission(current_user.id, "messages:read_all")):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
