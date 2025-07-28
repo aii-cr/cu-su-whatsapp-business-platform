@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
+from jose import JWTError
 
 from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
@@ -31,7 +32,7 @@ async def get_current_user_token(
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
+                detail=get_error_response(ErrorCode.AUTH_TOKEN_EXPIRED)["message"],
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
@@ -48,6 +49,21 @@ async def get_current_user_token(
             
         return TokenData(user_id=user_id, email=email, scopes=scopes)
         
+    except JWTError as e:
+        logger.error(f"JWT token validation failed: {str(e)}")
+        # Check if it's an expiration error
+        if "expired" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=get_error_response(ErrorCode.AUTH_TOKEN_EXPIRED)["message"],
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     except Exception as e:
         logger.error(f"Token validation failed: {str(e)}")
         raise HTTPException(

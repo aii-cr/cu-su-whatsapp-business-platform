@@ -71,14 +71,12 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, A
         Decoded token payload or None if invalid
     """
     try:
+        # The JWT library automatically validates the 'exp' claim
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         
         # Check token type
         if payload.get("type") != token_type:
-            return None
-            
-        # Check expiration
-        if datetime.now(timezone.utc) > datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc):
+            logger.warning(f"Token type mismatch: expected {token_type}, got {payload.get('type')}")
             return None
             
         return payload
