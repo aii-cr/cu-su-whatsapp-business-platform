@@ -82,26 +82,91 @@ async def handle_webhook(
     try:
         # Verify webhook signature
         body = await request.body()
+        logger.info(f"🔐 [WEBHOOK] Verifying webhook signature")
+        logger.info(f"🔐 [WEBHOOK] Request headers: {dict(request.headers)}")
+        
         if not verify_webhook_signature(body, request.headers):
-            logger.warning("Invalid webhook signature")
+            logger.warning("❌ [WEBHOOK] Invalid webhook signature")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid webhook signature"
             )
         
+        logger.info("✅ [WEBHOOK] Webhook signature verified successfully")
+        
         # Parse webhook payload
         try:
             payload_data = json.loads(body.decode('utf-8'))
+            
+            # Log the full webhook payload
+            logger.info("📥 [WEBHOOK] Received webhook payload:")
+            logger.info(f"📋 [WEBHOOK] Payload size: {len(body)} bytes")
+            logger.info(f"📋 [WEBHOOK] Headers: {dict(request.headers)}")
+            
+            # Pretty print the payload for better readability
+            import pprint
+            formatted_payload = pprint.pformat(payload_data, width=120, depth=10)
+            logger.info(f"📋 [WEBHOOK] Full payload:\n{formatted_payload}")
+            
+            # Log specific webhook details
+            if "entry" in payload_data:
+                entries = payload_data.get("entry", [])
+                logger.info(f"📋 [WEBHOOK] Number of entries: {len(entries)}")
+                
+                for i, entry in enumerate(entries):
+                    logger.info(f"📋 [WEBHOOK] Entry {i+1}:")
+                    logger.info(f"   - Business Account ID: {entry.get('id', 'N/A')}")
+                    
+                    changes = entry.get("changes", [])
+                    logger.info(f"   - Number of changes: {len(changes)}")
+                    
+                    for j, change in enumerate(changes):
+                        field = change.get("field", "unknown")
+                        logger.info(f"   - Change {j+1} field: {field}")
+                        
+                        value = change.get("value", {})
+                        if field == "messages":
+                            messages = value.get("messages", [])
+                            logger.info(f"   - Messages count: {len(messages)}")
+                            
+                            for k, msg in enumerate(messages):
+                                msg_type = msg.get("type", "unknown")
+                                msg_id = msg.get("id", "N/A")
+                                logger.info(f"   - Message {k+1}: type={msg_type}, id={msg_id}")
+                                
+                                if msg_type == "text":
+                                    text_body = msg.get("text", {}).get("body", "N/A")
+                                    logger.info(f"     - Text content: {text_body}")
+                                elif msg_type == "interactive":
+                                    interactive_type = msg.get("interactive", {}).get("type", "N/A")
+                                    logger.info(f"     - Interactive type: {interactive_type}")
+                        
+                        elif field == "statuses":
+                            statuses = value.get("statuses", [])
+                            logger.info(f"   - Statuses count: {len(statuses)}")
+                            
+                            for k, status in enumerate(statuses):
+                                status_type = status.get("status", "unknown")
+                                status_id = status.get("id", "N/A")
+                                logger.info(f"   - Status {k+1}: status={status_type}, id={status_id}")
+            
             webhook_payload = WhatsAppWebhookPayload(**payload_data)
+            
         except Exception as e:
-            logger.error(f"Failed to parse webhook payload: {str(e)}")
+            logger.error(f"❌ [WEBHOOK] Failed to parse webhook payload: {str(e)}")
+            logger.error(f"❌ [WEBHOOK] Raw body: {body.decode('utf-8', errors='ignore')}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid webhook payload format"
             )
+            
+        
         
         # Process webhook in background
         webhook_id = generate_webhook_id()
+        logger.info(f"🔄 [WEBHOOK] Processing webhook {webhook_id} in background")
+        logger.info(f"⏱️ [WEBHOOK] Processing started at: {datetime.now(timezone.utc).isoformat()}")
+        
         background_tasks.add_task(
             process_webhook_payload,
             webhook_id,
@@ -110,12 +175,16 @@ async def handle_webhook(
         )
         
         # Return 200 immediately for Meta
+        logger.info(f"✅ [WEBHOOK] Webhook {webhook_id} queued for processing")
+        logger.info(f"📤 [WEBHOOK] Returning 200 OK to Meta")
         return {"status": "received"}
         
-    except HTTPException:
+    except HTTPException as he:
+        logger.error(f"❌ [WEBHOOK] HTTP Exception raised: {str(he)}")
         raise
     except Exception as e:
-        logger.error(f"Webhook processing error: {str(e)}")
+        logger.error(f"❌ [WEBHOOK] Unexpected webhook processing error: {str(e)}")
+        logger.error(f"❌ [WEBHOOK] Error type: {type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
