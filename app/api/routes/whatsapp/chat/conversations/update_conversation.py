@@ -1,5 +1,3 @@
-"""Update conversation endpoint."""
-
 from datetime import datetime, timezone
 
 from bson import ObjectId
@@ -15,7 +13,6 @@ from app.services.audit.audit_service import AuditService
 from app.services.auth import require_permissions
 
 router = APIRouter()
-
 
 @router.put("/{conversation_id}", response_model=ConversationResponse)
 async def update_conversation(

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     
     # Security Settings
     SECRET_KEY: str = "development-secret-key-change-in-production"  # Default for development
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ALGORITHM: str = "HS256"
     
