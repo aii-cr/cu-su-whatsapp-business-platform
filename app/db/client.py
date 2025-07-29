@@ -359,6 +359,23 @@ class DatabaseClient:
                 "error": str(e)
             }
 
+    async def get_database(self):
+        """Get database instance with connection guarantee."""
+        if not self._connected:
+            await self.connect()
+        return self.db
+    
+    async def __aenter__(self):
+        """Async context manager entry."""
+        if not self._connected:
+            await self.connect()
+        return self.db
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        # Don't disconnect here as it's a global instance
+        pass
+
 
 # Global database client instance
 database = DatabaseClient() 

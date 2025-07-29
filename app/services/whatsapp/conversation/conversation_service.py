@@ -4,16 +4,16 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from bson import ObjectId
 
-from app.db.client import database
+from app.services.base_service import BaseService
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode
 
 
-class ConversationService:
+class ConversationService(BaseService):
     """Service for managing WhatsApp conversations."""
     
     def __init__(self):
-        self.db = database.db
+        super().__init__()
     
     async def create_conversation(
         self,

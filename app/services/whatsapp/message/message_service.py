@@ -4,25 +4,16 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from bson import ObjectId
 
-from app.db.client import database
+from app.services.base_service import BaseService
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode
 
 
-class MessageService:
+class MessageService(BaseService):
     """Service for managing WhatsApp messages."""
     
     def __init__(self):
-        self.db = None  # Will be initialized when needed
-    
-    async def _ensure_db_connection(self):
-        """Ensure database connection is established."""
-        if self.db is None:
-            # Import here to avoid circular imports
-            from app.db.client import database
-            if not database.is_connected:
-                await database.connect()
-            self.db = database.db
+        super().__init__()
     
     async def create_message(
         self,
@@ -73,13 +64,8 @@ class MessageService:
         Returns:
             Created message document
         """
-        # Debug: Check database connection
+        # Ensure database connection
         await self._ensure_db_connection()
-        logger.info(f"Database connection: {self.db}")
-        logger.info(f"Database type: {type(self.db)}")
-        if self.db is None:
-            logger.error("Database connection is None!")
-            raise Exception("Database connection is None")
         
         message_data = {
             "conversation_id": ObjectId(conversation_id),
