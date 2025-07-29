@@ -22,6 +22,12 @@ class MessageResponse(BaseModel):
     location_data: Optional[Dict[str, Any]] = None
     contact_data: Optional[Dict[str, Any]] = None
     status: str  # sent, delivered, read, failed
+    sent_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    read_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
     timestamp: datetime
     created_at: datetime
     updated_at: datetime

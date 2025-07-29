@@ -17,7 +17,9 @@ from app.schemas import SuccessResponse
 from app.core.config import settings
 from app.db.client import database
 from app.core.logger import logger
+from app.services.audit.audit_service import AuditService
 from app.services.whatsapp.automation_service import automation_service
+from app.services.whatsapp.message.message_service import message_service
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])
 
@@ -148,7 +150,19 @@ async def handle_webhook(
                             for k, status in enumerate(statuses):
                                 status_type = status.get("status", "unknown")
                                 status_id = status.get("id", "N/A")
-                                logger.info(f"   - Status {k+1}: status={status_type}, id={status_id}")
+                                recipient_id = status.get("recipient_id", "N/A")
+                                timestamp = status.get("timestamp", "N/A")
+                                logger.info(f"   - Status {k+1}: status={status_type}, id={status_id}, recipient={recipient_id}, timestamp={timestamp}")
+                                
+                                # Log pricing info if available
+                                if "pricing" in status:
+                                    pricing = status.get("pricing", {})
+                                    logger.info(f"     - Pricing: {pricing}")
+                                
+                                # Log conversation info if available
+                                if "conversation" in status:
+                                    conversation = status.get("conversation", {})
+                                    logger.info(f"     - Conversation: {conversation}")
             
             webhook_payload = WhatsAppWebhookPayload(**payload_data)
             
@@ -230,8 +244,8 @@ async def process_webhook_payload(
                             logger.error(error_msg)
                             processing_errors.append(error_msg)
                 
-                elif field == "message_deliveries" or field == "message_reads":
-                    # Process message status updates
+                elif field == "messages":
+                    # Process message status updates (sent, delivered, read)
                     statuses = value.get("statuses", [])
                     
                     for status_data in statuses:
@@ -380,7 +394,8 @@ async def process_incoming_message(
         "updated_at": datetime.now(timezone.utc),
         "metadata": {
             "business_account_id": business_account_id,
-            "phone_number_id": message_data.get("metadata", {}).get("phone_number_id")
+            "phone_number_id": message_data.get("metadata", {}).get("phone_number_id"),
+            "display_phone_number": message_data.get("metadata", {}).get("display_phone_number")
         }
     }
     
@@ -420,40 +435,54 @@ async def process_incoming_message(
     
     logger.info(f"Processed incoming message {incoming_msg.id} for conversation {conversation_id}")
 
-async def process_message_status(
-    db, status_data: Dict[str, Any], business_account_id: str
-):
-    """Process a message status update."""
-    
-    message_status = MessageStatus(**status_data)
-    
-    # Find message by WhatsApp ID
-    message = await db.messages.find_one({
-        "whatsapp_message_id": message_status.id
-    })
-    
-    if not message:
-        logger.warning(f"Message not found for status update: {message_status.id}")
-        return
-    
-    # Update message status
-    update_data = {
-        "status": message_status.status,
-        "updated_at": datetime.now(timezone.utc)
-    }
-    
-    # Add error information if status is failed
-    if message_status.status == "failed" and message_status.errors:
-        error = message_status.errors[0]
-        update_data["error_code"] = str(error.get("code", ""))
-        update_data["error_message"] = error.get("title", "")
-    
-    await db.messages.update_one(
-        {"_id": message["_id"]},
-        {"$set": update_data}
-    )
-    
-    logger.info(f"Updated message {message_status.id} status to {message_status.status}")
+    async def process_message_status(
+        db, status_data: Dict[str, Any], business_account_id: str
+    ):
+        """Process a message status update."""
+        
+        message_status = MessageStatus(**status_data)
+        
+        # Find message by WhatsApp ID
+        message = await message_service.find_message_by_whatsapp_id(message_status.id)
+        
+        if not message:
+            logger.warning(f"Message not found for status update: {message_status.id}")
+            return
+        
+        # Prepare WhatsApp data
+        whatsapp_data = {}
+        if hasattr(message_status, 'pricing') and message_status.pricing:
+            whatsapp_data["pricing"] = message_status.pricing
+        if hasattr(message_status, 'conversation') and message_status.conversation:
+            whatsapp_data["conversation"] = message_status.conversation
+        
+        # Update message status using service
+        success = await message_service.update_message_status(
+            message_id=str(message["_id"]),
+            status=message_status.status,
+            error_code=str(message_status.errors[0].get("code", "")) if message_status.status == "failed" and message_status.errors else None,
+            error_message=message_status.errors[0].get("title", "") if message_status.status == "failed" and message_status.errors else None,
+            whatsapp_data=whatsapp_data
+        )
+        
+        if success:
+            logger.info(f"Updated message {message_status.id} status to {message_status.status}")
+            
+            # Log audit event for status changes
+            await AuditService.log_event(
+                action="message_status_updated",
+                actor_id="system",
+                actor_name="WhatsApp System",
+                conversation_id=str(message.get("conversation_id")),
+                payload={
+                    "message_id": str(message["_id"]),
+                    "whatsapp_message_id": message_status.id,
+                    "old_status": message.get("status"),
+                    "new_status": message_status.status,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                },
+                correlation_id=generate_webhook_id(),
+            )
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """

@@ -15,6 +15,8 @@ from app.schemas.whatsapp.chat.message_out import MessageResponse, MessageSendRe
 from app.services.audit.audit_service import AuditService
 from app.services.auth import require_permissions
 from app.services.whatsapp.whatsapp_service import WhatsAppService
+from app.services.whatsapp.message.message_service import message_service
+from app.services.whatsapp.conversation.conversation_service import conversation_service
 
 router = APIRouter()
 
@@ -173,50 +175,31 @@ async def send_message(
         )
 
         # ===== MESSAGE CREATION =====
-        message_dict = {
-            "conversation_id": ObjectId(conversation_id),
-            "whatsapp_message_id": whatsapp_response.get("messages", [{}])[0].get("id"),
-            "type": "text",
-            "direction": "outbound",
-            "sender_role": "agent",
-            "sender_id": current_user.id,
-            "sender_phone": None,  # Business phone
-            "sender_name": current_user.name,
-            "text_content": message_data.text_content,
-            "status": "sent",
-            "timestamp": datetime.now(timezone.utc),
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
-            "reply_to_message_id": (
-                ObjectId(message_data.reply_to_message_id)
-                if message_data.reply_to_message_id
-                else None
-            ),
-            "is_automated": False,
-            "whatsapp_data": {
-                "phone_number_id": whatsapp_response.get("messages", [{}])[0].get(
-                    "phone_number_id"
-                ),
-                "business_account_id": whatsapp_response.get("messages", [{}])[0].get(
-                    "business_account_id"
-                ),
+        # Create message using service
+        message_dict = await message_service.create_message(
+            conversation_id=conversation_id,
+            message_type="text",
+            direction="outbound",
+            sender_role="agent",
+            sender_id=current_user.id,
+            sender_phone=None,  # Business phone
+            sender_name=current_user.name,
+            text_content=message_data.text_content,
+            whatsapp_message_id=whatsapp_response.get("messages", [{}])[0].get("id"),
+            reply_to_message_id=message_data.reply_to_message_id,
+            is_automated=False,
+            whatsapp_data={
+                "phone_number_id": whatsapp_response.get("messages", [{}])[0].get("phone_number_id"),
+                "business_account_id": whatsapp_response.get("messages", [{}])[0].get("business_account_id"),
+                "display_phone_number": "15551732531",  # From settings
             },
-        }
-
-        result = await db.messages.insert_one(message_dict)
-        logger.info(f"✅ [SEND_MESSAGE] Message saved to database: {result.inserted_id}")
+            status="sent"
+        )
+        
+        logger.info(f"✅ [SEND_MESSAGE] Message saved to database: {message_dict['_id']}")
 
         # ===== CONVERSATION UPDATE =====
-        await db.conversations.update_one(
-            {"_id": ObjectId(conversation_id)},
-            {
-                "$set": {
-                    "last_message_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc),
-                },
-                "$inc": {"message_count": 1},
-            },
-        )
+        await conversation_service.increment_message_count(conversation_id)
         logger.info(f"✅ [SEND_MESSAGE] Conversation {conversation_id} updated")
 
         # ===== AUDIT LOG =====

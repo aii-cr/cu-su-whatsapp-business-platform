@@ -16,11 +16,18 @@ class MessageSend(BaseModel):
         return self
 
 class TemplateMessageSend(BaseModel):
-    """Schema for sending a template message."""
-    conversation_id: str = Field(..., description="Conversation ID")
+    """Schema for sending a template message. Accepts either conversation_id or customer_phone."""
+    conversation_id: Optional[str] = Field(None, description="Conversation ID")
+    customer_phone: Optional[str] = Field(None, description="Customer phone number (WhatsApp ID)")
     template_name: str = Field(..., description="Template name")
     language_code: str = Field("en_US", description="Template language code")
     parameters: List[Dict[str, Any]] = Field(default_factory=list, description="Template parameters")
+
+    @model_validator(mode='after')
+    def require_conversation_id_or_phone(self):
+        if not self.conversation_id and not self.customer_phone:
+            raise ValueError("Either conversation_id or customer_phone must be provided.")
+        return self
 
 class MediaMessageSend(BaseModel):
     """Schema for sending a media message."""

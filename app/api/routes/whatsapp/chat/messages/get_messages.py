@@ -9,6 +9,7 @@ from app.db.client import database
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.schemas.whatsapp.chat.message_out import MessageListResponse, MessageResponse
+from app.services.whatsapp.message.message_service import message_service
 
 router = APIRouter()
 
@@ -46,19 +47,18 @@ async def get_conversation_messages(
                 detail=ErrorCode.CONVERSATION_ACCESS_DENIED
             )
         
-        # Get messages in chronological order (oldest first)
-        messages = await db.messages.find(
-            {"conversation_id": ObjectId(conversation_id)}
-        ).sort("timestamp", 1).skip(offset).limit(limit).to_list(limit)
-        
-        # Count total
-        total = await db.messages.count_documents(
-            {"conversation_id": ObjectId(conversation_id)}
+        # Get messages using service
+        result = await message_service.get_conversation_messages(
+            conversation_id=conversation_id,
+            limit=limit,
+            offset=offset,
+            sort_by="timestamp",
+            sort_order="asc"
         )
         
         return MessageListResponse(
-            messages=[MessageResponse(**msg) for msg in messages],
-            total=total,
+            messages=[MessageResponse(**msg) for msg in result["messages"]],
+            total=result["total"],
             limit=limit,
             offset=offset
         )

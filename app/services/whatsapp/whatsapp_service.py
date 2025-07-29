@@ -106,29 +106,21 @@ class WhatsAppService:
         if parameters:
             template_payload["components"] = []
             
-            # Group parameters by component type
-            header_params = []
-            body_params = []
-            
-            for param in parameters:
-                if param.get("type") == "header":
-                    header_params.append(param)
-                else:
-                    body_params.append(param)
-            
-            # Add header component if parameters exist
-            if header_params:
+            # For the portal_notification template, we know it has 1 header parameter
+            # We'll send the first parameter to header, and any remaining to body
+            if len(parameters) > 0:
+                # Add header component with first parameter
                 template_payload["components"].append({
                     "type": "header",
-                    "parameters": header_params
+                    "parameters": [parameters[0]]
                 })
-            
-            # Add body component if parameters exist
-            if body_params:
-                template_payload["components"].append({
-                    "type": "body",
-                    "parameters": body_params
-                })
+                
+                # Add body component with remaining parameters (if any)
+                if len(parameters) > 1:
+                    template_payload["components"].append({
+                        "type": "body",
+                        "parameters": parameters[1:]
+                    })
         
         payload = {
             "messaging_product": "whatsapp",
@@ -153,7 +145,9 @@ class WhatsAppService:
                         error_json = None
                     raise WhatsAppAPIError(response.status_code, response.text, error_json)
                 
-                return response.json()
+                response_json = response.json()
+                logger.info(f"[WHATSAPP_API] Parsed response: {response_json}")
+                return response_json
                 
         except httpx.HTTPStatusError as e:
             logger.error(f"[WHATSAPP_API] HTTP error: {e.response.status_code} - {e.response.text}")
