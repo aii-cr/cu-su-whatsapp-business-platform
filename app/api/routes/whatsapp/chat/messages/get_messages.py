@@ -1,37 +1,40 @@
-"""Get conversation messages endpoint."""
+"""Get messages for a conversation endpoint."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Optional
 
-from app.services.auth import require_permissions, check_user_permission
-from app.db.models.auth import User
-from app.db.client import database
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
-from app.schemas.whatsapp.chat.message_out import MessageListResponse, MessageResponse
-from app.services.whatsapp.message.message_service import message_service
+from app.services.auth import require_permissions, check_user_permission
+from app.db.models.auth import User
+from app.schemas.whatsapp.chat.message_out import MessageListResponse
+from app.services import message_service, conversation_service
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
 @router.get("/conversation/{conversation_id}", response_model=MessageListResponse)
-async def get_conversation_messages(
+async def get_messages(
     conversation_id: str,
-    limit: int = 50,
-    offset: int = 0,
-    current_user: User = Depends(require_permissions(["messages:read"]))
+    limit: int = Query(50, ge=1, le=200, description="Number of messages to return"),
+    offset: int = Query(0, ge=0, description="Number of messages to skip"),
+    current_user: User = Depends(require_permissions(["messages:read"])),
 ):
     """
     Get messages for a specific conversation.
-    Requires 'messages:read' permission.
-    """
-    db = database.db
     
-    try:
-        # Verify conversation exists and user has access
-        conversation = await db.conversations.find_one({
-            "_id": ObjectId(conversation_id)
-        })
+    Args:
+        conversation_id: ID of the conversation
+        limit: Number of messages to return (max 200)
+        offset: Number of messages to skip for pagination
+        current_user: Current authenticated user
         
+    Returns:
+        List of messages with pagination info
+    """
+    try:
+        # Get conversation to verify access
+        conversation = await conversation_service.get_conversation(conversation_id)
         if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -39,13 +42,13 @@ async def get_conversation_messages(
             )
         
         # Check access permissions
-        if (conversation.get("assigned_agent_id") != current_user.id and 
-            not current_user.is_super_admin and
-            not await check_user_permission(current_user.id, "messages:read_all")):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ErrorCode.CONVERSATION_ACCESS_DENIED
-            )
+        if not current_user.is_super_admin:
+            if (conversation.get("assigned_agent_id") != current_user.id and 
+                not await check_user_permission(current_user.id, "messages:read_all")):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ErrorCode.CONVERSATION_ACCESS_DENIED
+                )
         
         # Get messages using service
         result = await message_service.get_conversation_messages(
@@ -56,18 +59,18 @@ async def get_conversation_messages(
             sort_order="asc"
         )
         
+        logger.info(f"Retrieved {len(result['messages'])} messages for conversation {conversation_id}")
+        
         return MessageListResponse(
-            messages=[MessageResponse(**msg) for msg in result["messages"]],
+            messages=result["messages"],
             total=result["total"],
-            limit=limit,
-            offset=offset
+            page=result["page"],
+            per_page=result["per_page"],
+            pages=result["pages"]
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get conversation messages: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorCode.INTERNAL_SERVER_ERROR
-        ) 
+        logger.error(f"Error retrieving messages for conversation {conversation_id}: {str(e)}")
+        raise handle_database_error(e, "get_messages", "messages") 

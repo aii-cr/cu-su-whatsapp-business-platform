@@ -1,13 +1,14 @@
-"""Get conversation by ID endpoint."""
+"""Get conversation endpoint."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from bson import ObjectId
 
-from app.schemas.whatsapp.chat import ConversationResponse
+from app.config.error_codes import ErrorCode
+from app.core.logger import logger
 from app.services.auth import require_permissions
 from app.db.models.auth import User
-from app.db.client import database
-from app.config.error_codes import ErrorCode
+from app.schemas.whatsapp.chat.conversation_out import ConversationResponse
+from app.services import conversation_service
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
@@ -17,23 +18,31 @@ async def get_conversation(
     current_user: User = Depends(require_permissions(["conversations:read"]))
 ):
     """
-    Get conversation by ID.
-    Requires 'conversations:read' permission.
+    Get a specific conversation by ID.
+    
+    Args:
+        conversation_id: ID of the conversation
+        current_user: Current authenticated user
+        
+    Returns:
+        Conversation details
     """
-    db = database.db
-    
     try:
-        conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ErrorCode.INVALID_CONVERSATION_ID
-        )
-    
-    if not conversation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorCode.CONVERSATION_NOT_FOUND
-        )
-    
-    return ConversationResponse(**conversation) 
+        # Get conversation using service
+        conversation = await conversation_service.get_conversation(conversation_id)
+        
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorCode.CONVERSATION_NOT_FOUND
+            )
+        
+        logger.info(f"Retrieved conversation {conversation_id} for user {current_user.id}")
+        
+        return ConversationResponse(**conversation)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving conversation {conversation_id}: {str(e)}")
+        raise handle_database_error(e, "get_conversation", "conversation") 

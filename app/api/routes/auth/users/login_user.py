@@ -1,13 +1,13 @@
 """User login endpoint."""
 
 from fastapi import APIRouter, HTTPException, status
-from datetime import datetime, timezone
+from bson import ObjectId
 
-from app.services.auth import create_access_token, create_refresh_token, verify_password
-from app.db.client import database
+from app.services import auth_service
 from app.config.error_codes import ErrorCode
 from app.schemas.auth import UserLogin, TokenResponse, UserResponse
-from app.core.config import settings
+from app.core.logger import logger
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
@@ -16,35 +16,36 @@ async def login_user(user_credentials: UserLogin):
     """
     Authenticate user and return access/refresh tokens.
     """
-    db = database.db
-    
-    # Find user by email
-    user = await db.users.find_one({"email": user_credentials.email})
-    if not user or not verify_password(user_credentials.password, user["password_hash"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ErrorCode.INVALID_CREDENTIALS
+    try:
+        # Authenticate user
+        user = await auth_service.authenticate_user(
+            user_credentials.email, 
+            user_credentials.password
         )
-    
-    if user.get("status") != "active":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=ErrorCode.AUTH_USER_INACTIVE
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ErrorCode.INVALID_CREDENTIALS
+            )
+        
+        # Update last login
+        await auth_service.update_last_login(user["_id"])
+        
+        # Create tokens
+        tokens = await auth_service.create_tokens(user["_id"])
+        
+        logger.info(f"User {user['email']} logged in successfully")
+        
+        return TokenResponse(
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            expires_in=tokens["expires_in"],
+            user=UserResponse(**user)
         )
-    
-    # Update last login
-    await db.users.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"last_login": datetime.now(timezone.utc)}}
-    )
-    
-    # Create tokens
-    access_token = create_access_token(data={"sub": str(user["_id"])})
-    refresh_token = create_refresh_token(data={"sub": str(user["_id"])})
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=UserResponse(**user)
-    ) 
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise handle_database_error(e, "login", "user") 

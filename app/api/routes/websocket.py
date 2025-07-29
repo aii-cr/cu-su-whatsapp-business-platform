@@ -3,14 +3,14 @@ WebSocket routes for real-time messaging updates.
 Handles WebSocket connections and subscriptions for live chat functionality.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status
 from typing import Optional
 import json
 from datetime import datetime, timezone
 
 from app.core.logger import logger
 from app.services.websocket.websocket_service import manager, websocket_service
-from app.db.client import database
+from app.core.error_handling import handle_external_api_error
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
@@ -23,9 +23,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         websocket: WebSocket connection
         user_id: User ID for the connection
     """
-    await manager.connect(websocket, user_id)
-    
     try:
+        await manager.connect(websocket, user_id)
+        logger.info(f"WebSocket connected for user {user_id}")
+        
         while True:
             # Wait for messages from the client
             data = await websocket.receive_text()
@@ -36,6 +37,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
+        logger.info(f"WebSocket disconnected for user {user_id}")
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
@@ -49,9 +51,9 @@ async def handle_websocket_message(user_id: str, message: dict):
         user_id: User ID sending the message
         message: Message data from client
     """
-    message_type = message.get("type")
-    
     try:
+        message_type = message.get("type")
+        
         if message_type == "subscribe_conversation":
             conversation_id = message.get("conversation_id")
             if conversation_id:
@@ -97,14 +99,19 @@ async def handle_websocket_message(user_id: str, message: dict):
         
         else:
             logger.warning(f"Unknown WebSocket message type: {message_type} from user {user_id}")
-    
+            
     except Exception as e:
         logger.error(f"Error handling WebSocket message from user {user_id}: {str(e)}")
-        await websocket_service.send_personal_message({
-            "type": "error",
-            "message": "Internal server error",
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }, user_id)
+        # Send error message to client
+        try:
+            await websocket_service.send_personal_message({
+                "type": "error",
+                "message": "Internal server error",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        except Exception:
+            pass  # Ignore errors when sending error messages
+
 
 @router.get("/status/{user_id}")
 async def get_websocket_status(user_id: str):
@@ -113,21 +120,25 @@ async def get_websocket_status(user_id: str):
     
     Args:
         user_id: User ID to check status for
-    
+        
     Returns:
         Connection status information
     """
-    is_connected = user_id in manager.active_connections
-    connection_count = len(manager.active_connections.get(user_id, set()))
-    subscribed_conversations = list(manager.user_conversations.get(user_id, set()))
-    
-    return {
-        "user_id": user_id,
-        "connected": is_connected,
-        "connection_count": connection_count,
-        "subscribed_conversations": subscribed_conversations,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    try:
+        is_connected = manager.is_connected(user_id)
+        subscriptions = manager.get_user_subscriptions(user_id)
+        
+        return {
+            "user_id": user_id,
+            "connected": is_connected,
+            "subscriptions": subscriptions,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting WebSocket status for user {user_id}: {str(e)}")
+        raise handle_external_api_error("websocket", e)
+
 
 @router.get("/stats")
 async def get_websocket_stats():
@@ -137,13 +148,16 @@ async def get_websocket_stats():
     Returns:
         WebSocket statistics
     """
-    total_users = len(manager.active_connections)
-    total_connections = sum(len(connections) for connections in manager.active_connections.values())
-    total_conversations = len(manager.conversation_subscribers)
-    
-    return {
-        "total_users": total_users,
-        "total_connections": total_connections,
-        "total_conversations": total_conversations,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    } 
+    try:
+        stats = manager.get_stats()
+        
+        return {
+            "total_connections": stats["total_connections"],
+            "active_connections": stats["active_connections"],
+            "total_subscriptions": stats["total_subscriptions"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting WebSocket stats: {str(e)}")
+        raise handle_external_api_error("websocket", e) 

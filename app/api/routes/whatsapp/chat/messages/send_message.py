@@ -8,15 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
-from app.db.client import database
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.message_in import MessageSend
 from app.schemas.whatsapp.chat.message_out import MessageResponse, MessageSendResponse
 from app.services.audit.audit_service import AuditService
-from app.services.auth import require_permissions
+from app.services.auth import require_permissions, check_user_permission
 from app.services.whatsapp.whatsapp_service import WhatsAppService
-from app.services.whatsapp.message.message_service import message_service
-from app.services.whatsapp.conversation.conversation_service import conversation_service
+from app.services import message_service, conversation_service
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
@@ -42,8 +41,6 @@ async def send_message(
     Returns the sent message and WhatsApp API response.
     Requires 'messages:send' permission.
     """
-    db = database.db
-
     # ===== REQUEST VALIDATION =====
     logger.info("🔵 [SEND_MESSAGE] Starting message send process")
     logger.info(
@@ -63,13 +60,9 @@ async def send_message(
                 f"🔍 [SEND_MESSAGE] Looking up conversation for phone: {message_data.customer_phone}"
             )
 
-            conversation = await db.conversations.find_one(
-                {
-                    "customer_phone": message_data.customer_phone,
-                    "status": {"$in": ["active", "pending"]},
-                }
-            )
-
+            # Use conversation service to find or create conversation
+            conversation = await conversation_service.find_conversation_by_phone(message_data.customer_phone)
+            
             if conversation:
                 conversation_id = str(conversation["_id"])
                 logger.info(f"✅ [SEND_MESSAGE] Found existing conversation: {conversation_id}")
@@ -78,41 +71,13 @@ async def send_message(
                     f"🆕 [SEND_MESSAGE] Creating new conversation for phone: {message_data.customer_phone}"
                 )
 
-                conversation_dict = {
-                    "customer_phone": message_data.customer_phone,
-                    "status": "pending",
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc),
-                    "message_count": 0,
-                    "unread_count": 0,
-                    "created_by": current_user.id,
-                    "channel": "whatsapp",
-                    "priority": "normal",
-                    "customer_type": "b2c",
-                    "tags": [],
-                    "metadata": {},
-                }
-
-                try:
-                    result = await db.conversations.insert_one(conversation_dict)
-                    conversation_id = str(result.inserted_id)
-                    conversation = await db.conversations.find_one({"_id": result.inserted_id})
-                    logger.info(
-                        f"✅ [SEND_MESSAGE] Successfully created conversation: {conversation_id}"
-                    )
-                except Exception as db_error:
-                    logger.error(
-                        f"❌ [SEND_MESSAGE] Failed to create conversation: {str(db_error)}"
-                    )
-                    if "duplicate key error" in str(db_error).lower():
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail="A conversation already exists for this customer",
-                        )
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Failed to create conversation",
-                    )
+                # Create new conversation using service
+                conversation = await conversation_service.create_conversation(
+                    customer_phone=message_data.customer_phone,
+                    created_by=current_user.id
+                )
+                conversation_id = str(conversation["_id"])
+                logger.info(f"✅ [SEND_MESSAGE] Successfully created conversation: {conversation_id}")
 
         if not conversation:
             if not conversation_id:
@@ -122,7 +87,8 @@ async def send_message(
                     detail="Either conversation_id or customer_phone must be provided.",
                 )
 
-            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            # Get conversation using service
+            conversation = await conversation_service.get_conversation(conversation_id)
 
             if not conversation:
                 logger.error(f"❌ [SEND_MESSAGE] Conversation not found: {conversation_id}")
@@ -135,112 +101,78 @@ async def send_message(
         )
 
         # ===== PERMISSION CHECK =====
-        from app.services.auth import check_user_permission
+        if not current_user.is_super_admin:
+            # Check if user has permission to send messages to this conversation
+            if conversation.get("assigned_agent_id") != current_user.id and not await check_user_permission(current_user.id, "messages:send_all"):
+                logger.warning(f"❌ [SEND_MESSAGE] Permission denied for user {current_user.id} on conversation {conversation_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ErrorCode.PERMISSION_DENIED
+                )
 
-        if (
-            conversation.get("assigned_agent_id") != current_user.id
-            and conversation.get("created_by") != current_user.id
-            and not current_user.is_super_admin
-            and not await check_user_permission(current_user.id, "messages:send_all")
-        ):
-            logger.warning(f"🚫 [SEND_MESSAGE] Access denied for user {current_user.id}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=ErrorCode.CONVERSATION_ACCESS_DENIED
-            )
-
-        logger.info(f"✅ [SEND_MESSAGE] Permission check passed")
-
-        # ===== WHATSAPP API CALL =====
-        logger.info(
-            f"📤 [SEND_MESSAGE] Sending WhatsApp message to {conversation['customer_phone']}"
-        )
-
+        # ===== SEND MESSAGE VIA WHATSAPP =====
+        logger.info(f"📤 [SEND_MESSAGE] Sending message via WhatsApp API")
+        
         whatsapp_response = await whatsapp_service.send_text_message(
-            to_number=conversation["customer_phone"],
-            text=message_data.text_content,
-            reply_to_message_id=message_data.reply_to_message_id,
+            to=conversation["customer_phone"],
+            text=message_data.text_content
         )
-
+        
         if not whatsapp_response:
-            logger.error(
-                f"❌ [SEND_MESSAGE] WhatsApp API failed for conversation {conversation_id}"
-            )
+            logger.error("❌ [SEND_MESSAGE] Failed to send message via WhatsApp API")
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorCode.WHATSAPP_API_ERROR,
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send message via WhatsApp API"
             )
 
-        logger.info(
-            f"✅ [SEND_MESSAGE] WhatsApp API success: {whatsapp_response.get('messages', [{}])[0].get('id', 'unknown')}"
-        )
-
-        # ===== MESSAGE CREATION =====
+        # ===== SAVE MESSAGE TO DATABASE =====
+        logger.info(f"💾 [SEND_MESSAGE] Saving message to database")
+        
         # Create message using service
-        message_dict = await message_service.create_message(
+        message = await message_service.create_message(
             conversation_id=conversation_id,
             message_type="text",
             direction="outbound",
             sender_role="agent",
             sender_id=current_user.id,
-            sender_phone=None,  # Business phone
             sender_name=current_user.name,
             text_content=message_data.text_content,
             whatsapp_message_id=whatsapp_response.get("messages", [{}])[0].get("id"),
-            reply_to_message_id=message_data.reply_to_message_id,
-            is_automated=False,
-            whatsapp_data={
-                "phone_number_id": whatsapp_response.get("messages", [{}])[0].get("phone_number_id"),
-                "business_account_id": whatsapp_response.get("messages", [{}])[0].get("business_account_id"),
-                "display_phone_number": "15551732531",  # From settings
-            },
+            whatsapp_data=whatsapp_response,
             status="sent"
         )
         
-        logger.info(f"✅ [SEND_MESSAGE] Message saved to database: {message_dict['_id']}")
-
-        # ===== CONVERSATION UPDATE =====
+        # Update conversation message count
         await conversation_service.increment_message_count(conversation_id)
-        logger.info(f"✅ [SEND_MESSAGE] Conversation {conversation_id} updated")
 
-        # ===== AUDIT LOG =====
-        await AuditService.log_message_sent(
-            actor_id=str(current_user.id),
-            actor_name=f"{current_user.name or current_user.email}",
+        # ===== AUDIT LOGGING =====
+        correlation_id = get_correlation_id()
+        await AuditService().log_event(
+            action="message_sent",
+            actor_id=current_user.id,
+            actor_name=current_user.name,
+            resource_type="message",
+            resource_id=message["_id"],
             conversation_id=conversation_id,
             customer_phone=conversation["customer_phone"],
-            department_id=(
-                str(conversation.get("department_id"))
-                if conversation.get("department_id")
-                else None
-            ),
-            message_type="text",
-            message_id=str(result.inserted_id),
-            correlation_id=get_correlation_id(),
+            correlation_id=correlation_id,
+            details={
+                "message_type": "text",
+                "text_length": len(message_data.text_content),
+                "whatsapp_message_id": whatsapp_response.get("messages", [{}])[0].get("id")
+            }
         )
-
-        # ===== WEBSOCKET NOTIFICATION =====
-        try:
-            from app.services.websocket.websocket_service import websocket_service
-
-            created_message = await db.messages.find_one({"_id": result.inserted_id})
-            await websocket_service.notify_new_message(conversation_id, created_message)
-        except Exception as e:
-            logger.error(f"Failed to send WebSocket notification: {str(e)}")
 
         # ===== RESPONSE =====
-        created_message = await db.messages.find_one({"_id": result.inserted_id})
-        logger.info(f"🎉 [SEND_MESSAGE] Successfully completed for conversation {conversation_id}")
-
+        logger.info(f"✅ [SEND_MESSAGE] Message sent successfully. Message ID: {message['_id']}")
+        
         return MessageSendResponse(
-            message=MessageResponse(**created_message), whatsapp_response=whatsapp_response
+            message=MessageResponse(**message),
+            whatsapp_response=whatsapp_response
         )
 
-    except HTTPException as he:
-        logger.error(f"❌ [SEND_MESSAGE] HTTPException: {he.detail}")
+    except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ [SEND_MESSAGE] Unexpected error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorCode.INTERNAL_SERVER_ERROR,
-        )
+        logger.error(f"❌ [SEND_MESSAGE] Unexpected error: {str(e)}")
+        raise handle_database_error(e, "send_message", "message")

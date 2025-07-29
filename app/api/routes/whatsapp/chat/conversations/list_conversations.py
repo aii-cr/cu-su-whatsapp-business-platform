@@ -1,80 +1,82 @@
 """List conversations endpoint."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Optional
 
-from app.schemas.whatsapp.chat import ConversationListResponse, ConversationQueryParams, ConversationResponse
-from app.services.auth import require_permissions
-from app.db.models.auth import User
-from app.db.client import database
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
+from app.services.auth import require_permissions
+from app.db.models.auth import User
+from app.schemas.whatsapp.chat.conversation_out import ConversationListResponse
+from app.services import conversation_service
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
 @router.get("/", response_model=ConversationListResponse)
 async def list_conversations(
-    params: ConversationQueryParams = Depends(),
-    current_user: User = Depends(require_permissions(["conversations:read"]))
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search by customer phone or name"),
+    status: Optional[str] = Query(None, description="Filter by conversation status"),
+    priority: Optional[str] = Query(None, description="Filter by priority"),
+    channel: Optional[str] = Query(None, description="Filter by channel"),
+    department_id: Optional[str] = Query(None, description="Filter by department ID"),
+    assigned_agent_id: Optional[str] = Query(None, description="Filter by assigned agent ID"),
+    customer_type: Optional[str] = Query(None, description="Filter by customer type"),
+    has_unread: Optional[bool] = Query(None, description="Filter by unread status"),
+    sort_by: str = Query("updated_at", description="Sort field"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
+    current_user: User = Depends(require_permissions(["conversations:read"])),
 ):
     """
     List conversations with filtering and pagination.
-    Requires 'conversations:read' permission.
-    """
-    db = database.db
     
+    Args:
+        page: Page number
+        per_page: Items per page
+        search: Search term for customer phone or name
+        status: Filter by conversation status
+        priority: Filter by priority
+        channel: Filter by channel
+        department_id: Filter by department ID
+        assigned_agent_id: Filter by assigned agent ID
+        customer_type: Filter by customer type
+        has_unread: Filter by unread status
+        sort_by: Sort field
+        sort_order: Sort order (asc/desc)
+        current_user: Current authenticated user
+        
+    Returns:
+        List of conversations with pagination info
+    """
     try:
-        # Build query
-        query = {}
-        if params.search:
-            query["$or"] = [
-                {"customer_name": {"$regex": params.search, "$options": "i"}},
-                {"customer_phone": {"$regex": params.search, "$options": "i"}}
-            ]
-        if params.status:
-            query["status"] = params.status
-        if params.priority:
-            query["priority"] = params.priority
-        if params.channel:
-            query["channel"] = params.channel
-        if params.department_id:
-            query["department_id"] = params.department_id
-        if params.assigned_agent_id:
-            query["assigned_agent_id"] = params.assigned_agent_id
-        if params.customer_type:
-            query["customer_type"] = params.customer_type
-        if params.has_unread:
-            query["unread_count"] = {"$gt": 0} if params.has_unread else {"$eq": 0}
-        if params.created_from:
-            query.setdefault("created_at", {})["$gte"] = params.created_from
-        if params.created_to:
-            query.setdefault("created_at", {})["$lte"] = params.created_to
-        if params.tags:
-            query["tags"] = {"$in": params.tags}
+        # Get conversations using service
+        result = await conversation_service.list_conversations(
+            search=search,
+            status=status,
+            priority=priority,
+            channel=channel,
+            department_id=department_id,
+            assigned_agent_id=assigned_agent_id,
+            customer_type=customer_type,
+            has_unread=has_unread,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            page=page,
+            per_page=per_page
+        )
         
-        # Count total
-        total = await db.conversations.count_documents(query)
-        
-        # Calculate pagination
-        skip = (params.page - 1) * params.per_page
-        pages = (total + params.per_page - 1) // params.per_page
-        
-        # Get conversations
-        sort_order = 1 if params.sort_order == "asc" else -1
-        conversations = await db.conversations.find(query).sort(
-            params.sort_by, sort_order
-        ).skip(skip).limit(params.per_page).to_list(params.per_page)
+        logger.info(f"Retrieved {len(result['conversations'])} conversations for user {current_user.id}")
         
         return ConversationListResponse(
-            conversations=[ConversationResponse(**conv) for conv in conversations],
-            total=total,
-            page=params.page,
-            per_page=params.per_page,
-            pages=pages
+            conversations=result["conversations"],
+            total=result["total"],
+            page=result["page"],
+            per_page=result["per_page"],
+            pages=result["pages"]
         )
         
     except Exception as e:
-        logger.error(f"Failed to list conversations: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=ErrorCode.INTERNAL_SERVER_ERROR
-        ) 
+        logger.error(f"Error retrieving conversations: {str(e)}")
+        raise handle_database_error(e, "list_conversations", "conversations") 
