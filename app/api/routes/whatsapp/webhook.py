@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Request, HTTPException, status, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
-from typing import Dict, Any
+from typing import Dict, Any, List
 import hashlib
 import hmac
 import json
@@ -16,8 +16,8 @@ from app.schemas.whatsapp import (
 from app.schemas import SuccessResponse
 from app.core.config import settings
 from app.core.logger import logger
-from app.services.audit.audit_service import AuditService
-from app.services.whatsapp.automation_service import automation_service
+from app.services import audit_service
+from app.services import automation_service
 from app.services import message_service, conversation_service
 from app.core.error_handling import handle_database_error
 
@@ -103,6 +103,7 @@ async def handle_webhook(
             logger.info(f"📋 [WEBHOOK] Payload size: {len(body)} bytes")
             logger.info(f"📋 [WEBHOOK] Headers: {dict(request.headers)}")
             logger.info(f"📋 [WEBHOOK] Full payload: {payload_data}")
+            logger.info(f"📋 [WEBHOOK] Object type: {payload_data.get('object', 'unknown')}")
             
             # Validate payload structure
             if not payload_data.get("entry"):
@@ -182,44 +183,22 @@ async def process_webhook_payload(
     statuses_processed = 0
     
     try:
-        logger.info(f"Processing webhook {webhook_id} with {len(payload.entry)} entries")
+        logger.info(f"🔄 [WEBHOOK] Processing webhook {webhook_id} with {len(payload.entry)} entries")
         
         for entry in payload.entry:
             business_account_id = entry.id
+            logger.info(f"📋 [WEBHOOK] Processing business account: {business_account_id}")
             
             for change in entry.changes:
                 field = change.get("field", "")
                 value = change.get("value", {})
                 
+                logger.info(f"📋 [WEBHOOK] Processing field: {field}")
+                
                 if field == "messages":
-                    # Process incoming messages
-                    messages = value.get("messages", [])
-                    contacts = value.get("contacts", [])
-                    
-                    for msg_data in messages:
-                        try:
-                            await process_incoming_message(msg_data, contacts, business_account_id)
-                            messages_processed += 1
-                        except Exception as e:
-                            error_msg = f"Failed to process message {msg_data.get('id', 'unknown')}: {str(e)}"
-                            logger.error(error_msg)
-                            processing_errors.append(error_msg)
-                
-                elif field == "messages":
-                    # Process message status updates (sent, delivered, read)
-                    statuses = value.get("statuses", [])
-                    
-                    for status_data in statuses:
-                        try:
-                            await process_message_status(status_data, business_account_id)
-                            statuses_processed += 1
-                        except Exception as e:
-                            error_msg = f"Failed to process status {status_data.get('id', 'unknown')}: {str(e)}"
-                            logger.error(error_msg)
-                            processing_errors.append(error_msg)
-                
+                    await process_messages_field(value, business_account_id, processing_errors, messages_processed, statuses_processed)
                 else:
-                    logger.info(f"Unhandled webhook field: {field}")
+                    logger.info(f"📋 [WEBHOOK] Unhandled webhook field: {field}")
         
         # Log processing result
         processing_time = (time.time() - start_time) * 1000
@@ -232,10 +211,52 @@ async def process_webhook_payload(
             processing_time_ms=processing_time
         )
         
-        logger.info(f"Webhook {webhook_id} processed: {result.dict()}")
+        logger.info(f"✅ [WEBHOOK] Webhook {webhook_id} processed: {result.dict()}")
         
     except Exception as e:
-        logger.error(f"Critical error processing webhook {webhook_id}: {str(e)}")
+        logger.error(f"❌ [WEBHOOK] Critical error processing webhook {webhook_id}: {str(e)}")
+
+async def process_messages_field(
+    value: Dict[str, Any], 
+    business_account_id: str, 
+    processing_errors: List[str], 
+    messages_processed: int, 
+    statuses_processed: int
+):
+    """Process the 'messages' field from webhook payload."""
+    
+    # Process incoming messages
+    messages = value.get("messages", [])
+    contacts = value.get("contacts", [])
+    
+    logger.info(f"📋 [WEBHOOK] Found {len(messages)} incoming messages")
+    
+    for msg_data in messages:
+        try:
+            logger.info(f"📋 [WEBHOOK] Processing incoming message: {msg_data.get('id', 'unknown')}")
+            await process_incoming_message(msg_data, contacts, business_account_id)
+            messages_processed += 1
+            logger.info(f"✅ [WEBHOOK] Successfully processed incoming message: {msg_data.get('id', 'unknown')}")
+        except Exception as e:
+            error_msg = f"Failed to process message {msg_data.get('id', 'unknown')}: {str(e)}"
+            logger.error(error_msg)
+            processing_errors.append(error_msg)
+    
+    # Process message status updates (sent, delivered, read)
+    statuses = value.get("statuses", [])
+    
+    logger.info(f"📋 [WEBHOOK] Found {len(statuses)} status updates")
+    
+    for status_data in statuses:
+        try:
+            logger.info(f"📋 [WEBHOOK] Processing status update: {status_data.get('id', 'unknown')} -> {status_data.get('status', 'unknown')}")
+            await process_message_status(status_data, business_account_id)
+            statuses_processed += 1
+            logger.info(f"✅ [WEBHOOK] Successfully processed status update for {status_data.get('id', 'unknown')}")
+        except Exception as e:
+            error_msg = f"Failed to process status {status_data.get('id', 'unknown')}: {str(e)}"
+            logger.error(error_msg)
+            processing_errors.append(error_msg)
 
 async def process_incoming_message(
     message_data: Dict[str, Any], contacts: list, business_account_id: str
@@ -246,22 +267,25 @@ async def process_incoming_message(
     incoming_msg = IncomingMessage(**message_data)
     phone_number = incoming_msg.from_
     
+    # Extract customer name from contacts
+    customer_name = None
+    for contact in contacts:
+        if contact.get("wa_id") == phone_number:
+            profile = contact.get("profile", {})
+            customer_name = profile.get("name")
+            break
+    
     # Find or create conversation using service
     conversation = await conversation_service.find_conversation_by_phone(phone_number)
     
     if not conversation:
         # Create new conversation
-        customer_name = None
-        for contact in contacts:
-            if contact.get("wa_id") == phone_number:
-                profile = contact.get("profile", {})
-                customer_name = profile.get("name")
-                break
-        
         conversation = await conversation_service.create_conversation(
             customer_phone=phone_number,
             customer_name=customer_name
         )
+    
+    logger.info(f"📝 [MESSAGE] Creating message with WhatsApp ID: {incoming_msg.id}")
     
     # Create message using service
     message = await message_service.create_message(
@@ -271,7 +295,7 @@ async def process_incoming_message(
         sender_role="customer",
         sender_phone=phone_number,
         sender_name=customer_name,
-        text_content=incoming_msg.text.get("body") if incoming_msg.text else None,
+        text_content=incoming_msg.text.body if incoming_msg.text else None,
         whatsapp_message_id=incoming_msg.id,
         whatsapp_data={
             "messaging_product": "whatsapp",
@@ -281,17 +305,30 @@ async def process_incoming_message(
         status="received"
     )
     
+    logger.info(f"✅ [MESSAGE] Created message {message['_id']} with WhatsApp ID: {incoming_msg.id}")
+    
     # Update conversation message count
     await conversation_service.increment_message_count(str(conversation["_id"]))
+    
+    # ===== UPDATE CONVERSATION STATUS =====
+    # Set status to "waiting" when customer responds
+    current_status = conversation.get("status", "pending")
+    if current_status in ["active", "pending"]:
+        logger.info(f"🔄 [MESSAGE] Updating conversation status to 'waiting' for customer response")
+        await conversation_service.update_conversation(
+            conversation_id=str(conversation["_id"]),
+            update_data={"status": "waiting"},
+            updated_by=None  # System update
+        )
     
     # Process automation
     await automation_service.process_incoming_message(message)
     
     # Send WebSocket notification
-    from app.services.websocket.websocket_service import websocket_service
+    from app.services import websocket_service
     await websocket_service.notify_new_message(str(conversation["_id"]), message)
     
-    logger.info(f"Processed incoming message {incoming_msg.id} for conversation {conversation['_id']}")
+    logger.info(f"✅ [MESSAGE] Processed incoming message {incoming_msg.id} for conversation {conversation['_id']}")
 
 async def process_message_status(
     status_data: Dict[str, Any], business_account_id: str
@@ -301,12 +338,25 @@ async def process_message_status(
     status_obj = MessageStatus(**status_data)
     whatsapp_message_id = status_obj.id
     
+    logger.info(f"🔍 [STATUS] Looking for message with WhatsApp ID: {whatsapp_message_id}")
+    
     # Find message using service
     message = await message_service.find_message_by_whatsapp_id(whatsapp_message_id)
     
     if not message:
-        logger.warning(f"Message not found for WhatsApp ID: {whatsapp_message_id}")
+        logger.warning(f"❌ [STATUS] Message not found for WhatsApp ID: {whatsapp_message_id}")
+        logger.warning(f"📋 [STATUS] Status data: {status_data}")
+        
+        # Let's also check if there are any messages in the database for debugging
+        from app.db.client import database
+        db = await database._get_db()
+        total_messages = await db.messages.count_documents({})
+        messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
+        logger.info(f"📊 [STATUS] Database stats - Total messages: {total_messages}, Messages with WhatsApp ID: {messages_with_whatsapp_id}")
+        
         return
+    
+    logger.info(f"✅ [STATUS] Found message {message['_id']} for WhatsApp ID: {whatsapp_message_id}")
     
     # Update message status using service
     await message_service.update_message_status(
@@ -316,12 +366,12 @@ async def process_message_status(
             "status": status_obj.status,
             "timestamp": status_obj.timestamp,
             "recipient_id": status_obj.recipient_id,
-            "pricing": status_obj.pricing.dict() if status_obj.pricing else None,
-            "conversation": status_obj.conversation.dict() if status_obj.conversation else None
+            "pricing": status_obj.pricing if status_obj.pricing else None,
+            "conversation": status_obj.conversation if status_obj.conversation else None
         }
     )
     
-    logger.info(f"Updated message {whatsapp_message_id} status to {status_obj.status}")
+    logger.info(f"✅ [STATUS] Updated message {whatsapp_message_id} status to {status_obj.status}")
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """
@@ -348,12 +398,22 @@ def verify_webhook_signature(body: bytes, headers: dict) -> bool:
         
         signature = signature[7:]
         
-        # Calculate expected signature
+        # Calculate expected signature using app secret (not verify token)
+        app_secret = settings.WHATSAPP_APP_SECRET
         expected_signature = hmac.new(
-            settings.WHATSAPP_APP_SECRET.encode('utf-8'),
+            app_secret.encode('utf-8'),
             body,
             hashlib.sha256
         ).hexdigest()
+        
+        # Debug logging
+        logger.info(f"🔍 [WEBHOOK_SIGNATURE] Debug info:")
+        logger.info(f"   - App secret length: {len(app_secret)}")
+        logger.info(f"   - App secret configured: {bool(app_secret and app_secret != 'development-app-secret')}")
+        logger.info(f"   - Body length: {len(body)} bytes")
+        logger.info(f"   - Received signature: {signature}")
+        logger.info(f"   - Expected signature: {expected_signature}")
+        logger.info(f"   - Signatures match: {signature == expected_signature}")
         
         # Compare signatures
         is_valid = hmac.compare_digest(signature, expected_signature)
@@ -362,6 +422,8 @@ def verify_webhook_signature(body: bytes, headers: dict) -> bool:
             logger.info("✅ Webhook signature verified successfully")
         else:
             logger.warning("❌ Invalid webhook signature")
+            logger.warning(f"   - Received: {signature}")
+            logger.warning(f"   - Expected: {expected_signature}")
         
         return is_valid
         
@@ -399,4 +461,68 @@ async def test_webhook_connection():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Webhook test failed: {str(e)}"
+        ) 
+
+@router.get("/webhook/debug")
+async def debug_webhook_signature():
+    """
+    Debug webhook signature verification.
+    Shows the current app secret configuration and helps troubleshoot signature issues.
+    """
+    try:
+        # Get the app secret (masked for security)
+        app_secret = settings.WHATSAPP_APP_SECRET
+        masked_secret = app_secret[:4] + "*" * (len(app_secret) - 8) + app_secret[-4:] if len(app_secret) > 8 else "***"
+        
+        # Test signature calculation with a sample payload
+        test_payload = b'{"test": "payload"}'
+        expected_signature = hmac.new(
+            app_secret.encode('utf-8'),
+            test_payload,
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Get database statistics
+        from app.db.client import database
+        db = await database._get_db()
+        total_messages = await db.messages.count_documents({})
+        messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
+        
+        # Get recent messages with WhatsApp IDs
+        recent_messages = await db.messages.find(
+            {"whatsapp_message_id": {"$exists": True, "$ne": None}},
+            {"_id": 1, "whatsapp_message_id": 1, "direction": 1, "status": 1, "created_at": 1}
+        ).sort("created_at", -1).limit(10).to_list(10)
+        
+        # Show other WhatsApp settings
+        return SuccessResponse(
+            message="Webhook signature debug information",
+            data={
+                "app_secret_configured": bool(app_secret and app_secret != "development-app-secret"),
+                "app_secret_masked": masked_secret,
+                "app_secret_length": len(app_secret),
+                "test_signature": expected_signature,
+                "database_stats": {
+                    "total_messages": total_messages,
+                    "messages_with_whatsapp_id": messages_with_whatsapp_id,
+                    "recent_messages": recent_messages
+                },
+                "whatsapp_settings": {
+                    "access_token_configured": bool(settings.WHATSAPP_ACCESS_TOKEN and settings.WHATSAPP_ACCESS_TOKEN != "development-access-token"),
+                    "verify_token_configured": bool(settings.WHATSAPP_VERIFY_TOKEN and settings.WHATSAPP_VERIFY_TOKEN != "development-verify-token"),
+                    "business_id_configured": bool(settings.WHATSAPP_BUSINESS_ID),
+                    "phone_number_id_configured": bool(settings.WHATSAPP_PHONE_NUMBER_ID),
+                    "webhook_url": settings.WHATSAPP_WEBHOOK_URL,
+                    "api_version": settings.WHATSAPP_API_VERSION,
+                    "base_url": settings.WHATSAPP_BASE_URL
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Webhook debug failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Webhook debug failed: {str(e)}"
         ) 

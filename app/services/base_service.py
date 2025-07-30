@@ -9,7 +9,10 @@ class BaseService:
     """Base service class with common functionality."""
     
     def __init__(self):
+        # Initialize db as None, but set it if database is already connected
         self.db = None
+        if hasattr(database, 'is_connected') and database.is_connected:
+            self.db = database.db
     
     async def _ensure_db_connection(self):
         """Ensure database connection is established."""

@@ -46,8 +46,10 @@ class ConversationService(BaseService):
         Returns:
             Created conversation document
         """
+        db = await self._get_db()
+        
         # Check for existing active conversation
-        existing_conversation = await self.db.conversations.find_one({
+        existing_conversation = await db.conversations.find_one({
             "customer_phone": customer_phone,
             "status": {"$in": ["active", "pending"]}
         })
@@ -77,13 +79,13 @@ class ConversationService(BaseService):
         }
         
         # Insert conversation
-        result = await self.db.conversations.insert_one(conversation_data)
+        result = await db.conversations.insert_one(conversation_data)
         conversation_id = result.inserted_id
         
         logger.info(f"Created conversation {conversation_id} for {customer_phone}")
         
         # Return created conversation
-        return await self.db.conversations.find_one({"_id": conversation_id})
+        return await db.conversations.find_one({"_id": conversation_id})
     
     async def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -96,7 +98,8 @@ class ConversationService(BaseService):
             Conversation document or None
         """
         try:
-            return await self.db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            db = await self._get_db()
+            return await db.conversations.find_one({"_id": ObjectId(conversation_id)})
         except Exception as e:
             logger.error(f"Error getting conversation {conversation_id}: {str(e)}")
             return None
@@ -111,7 +114,8 @@ class ConversationService(BaseService):
         Returns:
             Conversation document or None
         """
-        return await self.db.conversations.find_one({"customer_phone": customer_phone})
+        db = await self._get_db()
+        return await db.conversations.find_one({"customer_phone": customer_phone})
     
     async def list_conversations(
         self,
@@ -137,6 +141,8 @@ class ConversationService(BaseService):
         Returns:
             Dictionary with conversations, total count, and pagination info
         """
+        db = await self._get_db()
+        
         # Build query
         query = {}
         
@@ -168,7 +174,7 @@ class ConversationService(BaseService):
             query["tags"] = {"$in": tags}
         
         # Count total
-        total = await self.db.conversations.count_documents(query)
+        total = await db.conversations.count_documents(query)
         
         # Calculate pagination
         skip = (page - 1) * per_page
@@ -176,7 +182,7 @@ class ConversationService(BaseService):
         
         # Get conversations
         sort_direction = 1 if sort_order == "asc" else -1
-        conversations = await self.db.conversations.find(query).sort(
+        conversations = await db.conversations.find(query).sort(
             sort_by, sort_direction
         ).skip(skip).limit(per_page).to_list(per_page)
         
@@ -206,12 +212,14 @@ class ConversationService(BaseService):
             Updated conversation document or None
         """
         try:
+            db = await self._get_db()
+            
             # Add update timestamp
             update_data["updated_at"] = datetime.now(timezone.utc)
             if updated_by:
                 update_data["updated_by"] = updated_by
             
-            result = await self.db.conversations.update_one(
+            result = await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
                 {"$set": update_data}
             )
@@ -219,13 +227,13 @@ class ConversationService(BaseService):
             if result.modified_count == 0:
                 return None
             
-            return await self.db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            return await db.conversations.find_one({"_id": ObjectId(conversation_id)})
             
         except Exception as e:
             logger.error(f"Error updating conversation {conversation_id}: {str(e)}")
             return None
     
-    async def delete_conversation(self, conversation_id: str) -> bool:
+    async def delete_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """
         Delete a conversation and all associated messages.
         
@@ -233,25 +241,32 @@ class ConversationService(BaseService):
             conversation_id: Conversation ID
             
         Returns:
-            True if deleted successfully, False otherwise
+            Deleted conversation data if successful, None otherwise
         """
         try:
+            db = await self._get_db()
+            
+            # Get conversation data before deletion
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                return None
+            
             # Delete all messages first
-            messages_deleted = await self.db.messages.delete_many({
+            messages_deleted = await db.messages.delete_many({
                 "conversation_id": ObjectId(conversation_id)
             })
             
             # Delete conversation
-            result = await self.db.conversations.delete_one({
+            result = await db.conversations.delete_one({
                 "_id": ObjectId(conversation_id)
             })
             
             logger.info(f"Deleted conversation {conversation_id} and {messages_deleted.deleted_count} messages")
-            return result.deleted_count > 0
+            return conversation if result.deleted_count > 0 else None
             
         except Exception as e:
             logger.error(f"Error deleting conversation {conversation_id}: {str(e)}")
-            return False
+            return None
     
     async def increment_message_count(self, conversation_id: str) -> bool:
         """
@@ -264,7 +279,8 @@ class ConversationService(BaseService):
             True if updated successfully
         """
         try:
-            result = await self.db.conversations.update_one(
+            db = await self._get_db()
+            result = await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
                 {
                     "$inc": {"message_count": 1},
@@ -291,12 +307,14 @@ class ConversationService(BaseService):
             True if updated successfully
         """
         try:
+            db = await self._get_db()
+            
             if increment:
                 update_data = {"$inc": {"unread_count": 1}}
             else:
                 update_data = {"$set": {"unread_count": 0}}
             
-            result = await self.db.conversations.update_one(
+            result = await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
                 update_data
             )

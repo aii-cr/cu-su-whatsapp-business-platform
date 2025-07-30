@@ -51,7 +51,7 @@ class SystemAuditService(BaseService):
         Returns:
             Dictionary with logs, pagination info, and metadata
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
         # Build query parameters
         query_params = WhatsAppAuditQueryParams(
@@ -81,9 +81,9 @@ class SystemAuditService(BaseService):
         limit = query_params.per_page
         
         # Execute queries in parallel
-        logs_cursor = self.db.audit_logs.find(mongo_query).sort(sort_criteria).skip(skip).limit(limit)
+        logs_cursor = db.audit_logs.find(mongo_query).sort(sort_criteria).skip(skip).limit(limit)
         logs = await logs_cursor.to_list(length=limit)
-        total_count = await self.db.audit_logs.count_documents(mongo_query)
+        total_count = await db.audit_logs.count_documents(mongo_query)
         
         # Calculate total pages
         total_pages = math.ceil(total_count / query_params.per_page)
@@ -197,7 +197,7 @@ class SystemAuditService(BaseService):
         Returns:
             ID of the created audit log
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
         audit_log = {
             "action": action,
@@ -212,5 +212,9 @@ class SystemAuditService(BaseService):
             "success": True
         }
         
-        result = await self.db.audit_logs.insert_one(audit_log)
+        result = await db.audit_logs.insert_one(audit_log)
         return result.inserted_id
+
+
+# Global system audit service instance
+system_audit_service = SystemAuditService()

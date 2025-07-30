@@ -64,9 +64,8 @@ async def get_messages(
         return MessageListResponse(
             messages=result["messages"],
             total=result["total"],
-            page=result["page"],
-            per_page=result["per_page"],
-            pages=result["pages"]
+            limit=result["limit"],
+            offset=result["offset"]
         )
         
     except HTTPException:

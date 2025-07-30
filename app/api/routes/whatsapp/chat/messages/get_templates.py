@@ -7,12 +7,11 @@ from app.db.models.auth import User
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.schemas.whatsapp.chat.message_out import TemplateListResponse
-from app.services.whatsapp.whatsapp_service import WhatsAppService
+from app.services import whatsapp_service
 
 router = APIRouter()
 
-# Initialize WhatsApp service
-whatsapp_service = WhatsAppService()
+# WhatsApp service is imported from app.services
 
 @router.get("/templates", response_model=TemplateListResponse)
 async def get_available_templates(

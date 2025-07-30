@@ -12,17 +12,16 @@ from app.db.client import database
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.message_in import TemplateMessageSend
 from app.schemas.whatsapp.chat.message_out import MessageResponse, MessageSendResponse
-from app.services.audit.audit_service import AuditService
+from app.services import audit_service
 from app.services.auth import require_permissions
-from app.services.whatsapp.whatsapp_service import WhatsAppService, WhatsAppAPIError
-from app.services.whatsapp.conversation.conversation_service import conversation_service
-from app.services.whatsapp.message.message_service import message_service
-from app.services.websocket.websocket_service import websocket_service
+from app.services import whatsapp_service
+from app.services import conversation_service
+from app.services import message_service
+from app.services import websocket_service
 
 router = APIRouter()
 
-# Initialize WhatsApp service
-whatsapp_service = WhatsAppService()
+# WhatsApp service is imported from app.services
 
 
 @router.post("/template", response_model=MessageSendResponse, status_code=status.HTTP_201_CREATED)
@@ -98,7 +97,7 @@ async def send_template_message(
                 parameters=template_data.parameters,
             )
             logger.info(f"WhatsApp response: {whatsapp_response}")
-        except WhatsAppAPIError as e:
+        except Exception as e:
             logger.error(f"WhatsApp API error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -173,7 +172,7 @@ async def send_template_message(
         # Conversation already updated by service
 
         # Log template sent
-        await AuditService.log_message_sent(
+        await audit_service.log_message_sent(
             actor_id=str(current_user.id),
             actor_name=f"{current_user.name or current_user.email}",
             conversation_id=conversation_id,

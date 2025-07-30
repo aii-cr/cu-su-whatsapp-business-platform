@@ -9,7 +9,7 @@ from app.core.middleware import get_correlation_id
 from app.db.client import database
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat import ConversationResponse, ConversationUpdate
-from app.services.audit.audit_service import AuditService
+from app.services import audit_service
 from app.services.auth import require_permissions
 
 router = APIRouter()
@@ -53,7 +53,7 @@ async def update_conversation(
 
         # Log appropriate audit events based on what was updated
         if "priority" in update_data:
-            await AuditService.log_priority_changed(
+            await audit_service.log_priority_changed(
                 actor_id=str(current_user.id),
                 actor_name=f"{current_user.name or current_user.email}",
                 conversation_id=conversation_id,
@@ -69,7 +69,7 @@ async def update_conversation(
             )
 
         if "department_id" in update_data:
-            await AuditService.log_agent_transfer(
+            await audit_service.log_agent_transfer(
                 actor_id=str(current_user.id),
                 actor_name=f"{current_user.name or current_user.email}",
                 conversation_id=conversation_id,
@@ -90,7 +90,7 @@ async def update_conversation(
 
         # For other general updates, use the general audit log
         if any(key not in ["priority", "department_id"] for key in update_data.keys()):
-            await AuditService.log_event(
+            await audit_service.log_event(
                 action="conversation_updated",
                 actor_id=str(current_user.id),
                 actor_name=f"{current_user.name or current_user.email}",

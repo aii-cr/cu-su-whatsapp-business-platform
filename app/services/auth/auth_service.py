@@ -25,10 +25,10 @@ class AuthService(BaseService):
         Returns:
             User document if authentication successful, None otherwise
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
         # Find user by email
-        user = await self.db.users.find_one({"email": email})
+        user = await db.users.find_one({"email": email})
         if not user:
             return None
         
@@ -52,9 +52,9 @@ class AuthService(BaseService):
         Returns:
             True if updated successfully
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
-        result = await self.db.users.update_one(
+        result = await db.users.update_one(
             {"_id": user_id},
             {"$set": {"last_login": datetime.now(timezone.utc)}}
         )
@@ -71,10 +71,10 @@ class AuthService(BaseService):
         Returns:
             User profile with roles and permissions
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
         # Get user with populated role and department info
-        user_data = await self.db.users.aggregate([
+        user_data = await db.users.aggregate([
             {"$match": {"_id": user_id}},
             {"$lookup": {
                 "from": "departments",
@@ -102,7 +102,7 @@ class AuthService(BaseService):
         for role in user.get("roles", []):
             role_names.append(role["name"])
             # Get permissions for this role
-            role_permissions = await self.db.permissions.find(
+            role_permissions = await db.permissions.find(
                 {"_id": {"$in": role.get("permission_ids", [])}}
             ).to_list(None)
             permissions.extend([p["key"] for p in role_permissions])
@@ -143,8 +143,8 @@ class AuthService(BaseService):
         Returns:
             User document or None
         """
-        await self._ensure_db_connection()
-        return await self.db.users.find_one({"_id": user_id})
+        db = await self._get_db()
+        return await db.users.find_one({"_id": user_id})
     
     async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """
@@ -156,8 +156,8 @@ class AuthService(BaseService):
         Returns:
             User document or None
         """
-        await self._ensure_db_connection()
-        return await self.db.users.find_one({"email": email})
+        db = await self._get_db()
+        return await db.users.find_one({"email": email})
     
     async def update_user(self, user_id: ObjectId, update_data: Dict[str, Any]) -> bool:
         """
@@ -170,11 +170,15 @@ class AuthService(BaseService):
         Returns:
             True if updated successfully
         """
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
-        result = await self.db.users.update_one(
+        result = await db.users.update_one(
             {"_id": user_id},
             {"$set": update_data}
         )
         
         return result.modified_count > 0
+
+
+# Global auth service instance
+auth_service = AuthService()

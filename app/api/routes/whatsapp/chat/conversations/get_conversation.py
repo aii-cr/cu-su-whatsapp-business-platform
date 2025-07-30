@@ -6,7 +6,7 @@ from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.services.auth import require_permissions
 from app.db.models.auth import User
-from app.schemas.whatsapp.chat.conversation_out import ConversationResponse
+from app.schemas.whatsapp.chat.conversation import ConversationResponse
 from app.services import conversation_service
 from app.core.error_handling import handle_database_error
 

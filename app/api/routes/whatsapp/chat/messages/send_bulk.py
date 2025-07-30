@@ -12,12 +12,11 @@ from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.schemas.whatsapp.chat.message_in import BulkMessageSend
 from app.schemas.whatsapp.chat.message_out import MessageSendResponse
-from app.services.whatsapp.whatsapp_service import WhatsAppService
+from app.services import whatsapp_service
 
 router = APIRouter()
 
-# Initialize WhatsApp service
-whatsapp_service = WhatsAppService()
+# WhatsApp service is imported from app.services
 
 @router.post("/bulk-send", response_model=List[MessageSendResponse])
 async def send_bulk_messages(

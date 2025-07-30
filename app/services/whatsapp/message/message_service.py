@@ -64,8 +64,7 @@ class MessageService(BaseService):
         Returns:
             Created message document
         """
-        # Ensure database connection
-        await self._ensure_db_connection()
+        db = await self._get_db()
         
         message_data = {
             "conversation_id": ObjectId(conversation_id),
@@ -96,24 +95,13 @@ class MessageService(BaseService):
         if status == "sent":
             message_data["sent_at"] = datetime.now(timezone.utc)
         
-        result = await self.db.messages.insert_one(message_data)
+        result = await db.messages.insert_one(message_data)
         message_id = result.inserted_id
         
         logger.info(f"Created message {message_id} for conversation {conversation_id}")
         
-        # Debug: Check if self.db is None
-        if self.db is None:
-            logger.error("Database connection is None!")
-            raise Exception("Database connection is None")
-        
-        # Debug: Check if messages collection exists
-        try:
-            retrieved_message = await self.db.messages.find_one({"_id": message_id})
-            logger.info(f"Retrieved message: {retrieved_message}")
-            return retrieved_message
-        except Exception as e:
-            logger.error(f"Error retrieving message: {str(e)}")
-            raise
+        # Return created message
+        return await db.messages.find_one({"_id": message_id})
     
     async def get_message(self, message_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -126,7 +114,8 @@ class MessageService(BaseService):
             Message document or None
         """
         try:
-            return await self.db.messages.find_one({"_id": ObjectId(message_id)})
+            db = await self._get_db()
+            return await db.messages.find_one({"_id": ObjectId(message_id)})
         except Exception as e:
             logger.error(f"Error getting message {message_id}: {str(e)}")
             return None
@@ -153,14 +142,16 @@ class MessageService(BaseService):
             Dictionary with messages and total count
         """
         try:
+            db = await self._get_db()
+            
             # Get messages
             sort_direction = 1 if sort_order == "asc" else -1
-            messages = await self.db.messages.find(
+            messages = await db.messages.find(
                 {"conversation_id": ObjectId(conversation_id)}
             ).sort(sort_by, sort_direction).skip(offset).limit(limit).to_list(limit)
             
             # Count total
-            total = await self.db.messages.count_documents(
+            total = await db.messages.count_documents(
                 {"conversation_id": ObjectId(conversation_id)}
             )
             
@@ -197,6 +188,8 @@ class MessageService(BaseService):
             True if updated successfully
         """
         try:
+            db = await self._get_db()
+            
             update_data = {
                 "status": status,
                 "updated_at": datetime.now(timezone.utc)
@@ -221,7 +214,7 @@ class MessageService(BaseService):
                 for key, value in whatsapp_data.items():
                     update_data[f"whatsapp_data.{key}"] = value
             
-            result = await self.db.messages.update_one(
+            result = await db.messages.update_one(
                 {"_id": ObjectId(message_id)},
                 {"$set": update_data}
             )
@@ -242,7 +235,8 @@ class MessageService(BaseService):
         Returns:
             Message document or None
         """
-        return await self.db.messages.find_one({"whatsapp_message_id": whatsapp_message_id})
+        db = await self._get_db()
+        return await db.messages.find_one({"whatsapp_message_id": whatsapp_message_id})
     
     async def delete_message(self, message_id: str) -> bool:
         """
@@ -255,7 +249,8 @@ class MessageService(BaseService):
             True if deleted successfully
         """
         try:
-            result = await self.db.messages.delete_one({"_id": ObjectId(message_id)})
+            db = await self._get_db()
+            result = await db.messages.delete_one({"_id": ObjectId(message_id)})
             return result.deleted_count > 0
         except Exception as e:
             logger.error(f"Error deleting message {message_id}: {str(e)}")

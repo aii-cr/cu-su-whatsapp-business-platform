@@ -11,16 +11,15 @@ from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.message_in import MessageSend
 from app.schemas.whatsapp.chat.message_out import MessageResponse, MessageSendResponse
-from app.services.audit.audit_service import AuditService
+from app.services import audit_service
 from app.services.auth import require_permissions, check_user_permission
-from app.services.whatsapp.whatsapp_service import WhatsAppService
+from app.services import whatsapp_service
 from app.services import message_service, conversation_service
 from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
-# Initialize WhatsApp service
-whatsapp_service = WhatsAppService()
+# WhatsApp service is imported from app.services
 
 
 @router.post("/send", response_model=MessageSendResponse, status_code=status.HTTP_201_CREATED)
@@ -114,7 +113,7 @@ async def send_message(
         logger.info(f"📤 [SEND_MESSAGE] Sending message via WhatsApp API")
         
         whatsapp_response = await whatsapp_service.send_text_message(
-            to=conversation["customer_phone"],
+            to_number=conversation["customer_phone"],
             text=message_data.text_content
         )
         
@@ -145,22 +144,42 @@ async def send_message(
         # Update conversation message count
         await conversation_service.increment_message_count(conversation_id)
 
+        # ===== UPDATE CONVERSATION STATUS =====
+        logger.info(f"🔄 [SEND_MESSAGE] Updating conversation status")
+        
+        # Update conversation status based on current state
+        status_update = {}
+        current_status = conversation.get("status", "pending")
+        
+        if current_status == "pending":
+            # First agent response - activate conversation
+            status_update["status"] = "active"
+            status_update["assigned_agent_id"] = current_user.id
+            logger.info(f"✅ [SEND_MESSAGE] Activating conversation {conversation_id}")
+        elif current_status == "waiting":
+            # Agent responding to customer - set back to active
+            status_update["status"] = "active"
+            logger.info(f"✅ [SEND_MESSAGE] Reactivating conversation {conversation_id}")
+        
+        # Update conversation if status needs to change
+        if status_update:
+            await conversation_service.update_conversation(
+                conversation_id=conversation_id,
+                update_data=status_update,
+                updated_by=current_user.id
+            )
+
         # ===== AUDIT LOGGING =====
         correlation_id = get_correlation_id()
-        await AuditService().log_event(
-            action="message_sent",
-            actor_id=current_user.id,
-            actor_name=current_user.name,
-            resource_type="message",
-            resource_id=message["_id"],
+        await audit_service.log_message_sent(
+            actor_id=str(current_user.id),
+            actor_name=current_user.name or current_user.email,
             conversation_id=conversation_id,
             customer_phone=conversation["customer_phone"],
-            correlation_id=correlation_id,
-            details={
-                "message_type": "text",
-                "text_length": len(message_data.text_content),
-                "whatsapp_message_id": whatsapp_response.get("messages", [{}])[0].get("id")
-            }
+            department_id=str(conversation.get("department_id")) if conversation.get("department_id") else None,
+            message_type="text",
+            message_id=str(message["_id"]),
+            correlation_id=correlation_id
         )
 
         # ===== RESPONSE =====

@@ -11,12 +11,11 @@ from app.config.error_codes import ErrorCode
 from app.core.logger import logger
 from app.schemas.whatsapp.chat.message_in import MediaMessageSend
 from app.schemas.whatsapp.chat.message_out import MessageSendResponse, MessageResponse
-from app.services.whatsapp.whatsapp_service import WhatsAppService
+from app.services import whatsapp_service
 
 router = APIRouter()
 
-# Initialize WhatsApp service
-whatsapp_service = WhatsAppService()
+# WhatsApp service is imported from app.services
 
 @router.post("/media", response_model=MessageSendResponse, status_code=status.HTTP_201_CREATED)
 async def send_media_message(

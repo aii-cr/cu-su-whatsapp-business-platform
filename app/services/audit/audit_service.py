@@ -11,10 +11,10 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.core.config import settings
 from app.core.logger import logger
-from app.db.client import database
+from app.services.base_service import BaseService
 
 
-class AuditService:
+class AuditService(BaseService):
     """
     Service for domain-level audit logging.
 
@@ -26,8 +26,8 @@ class AuditService:
     - Priority changes
     """
 
-    @staticmethod
     async def log_event(
+        self,
         action: str,
         actor_id: Optional[str] = None,
         actor_name: Optional[str] = None,
@@ -56,6 +56,8 @@ class AuditService:
             str: The ID of the created audit log entry, None if failed
         """
         try:
+            db = await self._get_db()
+            
             # Prepare metadata with correlation ID
             audit_metadata = metadata or {}
             if correlation_id:
@@ -75,7 +77,7 @@ class AuditService:
             }
 
             # Insert audit document
-            collection: AsyncIOMotorCollection = database.db.audit_logs
+            collection: AsyncIOMotorCollection = db.audit_logs
             result = await collection.insert_one(audit_doc)
 
             # Log successful audit entry
@@ -106,8 +108,8 @@ class AuditService:
             )
             return None
 
-    @staticmethod
     async def log_message_sent(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -118,7 +120,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log message sent event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="message_sent",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -129,8 +131,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_agent_transfer(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -143,7 +145,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log agent transfer event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="agent_transfer",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -160,8 +162,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_conversation_closed(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -172,7 +174,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log conversation closed event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="conversation_closed",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -183,8 +185,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_tag_added(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -195,7 +197,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log tag added event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="tag_added",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -206,8 +208,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_note_added(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -218,7 +220,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log note added event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="note_added",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -229,8 +231,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_status_changed(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -241,7 +243,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log status change event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="status_changed",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -252,8 +254,8 @@ class AuditService:
             correlation_id=correlation_id,
         )
 
-    @staticmethod
     async def log_priority_changed(
+        self,
         actor_id: str,
         actor_name: str,
         conversation_id: str,
@@ -264,7 +266,7 @@ class AuditService:
         correlation_id: Optional[str] = None,
     ) -> Optional[str]:
         """Log priority change event."""
-        return await AuditService.log_event(
+        return await self.log_event(
             action="priority_changed",
             actor_id=actor_id,
             actor_name=actor_name,
@@ -274,3 +276,7 @@ class AuditService:
             payload={"from_priority": from_priority, "to_priority": to_priority},
             correlation_id=correlation_id,
         )
+
+
+# Global audit service instance
+audit_service = AuditService()
