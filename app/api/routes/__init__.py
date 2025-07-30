@@ -14,6 +14,8 @@ from fastapi import APIRouter
 
 # Import route modules
 from .auth.users import router as users_router
+from .auth.roles import router as roles_router
+from .auth.permissions import router as permissions_router
 from .websocket import router as websocket_router
 from .whatsapp.chat.conversations import router as conversations_router
 from .whatsapp.chat.messages import router as messages_router
@@ -24,6 +26,8 @@ api_router = APIRouter()
 
 # Include authentication routes
 api_router.include_router(users_router, prefix="/auth")
+api_router.include_router(roles_router, prefix="/auth")
+api_router.include_router(permissions_router, prefix="/auth")
 
 # Include WhatsApp routes
 api_router.include_router(webhook_router)

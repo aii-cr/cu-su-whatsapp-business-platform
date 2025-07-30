@@ -10,6 +10,13 @@ from app.services.auth.auth_service import auth_service
 from app.services.system.audit_service import system_audit_service
 from app.services.system.database_service import database_service
 
+# Import new auth services
+from app.services.auth import (
+    user_service,
+    role_service,
+    permission_service
+)
+
 # Service instances
 whatsapp_service = WhatsAppService()
 
@@ -22,5 +29,9 @@ __all__ = [
     "websocket_service",
     "auth_service",
     "system_audit_service",
-    "database_service"
+    "database_service",
+    # New auth services
+    "user_service",
+    "role_service", 
+    "permission_service"
 ]

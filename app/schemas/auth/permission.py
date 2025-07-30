@@ -27,22 +27,28 @@ class PermissionUpdate(BaseModel):
 # Permission Response
 class PermissionResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
+    key: Optional[str] = None  # Made optional for backward compatibility
     name: str
     description: Optional[str] = None
-    category: str
-    action: str
-    resource: str
-    is_system_permission: bool
-    conditions: Dict[str, Any] = {}
-    created_at: datetime
-    updated_at: datetime
+    category: str = "general"  # Made optional with default
+    action: str = "read"  # Made optional with default
+    resource: str = "general"  # Made optional with default
+    is_system_permission: bool = False  # Made optional with default
+    is_active: bool = True  # Made optional with default
+    requires_approval: bool = False
+    scope: Dict[str, Any] = {}
+    conditions: Dict[str, Any] = {}  # Alias for scope
+    created_at: Optional[datetime] = None  # Made optional for backward compatibility
+    updated_at: Optional[datetime] = None  # Made optional for backward compatibility
+    created_by: Optional[PyObjectId] = None
+    updated_by: Optional[PyObjectId] = None
     role_count: int = 0  # Number of roles with this permission
 
     class Config:
         populate_by_name = True
         json_encoders = {
             PyObjectId: str,
-            datetime: lambda v: v.isoformat()
+            datetime: lambda v: v.isoformat() if v else None
         }
 
 # Permission List Response

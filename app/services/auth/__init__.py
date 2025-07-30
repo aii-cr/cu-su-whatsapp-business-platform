@@ -1,6 +1,9 @@
 """Authentication services package."""
 
 from .utils import *
+from .user_service import user_service
+from .role_service import role_service
+from .permission_service import permission_service
 
 __all__ = [
     # Re-export all auth utilities
@@ -28,4 +31,9 @@ __all__ = [
     "RequireMessageSend",
     "RequireMediaUpload",
     "RequireSystemAdmin",
+    
+    # Service instances
+    "user_service",
+    "role_service", 
+    "permission_service"
 ] 

@@ -24,7 +24,14 @@ class AuditService(BaseService):
     - Conversation status changes
     - Tag and note management
     - Priority changes
+    - User management actions
     """
+
+    def __init__(self):
+        super().__init__()
+        # Import here to avoid circular import
+        from app.services.audit.user_management import UserManagementAudit
+        self.user_management = UserManagementAudit(self)
 
     async def log_event(
         self,
