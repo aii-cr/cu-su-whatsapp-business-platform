@@ -1,20 +1,21 @@
 """User login endpoint."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Response
 from bson import ObjectId
 
 from app.services import auth_service
+from app.services.auth.utils.session_auth import set_session_cookie
 from app.config.error_codes import ErrorCode
-from app.schemas.auth import UserLogin, TokenResponse, UserResponse
+from app.schemas.auth import UserLogin, UserResponse
 from app.core.logger import logger
 from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
-@router.post("/login", response_model=TokenResponse)
-async def login_user(user_credentials: UserLogin):
+@router.post("/login", response_model=UserResponse)
+async def login_user(user_credentials: UserLogin, response: Response):
     """
-    Authenticate user and return access/refresh tokens.
+    Authenticate user and set session cookie.
     """
     try:
         # Authenticate user
@@ -32,17 +33,18 @@ async def login_user(user_credentials: UserLogin):
         # Update last login
         await auth_service.update_last_login(user["_id"])
         
-        # Create tokens
-        tokens = await auth_service.create_tokens(user["_id"])
+        # Create session token
+        session_token = await auth_service.create_session_token(
+            user["_id"], 
+            user["email"]
+        )
+        
+        # Set session cookie
+        set_session_cookie(response, session_token)
         
         logger.info(f"User {user['email']} logged in successfully")
         
-        return TokenResponse(
-            access_token=tokens["access_token"],
-            refresh_token=tokens["refresh_token"],
-            expires_in=tokens["expires_in"],
-            user=UserResponse(**user)
-        )
+        return UserResponse(**user)
         
     except HTTPException:
         raise

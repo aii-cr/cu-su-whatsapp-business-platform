@@ -24,19 +24,13 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     """Schema for successful login responses."""
-    access_token: str = Field(..., description="JWT access token")
-    refresh_token: str = Field(..., description="JWT refresh token")
-    token_type: str = Field(default="bearer", description="Token type")
-    expires_in: int = Field(..., description="Token expiration time in seconds")
+    message: str = Field(default="Login successful", description="Success message")
     user: dict = Field(..., description="User information")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-                "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-                "token_type": "bearer",
-                "expires_in": 3600,
+                "message": "Login successful",
                 "user": {
                     "id": "60a7c8b9f123456789abcdef",
                     "email": "agent@company.com",
@@ -45,22 +39,16 @@ class LoginResponse(BaseModel):
             }
         }
 
-class RefreshTokenRequest(BaseModel):
-    """Schema for token refresh requests."""
-    refresh_token: str = Field(..., description="JWT refresh token")
+class LogoutResponse(BaseModel):
+    """Schema for logout responses."""
+    message: str = Field(default="Logged out successfully", description="Success message")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                "message": "Logged out successfully"
             }
         }
-
-class RefreshTokenResponse(BaseModel):
-    """Schema for token refresh responses."""
-    access_token: str = Field(..., description="New JWT access token")
-    token_type: str = Field(default="bearer", description="Token type")
-    expires_in: int = Field(..., description="Token expiration time in seconds")
 
 class PasswordChangeRequest(BaseModel):
     """Schema for password change requests."""
@@ -125,10 +113,6 @@ class RegisterRequest(BaseModel):
                 "role_ids": ["60a7c8b9f123456789abcdef"]
             }
         }
-
-class LogoutRequest(BaseModel):
-    """Schema for logout requests."""
-    refresh_token: Optional[str] = Field(None, description="Refresh token to invalidate")
 
 class AuthStatus(BaseModel):
     """Schema for authentication status responses."""

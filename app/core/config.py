@@ -22,8 +22,7 @@ class Settings(BaseSettings):
     
     # Security Settings
     SECRET_KEY: str = "development-secret-key-change-in-production"  # Default for development
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 160
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    SESSION_EXPIRE_MINUTES: int = 160  # Session timeout in minutes
     ALGORITHM: str = "HS256"
     
     # WhatsApp Business API Settings

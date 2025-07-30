@@ -86,8 +86,7 @@ SMTP_SENDER_EMAIL="noreply@yourcompany.com"
 SMTP_SENDER_PASSWORD="your-email-password"
 
 # Security Settings
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-REFRESH_TOKEN_EXPIRE_DAYS=30
+SESSION_EXPIRE_MINUTES=160
 ```
 
 ### 5. Database Setup
@@ -170,10 +169,11 @@ app/
 
 ### Authentication & Authorization
 
-#### JWT Token System
-- **Access Tokens** - Short-lived tokens for API access (1 hour default)
-- **Refresh Tokens** - Long-lived tokens for token renewal (30 days default)
-- **Token Validation** - Comprehensive token verification with proper error handling
+#### Session-Based Authentication
+- **Session Cookies** - Secure HTTP-only cookies for session management
+- **Session Timeout** - Configurable session expiration (160 minutes default)
+- **Cookie Security** - HttpOnly, Secure, and SameSite attributes for protection
+- **Session Validation** - Comprehensive session verification with proper error handling
 
 #### RBAC Implementation
 - **Role-Based Access** - Users assigned to roles with specific permissions
@@ -184,7 +184,7 @@ app/
 ## 🔐 Security Features
 
 ### Authentication
-- JWT-based authentication with secure token generation
+- Session-based authentication with secure cookie management
 - Password hashing using bcrypt with salt
 - Session management with proper expiration
 - Two-factor authentication support (ready for implementation)

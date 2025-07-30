@@ -2,7 +2,7 @@
 
 from fastapi import Depends
 
-from .user_auth import get_current_active_user
+from .session_auth import get_current_active_user
 from .permissions import require_roles, require_permissions
 
 

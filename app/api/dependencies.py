@@ -4,14 +4,11 @@ Shared dependencies for authentication, pagination, and request validation.
 """
 
 from fastapi import Depends, HTTPException, status, Query
-from fastapi.security import HTTPBearer
 from typing import Optional
 from bson import ObjectId
 
-from app.core.security import get_current_user, get_current_active_user
+from app.services.auth import get_current_user, get_current_active_user
 from app.db.models.auth import User
-
-security = HTTPBearer()
 
 # Authentication dependencies
 async def get_authenticated_user(current_user: User = Depends(get_current_active_user)) -> User:

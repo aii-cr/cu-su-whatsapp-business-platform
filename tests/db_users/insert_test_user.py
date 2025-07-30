@@ -1,6 +1,5 @@
 import asyncio
-from app.db.client import database
-from app.core.security import hash_password
+from app.services.auth import hash_password
 from datetime import datetime, timezone
 
 async def insert_test_user():

@@ -7,7 +7,8 @@ from bson import ObjectId
 from app.services.base_service import BaseService
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode
-from app.services.auth import create_access_token, create_refresh_token, verify_password
+from app.services.auth.utils.session_auth import create_session_token
+from app.services.auth.utils.password_utils import verify_password
 from app.core.config import settings
 
 
@@ -114,24 +115,22 @@ class AuthService(BaseService):
         
         return user
     
-    async def create_tokens(self, user_id: ObjectId) -> Dict[str, str]:
+    async def create_session_token(self, user_id: ObjectId, email: str = None) -> str:
         """
-        Create access and refresh tokens for user.
+        Create session token for user.
         
         Args:
             user_id: User ID
+            email: User's email (optional)
             
         Returns:
-            Dictionary with access_token and refresh_token
+            Session token string
         """
-        access_token = create_access_token(data={"sub": str(user_id)})
-        refresh_token = create_refresh_token(data={"sub": str(user_id)})
-        
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        }
+        token_data = {"sub": str(user_id)}
+        if email:
+            token_data["email"] = email
+            
+        return create_session_token(data=token_data)
     
     async def get_user_by_id(self, user_id: ObjectId) -> Optional[Dict[str, Any]]:
         """

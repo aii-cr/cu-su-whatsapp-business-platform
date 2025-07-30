@@ -3,18 +3,19 @@
 This package provides modular authentication utilities including:
 - User authentication and authorization
 - Permission and role checking
-- JWT token management
+- Session-based authentication
 - Password utilities
 - FastAPI dependencies
 """
 
-from .user_auth import get_current_user, get_current_active_user, get_current_user_token
+from .session_auth import (
+    get_current_user, get_current_active_user, get_current_session_token,
+    set_session_cookie, clear_session_cookie, SessionData,
+    create_session_token, verify_session_token
+)
 from .permissions import (
     get_user_permissions, get_user_roles, check_user_permission, 
     check_user_role, require_permissions, require_roles
-)
-from .tokens import (
-    create_access_token, create_refresh_token, verify_token, TokenData
 )
 from .password_utils import hash_password, verify_password
 from .dependencies import (
@@ -24,10 +25,15 @@ from .dependencies import (
 )
 
 __all__ = [
-    # User authentication
+    # User authentication (session-based)
     "get_current_user",
     "get_current_active_user", 
-    "get_current_user_token",
+    "get_current_session_token",
+    "set_session_cookie",
+    "clear_session_cookie",
+    "SessionData",
+    "create_session_token",
+    "verify_session_token",
     
     # Permissions and roles
     "get_user_permissions",
@@ -36,12 +42,6 @@ __all__ = [
     "check_user_role",
     "require_permissions",
     "require_roles",
-    
-    # Tokens
-    "create_access_token",
-    "create_refresh_token", 
-    "verify_token",
-    "TokenData",
     
     # Password utilities
     "hash_password",

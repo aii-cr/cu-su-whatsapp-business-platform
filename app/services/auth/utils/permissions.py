@@ -6,7 +6,7 @@ from bson import ObjectId
 
 from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
-from .user_auth import get_current_user
+from .session_auth import get_current_user
 
 
 async def get_user_permissions(user_id: ObjectId) -> List[str]:

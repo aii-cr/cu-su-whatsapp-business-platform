@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
-from app.core.security import require_permissions
+from app.services.auth import require_permissions
 from app.db.models.auth.user import User
 from app.schemas.system.audit_log import (
     WhatsAppAuditLogListResponse,
