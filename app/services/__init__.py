@@ -17,6 +17,9 @@ from app.services.auth import (
     permission_service
 )
 
+# Import business services
+from app.services.business import department_service
+
 # Service instances
 whatsapp_service = WhatsAppService()
 
@@ -33,5 +36,7 @@ __all__ = [
     # New auth services
     "user_service",
     "role_service", 
-    "permission_service"
+    "permission_service",
+    # Business services
+    "department_service"
 ]

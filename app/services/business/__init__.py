@@ -1,5 +1,5 @@
 """Business services package."""
 
-# Placeholder for future business services
+from .department_service import department_service
 
-__all__ = [] 
+__all__ = ["department_service"] 

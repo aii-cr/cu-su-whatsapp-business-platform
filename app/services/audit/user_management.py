@@ -257,4 +257,110 @@ class UserManagementAudit:
                 "role_name": role_name,
             },
             correlation_id=correlation_id,
+        )
+    
+    async def log_department_created(
+        self,
+        actor_id: str,
+        actor_name: str,
+        department_id: str,
+        department_name: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log department creation event."""
+        return await self.audit_service.log_event(
+            action="department_created",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "department_id": department_id,
+                "department_name": department_name,
+            },
+            correlation_id=correlation_id,
+        )
+    
+    async def log_department_updated(
+        self,
+        actor_id: str,
+        actor_name: str,
+        department_id: str,
+        department_name: str,
+        changes: Dict[str, Any],
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log department update event."""
+        return await self.audit_service.log_event(
+            action="department_updated",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "department_id": department_id,
+                "department_name": department_name,
+                "changes": changes,
+            },
+            correlation_id=correlation_id,
+        )
+    
+    async def log_department_deleted(
+        self,
+        actor_id: str,
+        actor_name: str,
+        department_id: str,
+        department_name: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log department deletion event."""
+        return await self.audit_service.log_event(
+            action="department_deleted",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "department_id": department_id,
+                "department_name": department_name,
+            },
+            correlation_id=correlation_id,
+        )
+    
+    async def log_user_added_to_department(
+        self,
+        actor_id: str,
+        actor_name: str,
+        department_id: str,
+        department_name: str,
+        user_id: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log user added to department event."""
+        return await self.audit_service.log_event(
+            action="user_added_to_department",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "department_id": department_id,
+                "department_name": department_name,
+                "user_id": user_id,
+            },
+            correlation_id=correlation_id,
+        )
+    
+    async def log_user_removed_from_department(
+        self,
+        actor_id: str,
+        actor_name: str,
+        department_id: str,
+        department_name: str,
+        user_id: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log user removed from department event."""
+        return await self.audit_service.log_event(
+            action="user_removed_from_department",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "department_id": department_id,
+                "department_name": department_name,
+                "user_id": user_id,
+            },
+            correlation_id=correlation_id,
         ) 
