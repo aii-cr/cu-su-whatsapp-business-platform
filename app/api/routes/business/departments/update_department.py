@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.config.error_codes import ErrorCode
+from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
@@ -28,17 +28,21 @@ async def update_department(
         try:
             ObjectId(department_id)
         except Exception:
+            logger.warning(f"Invalid department ID format: {department_id}")
+            error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid department ID format")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid department ID"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Get current department for audit
         current_department = await department_service.get_department(department_id)
         if not current_department:
+            logger.warning(f"Department not found: {department_id}")
+            error_response = get_error_response(ErrorCode.DEPARTMENT_NOT_FOUND)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Prepare update data
@@ -54,9 +58,11 @@ async def update_department(
             )
             
             if not updated_department:
+                logger.warning(f"Department not found during update: {department_id}")
+                error_response = get_error_response(ErrorCode.DEPARTMENT_NOT_FOUND)
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Department not found"
+                    status_code=error_response["status_code"],
+                    detail=error_response["detail"]
                 )
             
             # ===== AUDIT LOGGING =====
@@ -78,15 +84,18 @@ async def update_department(
             return DepartmentResponse(**current_department)
         
     except ValueError as e:
+        logger.warning(f"Validation error updating department {department_id}: {str(e)}")
+        error_response = get_error_response(ErrorCode.DEPARTMENT_ALREADY_EXISTS, str(e))
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Unexpected error updating department {department_id}: {str(e)}")
+        error_response = get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update department"
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         ) 

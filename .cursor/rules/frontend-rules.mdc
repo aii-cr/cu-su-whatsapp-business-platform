@@ -1,0 +1,380 @@
+---
+alwaysApply: true
+---
+
+# Purpose: Authoritative rules for generating a production-grade Next.js (App Router) frontend for a WhatsApp Business platform.
+# Scope: Enforce feature-based structure, BFF route handlers, cookie-session auth, WebSocket realtime, light/dark theme, and modern Next.js APIs only.
+
+───────────────────────────────────────────────────────────────────────────────
+TECHNOLOGY TARGETS
+- Framework: Next.js App Router (`/app`) with React Server Components by default.
+- Styling: Tailwind CSS + CSS variables; darkMode: 'class'.
+- Theming: `next-themes` (class strategy) with system support and persisted preference.
+- Forms: React Hook Form + Zod.
+- Data fetching (client): TanStack Query where client state is required.
+- State: Minimal local state; optional Zustand for UI-only state.
+- Realtime: Browser WebSocket API to FastAPI WS endpoint (single connection, auto-reconnect).
+- Monitoring/QA: Sentry + Playwright; ESLint `next/core-web-vitals`; TypeScript `"strict": true`.
+
+───────────────────────────────────────────────────────────────────────────────
+GLOBAL DO / DON’T
+DO
+- Use App Router, Server Components by default; Client Components only for interactivity.
+- Use `next/navigation` (not `next/router`).
+- Use Route Handlers under `app/(api)/api/*` as BFF to call FastAPI; never call privileged FastAPI endpoints directly from Client Components.
+- Explicitly set caching: `cache: 'no-store'` for session-scoped data, or `revalidate`/`tags` for shared data.
+- Split features into small, reusable components; co-locate feature code (components, hooks, models, tests).
+- Write accessible, keyboard-first components (proper roles, labels, focus management).
+
+DON’T
+- Don’t use legacy `pages/`, `getServerSideProps`, `getStaticProps`, or `next/router`.
+- Don’t place secrets in the browser or use localStorage/sessionStorage for auth.
+- Don’t hardcode colors; use tokens/variables that work in light and dark themes.
+- Don’t create “god” components; extract subcomponents when a block is reusable or complex.
+
+───────────────────────────────────────────────────────────────────────────────
+THEME REQUIREMENTS (MANDATORY FOR EVERY FEATURE)
+- Wrap `app/layout.tsx` with a `ThemeProvider` using `next-themes` (attribute=`class`, enableSystem).
+- Provide both light and dark styles for every new component/feature before merging.
+- Expose a Theme toggle inside `SettingsModal` (button or switch) and persist preference.
+- Use semantic CSS variables (e.g., `--bg`, `--fg`, `--primary`) mapped in Tailwind; no raw hex in components.
+
+───────────────────────────────────────────────────────────────────────────────
+AUTH & SESSION (cookie: `session_token`)
+- Auth relies on httpOnly, Secure, SameSite cookies. No token in JS-readable storage.
+- All privileged calls go through BFF Route Handlers to attach cookies and handle CSRF.
+- Implement CSRF for unsafe methods (double-submit cookie or signed header).
+- Rotate session on login; clear on logout.
+
+───────────────────────────────────────────────────────────────────────────────
+DATA ACCESS & BFF
+- Create Route Handlers in `app/(api)/api/**/route.ts` that:
+  - Validate input with Zod.
+  - Forward to FastAPI with server-side `fetch` (timeout, abort, retries for idempotent methods).
+  - Normalize errors to `application/problem+json` shape.
+- Server Components fetch by default; use TanStack Query only when live client invalidation is needed.
+
+───────────────────────────────────────────────────────────────────────────────
+REALTIME (WEBSOCKET)
+- Implement a single shared WebSocket client (hook) with:
+  - Exponential backoff reconnect, heartbeat/ping, and on-close reasons.
+  - Topic/room subscription per conversation.
+  - Idempotent resend for transient failures (for messages), reconcile on ack.
+- Do not host custom WS on Next.js serverless; connect directly to FastAPI WS.
+
+───────────────────────────────────────────────────────────────────────────────
+UI / COMPONENTS
+- Build a small design system in `components/ui` (Button, Input, Dialog, Badge, Tooltip, Skeleton, EmptyState).
+- Composite chat components live under `features/**/components` (MessageBubble, MessageComposer, ConversationList).
+- Always prefer composition over inheritance; avoid prop drilling via context only when necessary.
+- Use `next/image` for media; virtualize long lists (chat history).
+
+───────────────────────────────────────────────────────────────────────────────
+FORMS & VALIDATION
+- React Hook Form + Zod resolvers; client and server share Zod schemas.
+- Show inline errors and pending states; disable submit while pending.
+- No uncontrolled network calls from form components; delegate to feature hooks.
+
+───────────────────────────────────────────────────────────────────────────────
+PERFORMANCE
+- Minimize client JS by keeping components server-side unless interactive.
+- Use streaming + Suspense for dashboards; explicit `revalidate` for lists.
+- Code-split heavy client islands with `dynamic(() => import(...), { ssr: false })` when appropriate.
+
+───────────────────────────────────────────────────────────────────────────────
+SECURITY
+- CSP with strict `img-src`/`connect-src` to WhatsApp media and FastAPI domains.
+- Sanitize any HTML (templates); avoid `dangerouslySetInnerHTML`.
+- Redact PII in logs; do not leak stack traces to end users.
+
+───────────────────────────────────────────────────────────────────────────────
+TESTING & OBSERVABILITY
+- Playwright E2E covering: login, conversations list, open chat, send message, transfer, settings/theme switch.
+- Unit tests for hooks and utilities; snapshot or VRT for critical UI.
+- Sentry for client/server with release + env tags; minimal user tagging (non-PII).
+
+───────────────────────────────────────────────────────────────────────────────
+NETWORKING & ERRORS
+- Centralize HTTP in `lib/http.ts` with:
+  - Timeout, retries (idempotent only), abort signals.
+  - Unified error handling (`problem+json`), structured toasts/snackbars.
+- Optimistic UI for send-message; reconcile on ack; retry affordance on failure.
+
+───────────────────────────────────────────────────────────────────────────────
+ACCESSIBILITY & I18N
+- All interactive elements keyboard navigable with visible focus rings; ARIA roles/labels where needed.
+- Externalize strings for future i18n; no user-facing text hardcoded deep in components.
+
+───────────────────────────────────────────────────────────────────────────────
+DEFINITION OF DONE (PR GATE)
+- ✅ Both light & dark theme verified for the feature (no regressions).
+- ✅ No deprecated Next.js APIs; passes ESLint `next/core-web-vitals`.
+- ✅ Route Handlers (BFF) used for privileged actions; no token exposure.
+- ✅ Tests: unit for hooks and Playwright happy-path for the new UI.
+- ✅ Monitoring: errors produce user-friendly messages and Sentry breadcrumbs.
+
+───────────────────────────────────────────────────────────────────────────────
+DIRECTORY STRUCTURE (REFERENCE)
+cu-su-frontend/
+  app/
+    (auth)/login/page.tsx
+    (dashboard)/
+      conversations/page.tsx
+      conversations/[id]/page.tsx
+      templates/page.tsx
+      departments/page.tsx
+      users/page.tsx
+      analytics/page.tsx
+    settings/page.tsx
+    layout.tsx
+    globals.css
+    (api)/api/
+      conversations/route.ts
+      conversations/[id]/messages/route.ts
+      auth/session/route.ts
+  components/
+    ui/...                 # primitives
+    feedback/...           # toast, empty-state, skeleton
+    theme/ThemeProvider.tsx
+    theme/ThemeToggle.tsx  # used inside SettingsModal
+    common/PageHeader.tsx
+    common/DataTable.tsx
+  features/
+    conversations/{components,hooks,models,api}
+    messages/{components,hooks,models,api}
+    templates/{components,hooks,models,api}
+    departments/{components,hooks,models,api}
+    users-roles/{components,hooks,models,api}
+    analytics/{components,hooks,models,api}
+  lib/{http.ts,auth.ts,ws.ts,store.ts,constants.ts}
+  styles/theme.css
+  test/{e2e,unit}
+  public/
+  tailwind.config.ts
+  next.config.mjs
+  tsconfig.json
+
+───────────────────────────────────────────────────────────────────────────────
+NAMING & CONVENTIONS
+- Files: PascalCase for components, kebab-case for routes, camelCase for hooks/util.
+- Hooks: `useFeatureThing.ts`; Zod schemas under `models/`.
+- API clients per feature under `features/**/api`.
+
+───────────────────────────────────────────────────────────────────────────────
+REQUIRED STUBS (GENERATE IF MISSING)
+
+# app/layout.tsx → wraps ThemeProvider and QueryProvider
+# components/theme/ThemeProvider.tsx → next-themes setup (class strategy)
+# components/theme/ThemeToggle.tsx → used inside SettingsModal to switch theme
+# lib/ws.ts → WebSocket client with reconnect/heartbeat
+# lib/http.ts → fetch wrapper with timeout, retries (idempotent), and problem+json parsing
+# features/conversations/hooks/useRealtime.ts → subscribes to conversation events
+
+───────────────────────────────────────────────────────────────────────────────
+CODE QUALITY
+- TypeScript `strict: true`; no `any`. Lint errors are treated as CI failures.
+- Keep components ≤200 lines where practical; extract subcomponents if growing beyond.
+- Reuse existing primitives; do not duplicate styles or behaviors.
+
+# END
+# .cursorrules
+# Purpose: Authoritative rules for generating a production-grade Next.js (App Router) frontend for a WhatsApp Business platform.
+# Scope: Enforce feature-based structure, BFF route handlers, cookie-session auth, WebSocket realtime, light/dark theme, and modern Next.js APIs only.
+
+───────────────────────────────────────────────────────────────────────────────
+TECHNOLOGY TARGETS
+- Framework: Next.js App Router (`/app`) with React Server Components by default.
+- Styling: Tailwind CSS + CSS variables; darkMode: 'class'.
+- Theming: `next-themes` (class strategy) with system support and persisted preference.
+- Forms: React Hook Form + Zod.
+- Data fetching (client): TanStack Query where client state is required.
+- State: Minimal local state; optional Zustand for UI-only state.
+- Realtime: Browser WebSocket API to FastAPI WS endpoint (single connection, auto-reconnect).
+- Monitoring/QA: Sentry + Playwright; ESLint `next/core-web-vitals`; TypeScript `"strict": true`.
+
+───────────────────────────────────────────────────────────────────────────────
+GLOBAL DO / DON’T
+DO
+- Use App Router, Server Components by default; Client Components only for interactivity.
+- Use `next/navigation` (not `next/router`).
+- Use Route Handlers under `app/(api)/api/*` as BFF to call FastAPI; never call privileged FastAPI endpoints directly from Client Components.
+- Explicitly set caching: `cache: 'no-store'` for session-scoped data, or `revalidate`/`tags` for shared data.
+- Split features into small, reusable components; co-locate feature code (components, hooks, models, tests).
+- Write accessible, keyboard-first components (proper roles, labels, focus management).
+
+DON’T
+- Don’t use legacy `pages/`, `getServerSideProps`, `getStaticProps`, or `next/router`.
+- Don’t place secrets in the browser or use localStorage/sessionStorage for auth.
+- Don’t hardcode colors; use tokens/variables that work in light and dark themes.
+- Don’t create “god” components; extract subcomponents when a block is reusable or complex.
+
+───────────────────────────────────────────────────────────────────────────────
+THEME REQUIREMENTS (MANDATORY FOR EVERY FEATURE)
+- Wrap `app/layout.tsx` with a `ThemeProvider` using `next-themes` (attribute=`class`, enableSystem).
+- Provide both light and dark styles for every new component/feature before merging.
+- Expose a Theme toggle inside `SettingsModal` (button or switch) and persist preference.
+- Use semantic CSS variables (e.g., `--bg`, `--fg`, `--primary`) mapped in Tailwind; no raw hex in components.
+
+───────────────────────────────────────────────────────────────────────────────
+AUTH & SESSION (cookie: `session_token`)
+- Auth relies on httpOnly, Secure, SameSite cookies. No token in JS-readable storage.
+- All privileged calls go through BFF Route Handlers to attach cookies and handle CSRF.
+- Implement CSRF for unsafe methods (double-submit cookie or signed header).
+- Rotate session on login; clear on logout.
+
+───────────────────────────────────────────────────────────────────────────────
+DATA ACCESS & BFF
+- Create Route Handlers in `app/(api)/api/**/route.ts` that:
+  - Validate input with Zod.
+  - Forward to FastAPI with server-side `fetch` (timeout, abort, retries for idempotent methods).
+  - Normalize errors to `application/problem+json` shape.
+- Server Components fetch by default; use TanStack Query only when live client invalidation is needed.
+
+───────────────────────────────────────────────────────────────────────────────
+REALTIME (WEBSOCKET)
+- Implement a single shared WebSocket client (hook) with:
+  - Exponential backoff reconnect, heartbeat/ping, and on-close reasons.
+  - Topic/room subscription per conversation.
+  - Idempotent resend for transient failures (for messages), reconcile on ack.
+- Do not host custom WS on Next.js serverless; connect directly to FastAPI WS.
+
+───────────────────────────────────────────────────────────────────────────────
+UI / COMPONENTS
+- Build a small design system in `components/ui` (Button, Input, Dialog, Badge, Tooltip, Skeleton, EmptyState).
+- Composite chat components live under `features/**/components` (MessageBubble, MessageComposer, ConversationList).
+- Always prefer composition over inheritance; avoid prop drilling via context only when necessary.
+- Use `next/image` for media; virtualize long lists (chat history).
+
+───────────────────────────────────────────────────────────────────────────────
+FORMS & VALIDATION
+- React Hook Form + Zod resolvers; client and server share Zod schemas.
+- Show inline errors and pending states; disable submit while pending.
+- No uncontrolled network calls from form components; delegate to feature hooks.
+
+───────────────────────────────────────────────────────────────────────────────
+PERFORMANCE
+- Minimize client JS by keeping components server-side unless interactive.
+- Use streaming + Suspense for dashboards; explicit `revalidate` for lists.
+- Code-split heavy client islands with `dynamic(() => import(...), { ssr: false })` when appropriate.
+
+───────────────────────────────────────────────────────────────────────────────
+SECURITY
+- CSP with strict `img-src`/`connect-src` to WhatsApp media and FastAPI domains.
+- Sanitize any HTML (templates); avoid `dangerouslySetInnerHTML`.
+- Redact PII in logs; do not leak stack traces to end users.
+
+───────────────────────────────────────────────────────────────────────────────
+TESTING & OBSERVABILITY
+- Playwright E2E covering: login, conversations list, open chat, send message, transfer, settings/theme switch.
+- Unit tests for hooks and utilities; snapshot or VRT for critical UI.
+- Sentry for client/server with release + env tags; minimal user tagging (non-PII).
+
+───────────────────────────────────────────────────────────────────────────────
+NETWORKING & ERRORS
+- Centralize HTTP in `lib/http.ts` with:
+  - Timeout, retries (idempotent only), abort signals.
+  - Unified error handling (`problem+json`), structured toasts/snackbars.
+- Optimistic UI for send-message; reconcile on ack; retry affordance on failure.
+
+───────────────────────────────────────────────────────────────────────────────
+ACCESSIBILITY & I18N
+- All interactive elements keyboard navigable with visible focus rings; ARIA roles/labels where needed.
+- Externalize strings for future i18n; no user-facing text hardcoded deep in components.
+
+───────────────────────────────────────────────────────────────────────────────
+DEFINITION OF DONE (PR GATE)
+- ✅ Both light & dark theme verified for the feature (no regressions).
+- ✅ No deprecated Next.js APIs; passes ESLint `next/core-web-vitals`.
+- ✅ Route Handlers (BFF) used for privileged actions; no token exposure.
+- ✅ Tests: unit for hooks and Playwright happy-path for the new UI.
+- ✅ Monitoring: errors produce user-friendly messages and Sentry breadcrumbs.
+
+───────────────────────────────────────────────────────────────────────────────
+DIRECTORY STRUCTURE (REFERENCE)
+cu-su-frontend/
+  app/
+    (auth)/login/page.tsx
+    (dashboard)/
+      conversations/page.tsx
+      conversations/[id]/page.tsx
+      templates/page.tsx
+      departments/page.tsx
+      users/page.tsx
+      analytics/page.tsx
+    settings/page.tsx
+    layout.tsx
+    globals.css
+    (api)/api/
+      conversations/route.ts
+      conversations/[id]/messages/route.ts
+      auth/session/route.ts
+  components/
+    ui/...                 # primitives
+    feedback/...           # toast, empty-state, skeleton
+    theme/ThemeProvider.tsx
+    theme/ThemeToggle.tsx  # used inside SettingsModal
+    common/PageHeader.tsx
+    common/DataTable.tsx
+  features/
+    conversations/{components,hooks,models,api}
+    messages/{components,hooks,models,api}
+    templates/{components,hooks,models,api}
+    departments/{components,hooks,models,api}
+    users-roles/{components,hooks,models,api}
+    analytics/{components,hooks,models,api}
+  lib/{http.ts,auth.ts,ws.ts,store.ts,constants.ts}
+  styles/theme.css
+  test/{e2e,unit}
+  public/
+  tailwind.config.ts
+  next.config.mjs
+  tsconfig.json
+
+───────────────────────────────────────────────────────────────────────────────
+NAMING & CONVENTIONS
+- Files: PascalCase for components, kebab-case for routes, camelCase for hooks/util.
+- Hooks: `useFeatureThing.ts`; Zod schemas under `models/`.
+- API clients per feature under `features/**/api`.
+
+───────────────────────────────────────────────────────────────────────────────
+REQUIRED STUBS (GENERATE IF MISSING)
+
+# app/layout.tsx → wraps ThemeProvider and QueryProvider
+# components/theme/ThemeProvider.tsx → next-themes setup (class strategy)
+# components/theme/ThemeToggle.tsx → used inside SettingsModal to switch theme
+# lib/ws.ts → WebSocket client with reconnect/heartbeat
+# lib/http.ts → fetch wrapper with timeout, retries (idempotent), and problem+json parsing
+# features/conversations/hooks/useRealtime.ts → subscribes to conversation events
+
+───────────────────────────────────────────────────────────────────────────────
+COMPONENT REUSE & DECOMPOSITION (MANDATORY)
+- Reuse-first policy: before creating a new component, search `components/ui`, `components/common`, and existing `features/**/components`. Only create a new component if no suitable one exists; otherwise, extend via props/variants.
+- Small, focused components: each component should have a single responsibility and be ≤200 LOC where practical. If it grows beyond this, or mixes concerns (layout + data + complex interaction), split into subcomponents.
+- Extraction triggers (split immediately when any apply):
+  - Duplicate markup appears 2+ times.
+  - Component has >10 props OR >3 boolean props.
+  - Renders more than 2 distinct UI regions (header/body/footer/toolbars) or nested lists.
+  - Contains both data fetching/mutations and complex UI logic (separate into container + presentational).
+- Variants & composition:
+  - Expose visual variations via a `variant` API (e.g., class-variance-authority or utility functions), not boolean prop explosions.
+  - Prefer composition and “slots” over deeply nested conditional JSX.
+  - No business rules inside design-system primitives (`components/ui/*`). Keep business logic in feature containers.
+- Co-location & structure:
+  - Place reusable, domain-agnostic primitives in `components/ui`.
+  - Place feature-specific composites in `features/<feature>/components`.
+  - Export via local `index.ts` barrels for tidy imports.
+- Performance & stability:
+  - Keep props stable; memoize heavy pure components (`React.memo`) and expensive calculations (`useMemo/useCallback`) only when profiling indicates benefit.
+  - Virtualize long lists (chat history, tables).
+- Accessibility & theming (always required):
+  - Keyboard navigable with ARIA roles/labels where needed.
+  - No hardcoded colors; use tokens that support light & dark themes. New components must ship both themes before merge.
+- PR DoD for reuse:
+  - The PR description lists which existing components were reused; if a new component was created, justify why reuse/extension wasn’t feasible.
+  - No duplicate components with overlapping purpose. If duplication is discovered, refactor to a single reusable component before merge.
+
+───────────────────────────────────────────────────────────────────────────────
+CODE QUALITY
+- TypeScript `strict: true`; no `any`. Lint errors are treated as CI failures.
+- Keep components ≤200 lines where practical; extract subcomponents if growing beyond.
+- Reuse existing primitives; do not duplicate styles or behaviors.

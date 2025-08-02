@@ -1,10 +1,11 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.config.error_codes import ErrorCode
+from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
+from app.schemas.business.department import AgentRemoval
 from app.services import department_service, audit_service
 from app.services.auth import require_permissions
 
@@ -26,26 +27,22 @@ async def remove_user_from_department(
             ObjectId(department_id)
             ObjectId(user_id)
         except Exception:
+            logger.warning(f"Invalid ID format - department: {department_id}, user: {user_id}")
+            error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid ID format")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid department or user ID"
-            )
-        
-        # Get department for audit
-        department = await department_service.get_department(department_id)
-        if not department:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Remove user from department
         success = await department_service.remove_user_from_department(department_id, user_id)
         
         if not success:
+            logger.warning(f"Failed to remove user {user_id} from department {department_id}")
+            error_response = get_error_response(ErrorCode.DEPARTMENT_NOT_FOUND, "User not found in department")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to remove user from department"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # ===== AUDIT LOGGING =====
@@ -54,7 +51,6 @@ async def remove_user_from_department(
             actor_id=str(current_user.id),
             actor_name=current_user.name or current_user.email,
             department_id=department_id,
-            department_name=department["name"],
             user_id=user_id,
             correlation_id=correlation_id
         )
@@ -67,7 +63,8 @@ async def remove_user_from_department(
         raise
     except Exception as e:
         logger.error(f"Unexpected error removing user {user_id} from department {department_id}: {str(e)}")
+        error_response = get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to remove user from department"
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         ) 

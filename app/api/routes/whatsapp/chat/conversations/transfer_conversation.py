@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.config.error_codes import ErrorCode
+from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.client import database
@@ -27,8 +27,11 @@ async def transfer_conversation(
     try:
         conversation_obj_id = ObjectId(conversation_id)
     except Exception:
+        logger.warning(f"Invalid conversation ID format: {conversation_id}")
+        error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid conversation ID format")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=ErrorCode.INVALID_CONVERSATION_ID
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         )
 
     try:
@@ -37,22 +40,29 @@ async def transfer_conversation(
         # Get current conversation
         conversation = await db.conversations.find_one({"_id": conversation_obj_id})
         if not conversation:
+            logger.warning(f"Conversation not found: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_NOT_FOUND)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=ErrorCode.CONVERSATION_NOT_FOUND
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Check if conversation is already closed
         if conversation.get("status") == "resolved":
+            logger.warning(f"Cannot transfer closed conversation: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_ALREADY_CLOSED, "Cannot transfer a closed conversation")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Cannot transfer a closed conversation"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Validate transfer target
         if not transfer_data.to_agent_id and not transfer_data.to_department_id:
+            logger.warning(f"Invalid transfer request - no target specified: {conversation_id}")
+            error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Either to_agent_id or to_department_id must be provided")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either to_agent_id or to_department_id must be provided"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # If transferring to agent, validate agent exists
@@ -61,14 +71,18 @@ async def transfer_conversation(
                 target_agent_id = ObjectId(transfer_data.to_agent_id)
                 target_agent = await db.users.find_one({"_id": target_agent_id})
                 if not target_agent:
+                    logger.warning(f"Target agent not found: {transfer_data.to_agent_id}")
+                    error_response = get_error_response(ErrorCode.USER_NOT_FOUND, "Target agent not found")
                     raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Target agent not found"
+                        status_code=error_response["status_code"],
+                        detail=error_response["detail"]
                     )
             except Exception:
+                logger.warning(f"Invalid target agent ID format: {transfer_data.to_agent_id}")
+                error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid target agent ID format")
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid target agent ID"
+                    status_code=error_response["status_code"],
+                    detail=error_response["detail"]
                 )
         
         # If transferring to department, validate department exists
@@ -77,14 +91,18 @@ async def transfer_conversation(
                 target_department_id = ObjectId(transfer_data.to_department_id)
                 target_department = await db.departments.find_one({"_id": target_department_id})
                 if not target_department:
+                    logger.warning(f"Target department not found: {transfer_data.to_department_id}")
+                    error_response = get_error_response(ErrorCode.DEPARTMENT_NOT_FOUND, "Target department not found")
                     raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Target department not found"
+                        status_code=error_response["status_code"],
+                        detail=error_response["detail"]
                     )
             except Exception:
+                logger.warning(f"Invalid target department ID format: {transfer_data.to_department_id}")
+                error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid target department ID format")
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid target department ID"
+                    status_code=error_response["status_code"],
+                    detail=error_response["detail"]
                 )
         
         # Store current assignment for audit
@@ -121,8 +139,11 @@ async def transfer_conversation(
         )
         
         if result.matched_count == 0:
+            logger.warning(f"Conversation not found during transfer: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_NOT_FOUND)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=ErrorCode.CONVERSATION_NOT_FOUND
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Get updated conversation for response
@@ -151,7 +172,8 @@ async def transfer_conversation(
         raise
     except Exception as e:
         logger.error(f"Unexpected error transferring conversation {conversation_id}: {str(e)}")
+        error_response = get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to transfer conversation"
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         ) 

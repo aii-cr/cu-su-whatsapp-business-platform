@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.config.error_codes import ErrorCode
+from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
@@ -30,9 +30,13 @@ async def create_department(
             "description": department_data.description,
             "email": department_data.email,
             "phone": department_data.phone,
+            "timezone": department_data.timezone,
             "business_hours": department_data.business_hours,
             "sla_settings": department_data.sla_settings,
             "routing_settings": department_data.routing_settings,
+            "auto_assignment_enabled": department_data.auto_assignment_enabled,
+            "max_conversations_per_agent": department_data.max_conversations_per_agent,
+            "tags": department_data.tags,
             "created_by": current_user.id
         }
         
@@ -54,13 +58,16 @@ async def create_department(
         return DepartmentResponse(**department)
         
     except ValueError as e:
+        logger.warning(f"Validation error creating department: {str(e)}")
+        error_response = get_error_response(ErrorCode.DEPARTMENT_ALREADY_EXISTS, str(e))
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         )
     except Exception as e:
         logger.error(f"Unexpected error creating department: {str(e)}")
+        error_response = get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create department"
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         ) 

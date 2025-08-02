@@ -24,6 +24,7 @@ alwaysApply: true
  - Log all endpoint hits, request processing steps, and errors using `core/logger.py` with structured logging including correlation IDs, request metadata, processing stages, and detailed error context for complete request lifecycle tracking.
  - Centralize error codes and user-friendly messages in `config/error_code.py`; reference these codes in all HTTPExceptions.  
  - Document possible HTTP status codes and error payloads for each route in `docs/errors/`, integrated with OpenAPI.
+- Always use get_error_response() from app.config.error_codes instead of exposing detailed validation errors to the frontend. Log detailed errors with logger.warning() or logger.error() for debugging, but return sanitized, user-friendly error messages to clients
 
 [Security & Access Control]
  - Secure endpoints with JWT auth and enforce RBAC via FastAPI dependencies if implementing auth.  

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.config.error_codes import ErrorCode
+from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.client import database
@@ -27,8 +27,11 @@ async def close_conversation(
     try:
         conversation_obj_id = ObjectId(conversation_id)
     except Exception:
+        logger.warning(f"Invalid conversation ID format: {conversation_id}")
+        error_response = get_error_response(ErrorCode.VALIDATION_ERROR, "Invalid conversation ID format")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=ErrorCode.INVALID_CONVERSATION_ID
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         )
 
     try:
@@ -37,15 +40,20 @@ async def close_conversation(
         # Get current conversation
         conversation = await db.conversations.find_one({"_id": conversation_obj_id})
         if not conversation:
+            logger.warning(f"Conversation not found: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_NOT_FOUND)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=ErrorCode.CONVERSATION_NOT_FOUND
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Check if conversation is already closed
         if conversation.get("status") == "resolved":
+            logger.warning(f"Conversation already closed: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_ALREADY_CLOSED)
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Conversation is already closed"
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Prepare update data
@@ -79,8 +87,11 @@ async def close_conversation(
         )
         
         if result.matched_count == 0:
+            logger.warning(f"Conversation not found during update: {conversation_id}")
+            error_response = get_error_response(ErrorCode.CONVERSATION_NOT_FOUND)
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=ErrorCode.CONVERSATION_NOT_FOUND
+                status_code=error_response["status_code"],
+                detail=error_response["detail"]
             )
         
         # Get updated conversation for response
@@ -107,7 +118,8 @@ async def close_conversation(
         raise
     except Exception as e:
         logger.error(f"Unexpected error closing conversation {conversation_id}: {str(e)}")
+        error_response = get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to close conversation"
+            status_code=error_response["status_code"],
+            detail=error_response["detail"]
         ) 

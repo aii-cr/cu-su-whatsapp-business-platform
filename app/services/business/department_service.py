@@ -22,10 +22,14 @@ class DepartmentService(BaseService):
         description: Optional[str] = None,
         email: Optional[str] = None,
         phone: Optional[str] = None,
+        timezone: str = "UTC",
         manager_id: Optional[ObjectId] = None,
         business_hours: Optional[Dict[str, Any]] = None,
         routing_settings: Optional[Dict[str, Any]] = None,
         sla_settings: Optional[Dict[str, Any]] = None,
+        auto_assignment_enabled: bool = True,
+        max_conversations_per_agent: int = 10,
+        tags: Optional[List[str]] = None,
         created_by: ObjectId = None
     ) -> Dict[str, Any]:
         """
@@ -37,10 +41,14 @@ class DepartmentService(BaseService):
             description: Department description
             email: Department contact email
             phone: Department contact phone
+            timezone: Department timezone
             manager_id: Department manager user ID
             business_hours: Business hours configuration
             routing_settings: Chat routing configuration
             sla_settings: SLA settings
+            auto_assignment_enabled: Enable auto-assignment
+            max_conversations_per_agent: Max conversations per agent
+            tags: Department tags
             created_by: User who created the department
             
         Returns:
@@ -60,11 +68,15 @@ class DepartmentService(BaseService):
             "description": description,
             "email": email,
             "phone": phone,
+            "timezone": timezone,
             "manager_id": manager_id,
             "status": "active",
+            "is_active": True,
             "is_default": False,
+            "auto_assignment_enabled": auto_assignment_enabled,
+            "max_conversations_per_agent": max_conversations_per_agent,
             "business_hours": business_hours or {
-                "timezone": "UTC",
+                "timezone": timezone,
                 "monday": {"enabled": True, "start": "09:00", "end": "17:00"},
                 "tuesday": {"enabled": True, "start": "09:00", "end": "17:00"},
                 "wednesday": {"enabled": True, "start": "09:00", "end": "17:00"},
@@ -74,7 +86,7 @@ class DepartmentService(BaseService):
                 "sunday": {"enabled": False, "start": "09:00", "end": "17:00"}
             },
             "routing_settings": routing_settings or {
-                "auto_assignment": True,
+                "auto_assignment": auto_assignment_enabled,
                 "round_robin": True,
                 "max_queue_size": 100,
                 "priority_level": 1,
@@ -94,7 +106,7 @@ class DepartmentService(BaseService):
                 "auto_responses_enabled": True,
                 "template_namespace": None
             },
-            "tags": [],
+            "tags": tags or [],
             "metrics": {
                 "total_conversations": 0,
                 "active_conversations": 0,
@@ -104,6 +116,8 @@ class DepartmentService(BaseService):
             },
             "user_count": 0,
             "active_user_count": 0,
+            "agent_count": 0,
+            "active_conversations": 0,
             "created_by": created_by,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)

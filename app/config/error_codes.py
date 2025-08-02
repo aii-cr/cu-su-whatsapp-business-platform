@@ -61,6 +61,7 @@ class ErrorCode(str, Enum):
     CONVERSATION_INVALID_STATUS = "CONV_2104"
     CONVERSATION_ALREADY_ACTIVE = "CONV_2105"
     CONVERSATION_ACCESS_DENIED = "CONV_2106"
+    INVALID_CONVERSATION_ID = "CONV_2107"
     MESSAGE_NOT_FOUND = "MSG_2105"
     MESSAGE_SEND_FAILED = "MSG_2106"
     MESSAGE_INVALID_TYPE = "MSG_2107"
@@ -164,6 +165,28 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "detail": "A user with this email already exists"
     },
     
+    # Department Management
+    ErrorCode.DEPARTMENT_NOT_FOUND: {
+        "message": "Department not found",
+        "status_code": 404,
+        "detail": "The requested department does not exist"
+    },
+    ErrorCode.DEPARTMENT_ALREADY_EXISTS: {
+        "message": "Department already exists",
+        "status_code": 409,
+        "detail": "A department with this name already exists"
+    },
+    ErrorCode.DEPARTMENT_IN_USE: {
+        "message": "Department is in use",
+        "status_code": 400,
+        "detail": "Cannot delete department that has assigned users or conversations"
+    },
+    ErrorCode.DEPARTMENT_INVALID_DATA: {
+        "message": "Invalid department data",
+        "status_code": 422,
+        "detail": "The provided department data is invalid"
+    },
+    
     # WhatsApp Business API
     ErrorCode.WHATSAPP_INVALID_TOKEN: {
         "message": "Invalid WhatsApp access token",
@@ -206,6 +229,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Access denied to conversation",
         "status_code": 403,
         "detail": "You do not have permission to access this conversation"
+    },
+    ErrorCode.INVALID_CONVERSATION_ID: {
+        "message": "Invalid conversation ID",
+        "status_code": 400,
+        "detail": "The provided conversation ID is not valid"
     },
     ErrorCode.MESSAGE_TOO_LARGE: {
         "message": "Message content exceeds size limit",
