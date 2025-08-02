@@ -80,7 +80,7 @@ Schema Validation
 - Document all possible responses in FastAPI docstrings
 
 IMPORTANT: Schema vs Model Usage
-- NEVER import response schemas from `app.db.models` - models are for MongoDB collection mapping only
+- NEVER import response schemas from `app.db.models` - models are for MongoDB collection or others DBs mapping only
 - ALWAYS import schemas from `app.schemas` for request/response validation
 - Models (`app/db/models/`) are for database structure reflection
 - Schemas (`app/schemas/`) are for API input/output validation
@@ -235,7 +235,7 @@ async def method_name(self, param1: str, param2: int) -> Optional[Dict]:
     db = await self._get_db()
     
     try:
-        # Database operations using db.collection
+        # Database operations using db.collection if using mongo
         result = await db.collection.find_one({"field": param1})
         
         # Business logic
@@ -281,7 +281,7 @@ async def endpoint_name(
 Anti-Patterns to Avoid
 
 ❌ Don't Do This
-- Direct database access in routes: `await database.db.collection.find_one(...)`
+- Direct database access in routes like: `await database.db.collection.find_one(...)`
 - Local service instantiation: `service = ServiceClass()` in routes
 - Using `self.db` directly: `self.db.collection.find_one(...)` without `_get_db()`
 - Generic error handling: Catching all exceptions without specific handling
@@ -292,7 +292,7 @@ Anti-Patterns to Avoid
 - Importing schemas from models: Use `app.schemas` for API validation, `app.db.models` for database mapping only
 
 ✅ Do This Instead
-- Use service methods: `await conversation_service.get_conversation(id)`
+- Use service methods like: `await conversation_service.get_conversation(id)`
 - Import global instances: `from app.services import conversation_service`
 - Use `_get_db()` pattern: `db = await self._get_db()` then `db.collection`
 - Specific error handling: Catch specific exceptions, then generic
@@ -302,7 +302,7 @@ Anti-Patterns to Avoid
 - One endpoint per file: Each route file contains exactly ONE endpoint
 - Proper schema imports: Import request/response schemas from `app.schemas`, models from `app.db.models`
 
-File Naming Conventions
+File Naming Conventions Examples
 
 Services
 - `conversation_service.py` - Main conversation operations

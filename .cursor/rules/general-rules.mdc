@@ -1,60 +1,11 @@
 ---
 alwaysApply: true
 ---
-## Rules to Follow
+Rules to Follow
 
 [Version Control]
  - Always create a new branch for every distinct fix or new feature using the prefix `feature/<short-description>`, `bugfix/`, `hotfix/`, or `release/`, following Git Flow conventions. If multiple queries or changes are related to the same ongoing feature, continue using the same branch; otherwise, start a new branch.
  - Make a commit for every change, referencing issue or ticket IDs, and summarizing **what** and **why** in ≤50 characters using the imperative mood.
-
-[Configuration Management]
- - Centralize **all** mutable settings (tokens, IDs, URIs, timeouts, feature flags) in `core/config.py` via Pydantic `BaseSettings`, loading from `.env`.  
- - Avoid hard-coding any values; expose every changeable parameter as an environment variable.
-
-[Code Structure & Organization]
- - Organize code by feature under `app/` (`routes/`, `services/`, `db/models/`, `schemas/`, `utils/`).  
- - Keep files small (≤300 lines); split responsibilities into service classes and helpers to prevent monoliths.
-
-[Testing & CI/CD]
- - Write pytest unit and integration tests for every new feature; mock external dependencies; target ≥80% coverage.  
- - Integrate tests into CI so every pull request runs the full suite before merge.
-
-[Containerization & Deployment]
- - Use a multi-stage `Dockerfile` (slim base, non-root user, cached dependencies) and maintain `docker-compose.yml` for local dev.  
- - On each dependency or code change, verify Docker images build and containers start successfully.
-
-[Lessons Learned & Continuous Improvement]
- - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  
- - After adding/updating any dependency, confirm that Docker, CI, and local runs remain green to avoid “works on my machine” issues.
-
-[Lessons Learned & Continuous Improvement]
- - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  
- - After adding/updating any dependency, confirm that Docker, CI, and local runs remain green to avoid “works on my machine” issues.
-## Rules to Follow
-
-[Version Control]
- - Always create a new branch for every distinct fix or new feature using the prefix `feature/<short-description>`, `bugfix/`, `hotfix/`, or `release/`, following Git Flow conventions. If multiple queries or changes are related to the same ongoing feature, continue using the same branch; otherwise, start a new branch.
- - Make a commit for every change, referencing issue or ticket IDs, and summarizing **what** and **why** in ≤50 characters using the imperative mood.
-
-[Configuration Management]
- - Centralize **all** mutable settings (tokens, IDs, URIs, timeouts, feature flags) in `core/config.py` via Pydantic `BaseSettings`, loading from `.env`.  
- - Avoid hard-coding any values; expose every changeable parameter as an environment variable.
-
-[Code Structure & Organization]
- - Organize code by feature under `app/` (`routes/`, `services/`, `db/models/`, `schemas/`, `utils/`).  
- - Keep files small (≤300 lines); When a service’s code grows beyond this, create sub‑directories under that service and group related modules together. Within each sub‑folder, define as many focused Python files as needed—each encapsulating a single task or function—to maintain cohesion and avoid sprawling, monolithic files.
-
-[Testing & CI/CD]
- - Write pytest unit and integration tests for every new feature; mock external dependencies; target ≥80% coverage.  
- - Integrate tests into CI so every pull request runs the full suite before merge.
-
-[Containerization & Deployment]
- - Use a multi-stage `Dockerfile` (slim base, non-root user, cached dependencies) and maintain `docker-compose.yml` for local dev.  
- - On each dependency or code change, verify Docker images build and containers start successfully.
-
-[Lessons Learned & Continuous Improvement]
- - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  
- - After adding/updating any dependency, confirm that Docker, CI, and local runs remain green to avoid “works on my machine” issues.
 
 [Lessons Learned & Continuous Improvement]
  - Log every non-trivial error and its resolution in `lessons_learned.md` (date, root cause, fix), organized by feature.  
