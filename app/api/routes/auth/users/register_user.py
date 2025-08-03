@@ -1,5 +1,4 @@
 """User registration endpoint."""
-
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 

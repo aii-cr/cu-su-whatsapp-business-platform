@@ -158,6 +158,18 @@ class WebSocketService:
         
         await manager.send_personal_message(notification, str(user_id))
         logger.info(f"Sent user activity notification to {user_id}")
+    
+    @staticmethod
+    async def notify_new_conversation(conversation_data: dict):
+        """Notify all connected users about a new conversation being created."""
+        notification = {
+            "type": "new_conversation",
+            "conversation": conversation_data,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_all(notification)
+        logger.info(f"Broadcasted new conversation notification for conversation {conversation_data.get('_id')}")
 
 # Global WebSocket service instance
 websocket_service = WebSocketService() 

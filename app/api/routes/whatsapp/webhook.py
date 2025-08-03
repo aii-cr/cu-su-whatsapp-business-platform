@@ -277,6 +277,7 @@ async def process_incoming_message(
     
     # Find or create conversation using service
     conversation = await conversation_service.find_conversation_by_phone(phone_number)
+    is_new_conversation = False
     
     if not conversation:
         # Create new conversation
@@ -284,6 +285,7 @@ async def process_incoming_message(
             customer_phone=phone_number,
             customer_name=customer_name
         )
+        is_new_conversation = True
     
     logger.info(f"📝 [MESSAGE] Creating message with WhatsApp ID: {incoming_msg.id}")
     
@@ -324,9 +326,16 @@ async def process_incoming_message(
     # Process automation
     await automation_service.process_incoming_message(message)
     
-    # Send WebSocket notification
+    # Send WebSocket notifications
     from app.services import websocket_service
+    
+    # Always notify about the new message
     await websocket_service.notify_new_message(str(conversation["_id"]), message)
+    
+    # If this is a new conversation, notify all users about it
+    if is_new_conversation:
+        logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation['_id']}")
+        await websocket_service.notify_new_conversation(conversation)
     
     logger.info(f"✅ [MESSAGE] Processed incoming message {incoming_msg.id} for conversation {conversation['_id']}")
 

@@ -1,7 +1,7 @@
 ---
-alwaysApply: true
+description: Guidelines for updating the FastAPI backend to ensure consistency with the project’s established structure and standards
+alwaysApply: false
 ---
-
 *This document should be updated whenever new patterns emerge or existing ones are refined. All team members should follow these guidelines to maintain code quality and project consistency.*
 
 WhatsApp Project Rules & Best Practices

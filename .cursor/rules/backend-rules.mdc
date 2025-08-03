@@ -1,5 +1,6 @@
 ---
-alwaysApply: true
+description: Guidelines for updating the FastAPI backend to ensure consistency with the project’s established structure and standards
+alwaysApply: false
 ---
 [Configuration Management]
  - Centralize all mutable settings (tokens, IDs, URIs, timeouts, feature flags) in `core/config.py` via Pydantic `BaseSettings`, loading from `.env`.  
