@@ -62,13 +62,23 @@ async def handle_websocket_message(user_id: str, message: dict):
             conversation_id = message.get("conversation_id")
             logger.info(f"🔔 [WEBSOCKET] User {user_id} subscribing to conversation {conversation_id}")
             if conversation_id:
-                await manager.subscribe_to_conversation(user_id, conversation_id)
-                logger.info(f"✅ [WEBSOCKET] User {user_id} successfully subscribed to conversation {conversation_id}")
-                await manager.send_personal_message({
-                    "type": "subscription_confirmed",
-                    "conversation_id": conversation_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }, user_id)
+                subscription_needed = await manager.subscribe_to_conversation(user_id, conversation_id)
+                
+                if subscription_needed:
+                    logger.info(f"✅ [WEBSOCKET] User {user_id} successfully subscribed to conversation {conversation_id}")
+                    await manager.send_personal_message({
+                        "type": "subscription_confirmed",
+                        "conversation_id": conversation_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }, user_id)
+                else:
+                    logger.info(f"📋 [WEBSOCKET] User {user_id} subscription to conversation {conversation_id} not needed (already subscribed)")
+                    # Optionally send a different confirmation or no message at all
+                    await manager.send_personal_message({
+                        "type": "subscription_already_active",
+                        "conversation_id": conversation_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }, user_id)
             else:
                 logger.warning(f"❌ [WEBSOCKET] User {user_id} attempted to subscribe without conversation_id")
         

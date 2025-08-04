@@ -52,21 +52,30 @@ class ConnectionManager:
     
     async def subscribe_to_conversation(self, user_id: str, conversation_id: str):
         """Subscribe a user to a specific conversation."""
-        logger.info(f"🔔 [WEBSOCKET] Subscribing user {user_id} to conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Subscription request: user {user_id} to conversation {conversation_id}")
         
+        # Check if user is already subscribed
+        if (conversation_id in self.conversation_subscribers and 
+            user_id in self.conversation_subscribers[conversation_id]):
+            logger.info(f"📋 [WEBSOCKET] User {user_id} already subscribed to conversation {conversation_id}")
+            return False  # No subscription needed
+        
+        # Initialize conversation subscribers if needed
         if conversation_id not in self.conversation_subscribers:
             self.conversation_subscribers[conversation_id] = set()
         
-        self.conversation_subscribers[conversation_id].add(user_id)
-        
+        # Initialize user conversations if needed
         if user_id not in self.user_conversations:
             self.user_conversations[user_id] = set()
         
+        # Add to subscription mappings
+        self.conversation_subscribers[conversation_id].add(user_id)
         self.user_conversations[user_id].add(conversation_id)
         
-        logger.info(f"✅ [WEBSOCKET] User {user_id} successfully subscribed to conversation {conversation_id}")
+        logger.info(f"✅ [WEBSOCKET] User {user_id} newly subscribed to conversation {conversation_id}")
         logger.info(f"📋 [WEBSOCKET] Total subscribers for conversation {conversation_id}: {len(self.conversation_subscribers[conversation_id])}")
-        logger.info(f"📋 [WEBSOCKET] All conversation subscribers: {dict(self.conversation_subscribers)}")
+        
+        return True  # Subscription was needed and completed
     
     async def unsubscribe_from_conversation(self, user_id: str, conversation_id: str):
         """Unsubscribe a user from a specific conversation."""

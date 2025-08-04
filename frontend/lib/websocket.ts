@@ -159,10 +159,17 @@ export class MessagingWebSocketClient extends WebSocketClient {
           
         case 'subscription_confirmed':
           console.log('✅ [WEBSOCKET] Subscription confirmed for conversation:', data.conversation_id);
+          this.updateSubscriptionStatus(data.conversation_id, true);
+          break;
+          
+        case 'subscription_already_active':
+          console.log('📋 [WEBSOCKET] Subscription already active for conversation:', data.conversation_id);
+          this.updateSubscriptionStatus(data.conversation_id, true);
           break;
           
         case 'unsubscription_confirmed':
           console.log('✅ [WEBSOCKET] Unsubscription confirmed for conversation:', data.conversation_id);
+          this.updateSubscriptionStatus(data.conversation_id, false);
           break;
           
         default:
@@ -170,6 +177,35 @@ export class MessagingWebSocketClient extends WebSocketClient {
       }
     } catch (error) {
       console.error('❌ [WEBSOCKET] Error handling message:', error);
+    }
+  }
+
+  /**
+   * Update subscription status callback for hooks
+   */
+  private subscriptionStatusCallbacks: Map<string, (isSubscribed: boolean) => void> = new Map();
+
+  /**
+   * Register a callback for subscription status updates
+   */
+  public onSubscriptionStatusChange(conversationId: string, callback: (isSubscribed: boolean) => void) {
+    this.subscriptionStatusCallbacks.set(conversationId, callback);
+  }
+
+  /**
+   * Remove subscription status callback
+   */
+  public offSubscriptionStatusChange(conversationId: string) {
+    this.subscriptionStatusCallbacks.delete(conversationId);
+  }
+
+  /**
+   * Update subscription status from server confirmations
+   */
+  private updateSubscriptionStatus(conversationId: string, isSubscribed: boolean) {
+    const callback = this.subscriptionStatusCallbacks.get(conversationId);
+    if (callback) {
+      callback(isSubscribed);
     }
   }
 
