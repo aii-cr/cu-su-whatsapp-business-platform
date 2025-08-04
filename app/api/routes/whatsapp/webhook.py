@@ -317,11 +317,22 @@ async def process_incoming_message(
     current_status = conversation.get("status", "pending")
     if current_status in ["active", "pending"]:
         logger.info(f"🔄 [MESSAGE] Updating conversation status to 'waiting' for customer response")
-        await conversation_service.update_conversation(
+        updated_conversation = await conversation_service.update_conversation(
             conversation_id=str(conversation["_id"]),
             update_data={"status": "waiting"},
             updated_by=None  # System update
         )
+        
+        # Notify dashboard about conversation status change
+        if updated_conversation:
+            await websocket_service.notify_conversation_list_update(updated_conversation, "status_changed")
+            
+            # Trigger stats update for dashboard
+            try:
+                stats = await conversation_service.get_conversation_stats()
+                await websocket_service.notify_dashboard_stats_update(stats)
+            except Exception as e:
+                logger.error(f"Failed to update dashboard stats after status change: {str(e)}")
     
     # Process automation
     await automation_service.process_incoming_message(message)
@@ -332,10 +343,31 @@ async def process_incoming_message(
     # Always notify about the new message
     await websocket_service.notify_new_message(str(conversation["_id"]), message)
     
-    # If this is a new conversation, notify all users about it
+    # Update unread counts for all dashboard subscribers who are not actively viewing this conversation
+    from app.services.websocket.websocket_service import manager
+    conversation_id = str(conversation["_id"])
+    active_viewers = manager.conversation_subscribers.get(conversation_id, set())
+    
+    for subscriber_id in manager.dashboard_subscribers:
+        # Only increment if they're not currently viewing this conversation
+        if subscriber_id not in active_viewers:
+            manager.increment_unread_count(subscriber_id, conversation_id)
+            # Notify about unread count update
+            unread_count = manager.unread_counts.get(subscriber_id, {}).get(conversation_id, 0)
+            await websocket_service.notify_unread_count_update(subscriber_id, conversation_id, unread_count)
+    
+    # If this is a new conversation, notify dashboard subscribers
     if is_new_conversation:
         logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation['_id']}")
         await websocket_service.notify_new_conversation(conversation)
+        await websocket_service.notify_conversation_list_update(conversation, "created")
+        
+        # Trigger stats update for dashboard
+        try:
+            stats = await conversation_service.get_conversation_stats()
+            await websocket_service.notify_dashboard_stats_update(stats)
+        except Exception as e:
+            logger.error(f"Failed to update dashboard stats after new conversation: {str(e)}")
     
     logger.info(f"✅ [MESSAGE] Processed incoming message {incoming_msg.id} for conversation {conversation['_id']}")
 

@@ -45,6 +45,47 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except Exception as e:
         logger.error(f"❌ [WEBSOCKET] Error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
+
+@router.websocket("/dashboard/{user_id}")
+async def dashboard_websocket_endpoint(websocket: WebSocket, user_id: str):
+    """
+    WebSocket endpoint for real-time dashboard updates.
+    
+    Args:
+        websocket: WebSocket connection
+        user_id: User ID for the connection
+    """
+    try:
+        await manager.connect(websocket, user_id)
+        # Automatically subscribe to dashboard updates
+        await manager.subscribe_to_dashboard(user_id)
+        logger.info(f"🏠 [DASHBOARD_WS] Connected and subscribed to dashboard for user {user_id}")
+        logger.info(f"🏠 [DASHBOARD_WS] Total dashboard subscribers: {len(manager.dashboard_subscribers)}")
+        
+        # Send current unread counts to user
+        unread_counts = manager.get_unread_counts(user_id)
+        await manager.send_personal_message({
+            "type": "initial_unread_counts",
+            "unread_counts": unread_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }, user_id)
+        
+        while True:
+            # Wait for messages from the client
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            
+            logger.info(f"📨 [DASHBOARD_WS] Received message from user {user_id}: {message}")
+            
+            # Handle dashboard-specific message types
+            await handle_dashboard_websocket_message(user_id, message)
+            
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
+        logger.info(f"🏠 [DASHBOARD_WS] Disconnected for user {user_id}")
+    except Exception as e:
+        logger.error(f"❌ [DASHBOARD_WS] Error for user {user_id}: {str(e)}")
+        manager.disconnect(websocket, user_id)
         
 
 async def handle_websocket_message(user_id: str, message: dict):
@@ -108,6 +149,26 @@ async def handle_websocket_message(user_id: str, message: dict):
                     "conversation_id": conversation_id
                 })
         
+        elif message_type == "subscribe_dashboard":
+            await manager.subscribe_to_dashboard(user_id)
+            await manager.send_personal_message({
+                "type": "dashboard_subscription_confirmed",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        
+        elif message_type == "unsubscribe_dashboard":
+            await manager.unsubscribe_from_dashboard(user_id)
+            await manager.send_personal_message({
+                "type": "dashboard_unsubscription_confirmed",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        
+        elif message_type == "mark_conversation_read":
+            conversation_id = message.get("conversation_id")
+            if conversation_id:
+                await websocket_service.reset_unread_count_for_user(user_id, conversation_id)
+                logger.info(f"📖 [WEBSOCKET] User {user_id} marked conversation {conversation_id} as read")
+        
         elif message_type == "ping":
             # Respond to ping with pong
             await manager.send_personal_message({
@@ -120,6 +181,56 @@ async def handle_websocket_message(user_id: str, message: dict):
             
     except Exception as e:
         logger.error(f"Error handling WebSocket message from user {user_id}: {str(e)}")
+        # Send error message to client
+        try:
+            await manager.send_personal_message({
+                "type": "error",
+                "message": "Internal server error",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        except Exception:
+            pass  # Ignore errors when sending error messages
+
+
+async def handle_dashboard_websocket_message(user_id: str, message: dict):
+    """
+    Handle incoming WebSocket messages from dashboard clients.
+    
+    Args:
+        user_id: User ID sending the message
+        message: Message data from client
+    """
+    try:
+        message_type = message.get("type")
+        
+        if message_type == "mark_conversation_read":
+            conversation_id = message.get("conversation_id")
+            if conversation_id:
+                await websocket_service.reset_unread_count_for_user(user_id, conversation_id)
+                logger.info(f"📖 [DASHBOARD_WS] User {user_id} marked conversation {conversation_id} as read")
+        
+        elif message_type == "request_stats_update":
+            # Trigger a stats update broadcast
+            try:
+                from app.services import conversation_service
+                stats = await conversation_service.get_conversation_stats()
+                await websocket_service.notify_dashboard_stats_update(stats)
+                logger.info(f"📊 [DASHBOARD_WS] Stats update requested by user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to get stats for dashboard update: {str(e)}")
+        
+        elif message_type == "ping":
+            # Respond to ping with pong
+            await manager.send_personal_message({
+                "type": "pong",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        
+        else:
+            logger.warning(f"Unknown dashboard WebSocket message type: {message_type} from user {user_id}")
+            
+    except Exception as e:
+        logger.error(f"Error handling dashboard WebSocket message from user {user_id}: {str(e)}")
         # Send error message to client
         try:
             await manager.send_personal_message({

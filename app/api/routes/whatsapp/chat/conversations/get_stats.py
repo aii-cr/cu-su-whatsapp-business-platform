@@ -8,6 +8,7 @@ from app.db.models.auth import User
 from app.db.client import database
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
+from app.services import websocket_service
 
 router = APIRouter()
 
@@ -49,7 +50,7 @@ async def get_conversation_statistics(
         channel_stats = await db.conversations.aggregate(channel_pipeline).to_list(None)
         conversations_by_channel = {item["_id"]: item["count"] for item in channel_stats}
         
-        return ConversationStatsResponse(
+        stats_response = ConversationStatsResponse(
             total_conversations=total_conversations,
             active_conversations=active_conversations,
             closed_conversations=closed_conversations,
@@ -61,6 +62,15 @@ async def get_conversation_statistics(
             average_resolution_time_minutes=0.0,  # TODO: Calculate from closed conversations
             customer_satisfaction_rate=0.0  # TODO: Calculate from surveys
         )
+        
+        # Broadcast stats update to dashboard subscribers
+        try:
+            await websocket_service.notify_dashboard_stats_update(stats_response.dict())
+            logger.info("📊 [STATS] Broadcasted stats update to dashboard subscribers")
+        except Exception as e:
+            logger.error(f"Failed to broadcast stats update: {str(e)}")
+        
+        return stats_response
         
     except Exception as e:
         logger.error(f"Failed to get conversation statistics: {str(e)}")
