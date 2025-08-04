@@ -1,6 +1,6 @@
 # CERT CHALLENGE
 
-Made by Steve Arce \:D
+Made by Steve Arce :D
 
 ## ✅ Description of the Problem
 
@@ -54,4 +54,16 @@ For external APIs, the platform will integrate with the existing internal API to
 My default chunking strategy will use a semantic chunking approach, where sentences in the company’s documentation and FAQs are embedded and grouped based on semantic similarity. This ensures that related information about a single internet plan (such as price, speed, and additional details) is kept together as one chunk, rather than being split arbitrarily by character count. This method improves retrieval accuracy because customers typically ask for very specific details (e.g., “What are the available 200 Mbps plans with installation times?”), and semantic chunking ensures all relevant information is retrieved in context.
 
 I chose this approach over simple fixed-size chunking (e.g., 1,000 characters with 200-character overlap) because the corpus contains well-structured sections (plans, pricing tables, FAQs) with clear semantic boundaries. Using semantic chunking will reduce noise in retrieval, improve MB25 or hybrid search results, and lead to more precise AI answers for customers.
+
+
+## ✅ Build an end-to-end prototype and deploy to local host with a front end (Vercel deployment not required).
+
+The end-to-end prototype has been successfully built and deployed locally, featuring a complete AI-powered WhatsApp Business platform. The backend (`/app/`) uses FastAPI with WebSocket support for real-time messaging, RESTful APIs for conversation management, and database models for users and departments. The frontend (`/frontend/`) is built with Next.js 15+ and Tailwind CSS, providing a modern chat interface, agent dashboard, and service plan selection. The AI implementation is currently in `rag-langchain-Implementation.ipynb` with a comprehensive RAG pipeline using multiple retrieval strategies (Naive, Semantic, BM25, Multi-Query, Parent Document) and Qdrant vector database. Performance evaluation using RAGAS metrics shows the Semantic Retriever as the best performer (0.7467 overall score). The AI components will be migrated to the FastAPI backend for production deployment. Local deployment is achieved by running `uvicorn main:app --reload` for the backend and `npm run dev` for the frontend, with seamless integration enabling real-time conversation management, AI-powered responses, and automated service workflows.
+
+
+## ✅ Assess your pipeline using the RAGAS framework including key metrics faithfulness, response relevance, context precision, and context recall. Provide a table of your output results.
+
+
+
+
 
