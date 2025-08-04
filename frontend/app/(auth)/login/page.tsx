@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Login page for WhatsApp Business Platform.
+ * Login page for ADN Contact Center.
  * Handles user authentication with session-based cookies.
  */
 
@@ -15,12 +15,15 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { FormField } from '@/components/forms/FormField';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { toast } from '@/components/ui/Toast';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
+import { BrandLogoLarge } from '@/components/ui/BrandLogo';
+import { getProductName, getCompanyName } from '@/lib/branding';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
+  const { showSuccess, showError } = useNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,7 +40,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.email, data.password);
-      toast.success('Successfully logged in!');
+      showSuccess('Successfully logged in!');
       router.push('/conversations');
     } catch (error) {
       // Error is already handled by the HTTP client and store
@@ -50,13 +53,23 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary-500">
-            WhatsApp Business
-          </CardTitle>
-          <CardDescription>
-            Sign in to your account to manage conversations
-          </CardDescription>
+        <CardHeader className="text-center space-y-4">
+          {/* Logo */}
+          <div className="flex justify-center">
+            <BrandLogoLarge />
+          </div>
+          
+          <div className="space-y-2">
+            <CardTitle className="text-2xl font-bold text-primary-500">
+              {getProductName()}
+            </CardTitle>
+            <CardDescription>
+              Sign in to your account to manage conversations
+            </CardDescription>
+            <p className="text-xs text-muted-foreground">
+              Powered by {getCompanyName()}
+            </p>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading && (

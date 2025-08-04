@@ -10,7 +10,8 @@ import {
   SendMessageRequest,
   MessageListResponse,
 } from '../models/message';
-import { toast } from '@/components/ui/Toast';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
+import { createApiErrorHandler } from '@/lib/http';
 
 // Query keys for messages
 export const messageQueryKeys = {
@@ -24,6 +25,9 @@ export const messageQueryKeys = {
  * Hook to fetch messages for a conversation with infinite scroll
  */
 export function useMessages(conversationId: string, limit: number = 50) {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useInfiniteQuery<MessageListResponse>({
     queryKey: messageQueryKeys.conversationMessages(conversationId, { limit }),
     queryFn: async ({ pageParam = 0 }) => {
@@ -40,6 +44,7 @@ export function useMessages(conversationId: string, limit: number = 50) {
     staleTime: 30 * 1000, // 30 seconds
     enabled: !!conversationId,
     initialPageParam: 0,
+    onError: handleError,
   });
 }
 
@@ -48,6 +53,8 @@ export function useMessages(conversationId: string, limit: number = 50) {
  */
 export function useSendMessage() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: (data: SendMessageRequest) => MessagesApi.sendMessage(data),
@@ -58,12 +65,9 @@ export function useSendMessage() {
         queryKey: messageQueryKeys.conversation(conversationId),
       });
 
-      toast.success('Message sent successfully');
+      showSuccess('Message sent successfully');
     },
-    onError: (error) => {
-      console.error('Failed to send message:', error);
-      toast.error('Failed to send message');
-    },
+    onError: handleError,
   });
 }
 
@@ -72,6 +76,8 @@ export function useSendMessage() {
  */
 export function useSendMediaMessage() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: ({ 
@@ -89,12 +95,9 @@ export function useSendMediaMessage() {
         queryKey: messageQueryKeys.conversation(response.conversation_id),
       });
 
-      toast.success('Media message sent successfully');
+      showSuccess('Media message sent successfully');
     },
-    onError: (error) => {
-      console.error('Failed to send media message:', error);
-      toast.error('Failed to send media message');
-    },
+    onError: handleError,
   });
 }
 
@@ -102,9 +105,13 @@ export function useSendMediaMessage() {
  * Hook to get message templates
  */
 export function useMessageTemplates() {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery({
     queryKey: ['messages', 'templates'],
     queryFn: () => MessagesApi.getTemplates(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    onError: handleError,
   });
 }

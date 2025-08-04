@@ -4,7 +4,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { httpClient, handleApiError } from '@/lib/http';
+import { httpClient, createApiErrorHandler } from '@/lib/http';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
 
 // User interface (matching backend UserResponse)
 export interface User {
@@ -30,10 +31,9 @@ export class UsersApi {
    */
   static async getUser(userId: string): Promise<User> {
     try {
-      const response = await httpClient.get<User>(`/users/${userId}`);
+      const response = await httpClient.get<User>(`/auth/users/${userId}`);
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -43,10 +43,9 @@ export class UsersApi {
    */
   static async getUsers(userIds: string[]): Promise<User[]> {
     try {
-      const response = await httpClient.post<User[]>('/users/bulk', { user_ids: userIds });
+      const response = await httpClient.post<User[]>('/auth/users/bulk', { user_ids: userIds });
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -63,11 +62,25 @@ export const userQueryKeys = {
  * Hook to fetch a single user
  */
 export function useUser(userId: string | null | undefined) {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery({
     queryKey: userQueryKeys.user(userId || ''),
     queryFn: () => UsersApi.getUser(userId!),
     enabled: !!userId,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on 404 errors for individual users
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        const statusCode = (error as { statusCode: number }).statusCode;
+        if (statusCode === 404) {
+          return false;
+        }
+      }
+      return failureCount < 2;
+    },
+    onError: handleError,
   });
 }
 
@@ -75,11 +88,25 @@ export function useUser(userId: string | null | undefined) {
  * Hook to fetch multiple users
  */
 export function useUsers(userIds: string[]) {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery({
     queryKey: userQueryKeys.bulk(userIds),
     queryFn: () => UsersApi.getUsers(userIds),
     enabled: userIds.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on 404 errors for bulk requests
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        const statusCode = (error as { statusCode: number }).statusCode;
+        if (statusCode === 404) {
+          return false;
+        }
+      }
+      return failureCount < 2;
+    },
+    onError: handleError,
   });
 }
 

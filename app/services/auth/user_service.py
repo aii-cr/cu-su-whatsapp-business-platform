@@ -298,6 +298,28 @@ class UserService(BaseService):
             "per_page": per_page,
             "pages": pages
         }
+    
+    async def get_users_by_ids(self, user_ids: List[ObjectId]) -> List[Dict[str, Any]]:
+        """
+        Get multiple users by their IDs.
+        
+        Args:
+            user_ids: List of user ObjectIds
+            
+        Returns:
+            List of user documents
+        """
+        if not user_ids:
+            return []
+        
+        db = await self._get_db()
+        
+        # Query users by IDs
+        users = await db.users.find({"_id": {"$in": user_ids}}).to_list(None)
+        
+        logger.info(f"Retrieved {len(users)} users by IDs")
+        
+        return users
 
 # Global user service instance
 user_service = UserService() 

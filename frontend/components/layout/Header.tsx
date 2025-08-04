@@ -9,21 +9,24 @@ import { useAuthStore, useUIStore } from '@/lib/store';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { BrandLogoCompact } from '@/components/ui/BrandLogo';
 import { getUserDisplayName } from '@/lib/auth';
+import { getProductName } from '@/lib/branding';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
 import { 
   Bars3Icon,
   ArrowRightOnRectangleIcon 
 } from '@heroicons/react/24/outline';
-import { toast } from '@/components/ui/Toast';
 
 export function Header() {
   const { user, logout } = useAuthStore();
   const { toggleSidebar } = useUIStore();
+  const { showSuccess } = useNotifications();
 
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Successfully logged out');
+      showSuccess('Successfully logged out');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -31,7 +34,7 @@ export function Header() {
 
   return (
     <header className="h-16 border-b border-border bg-surface px-6 flex items-center justify-between">
-      {/* Left side - Menu toggle */}
+      {/* Left side - Menu toggle and branding */}
       <div className="flex items-center space-x-4">
         <Button
           variant="ghost"
@@ -43,9 +46,13 @@ export function Header() {
           <Bars3Icon className="w-5 h-5" />
         </Button>
         
-        <h1 className="text-lg font-semibold text-foreground">
-          WhatsApp Business
-        </h1>
+        {/* Brand logo and name */}
+        <div className="flex items-center space-x-3">
+          <BrandLogoCompact />
+          <h1 className="text-lg font-semibold text-foreground hidden sm:block">
+            {getProductName()}
+          </h1>
+        </div>
       </div>
 
       {/* Right side - User info and controls */}

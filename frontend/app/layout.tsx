@@ -1,5 +1,5 @@
 /**
- * Root layout for the WhatsApp Business Platform frontend.
+ * Root layout for the ADN Contact Center frontend.
  * Provides global styling, theme support, and authentication context.
  */
 
@@ -8,14 +8,15 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers/Providers';
 import { AuthWrapper } from '@/components/auth/AuthWrapper';
+import { getPageTitle, getMetaDescription } from '@/lib/branding';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'WhatsApp Business Platform',
-  description: 'Professional WhatsApp Business messaging platform for customer support',
-  keywords: ['WhatsApp', 'Business', 'Customer Support', 'Messaging'],
-  authors: [{ name: 'WhatsApp Business Platform Team' }],
+  title: getPageTitle(),
+  description: getMetaDescription(),
+  keywords: ['Contact Center', 'Customer Support', 'Messaging', 'WhatsApp', 'Business'],
+  authors: [{ name: 'American Data Networks' }],
 };
 
 export const viewport = {

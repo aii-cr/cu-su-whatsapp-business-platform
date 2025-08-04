@@ -4,7 +4,6 @@
  */
 
 import { getApiUrl } from './config';
-import { toast } from 'react-hot-toast';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -52,11 +51,29 @@ export class HttpClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      // Add timeout for requests
+      signal: AbortSignal.timeout(30000), // 30 second timeout
     };
 
     try {
       const response = await fetch(url, config);
-      const data: ApiResponse<T> = await response.json();
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      let data: ApiResponse<T>;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Handle non-JSON responses (like 404 HTML pages)
+        const text = await response.text();
+        throw new ApiError(
+          response.status,
+          `HTTP_${response.status}`,
+          `Server returned ${response.status}: ${text.substring(0, 100)}`,
+          { response_text: text }
+        );
+      }
 
       if (!response.ok) {
         // Handle authentication errors
@@ -82,11 +99,22 @@ export class HttpClient {
         throw error;
       }
 
+      // Check if it's a timeout error
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ApiError(
+          408,
+          'REQUEST_TIMEOUT',
+          'Request timed out. Please try again.',
+          error
+        );
+      }
+
       // Network or other errors
+      console.error('Network error:', error);
       throw new ApiError(
         500,
         'NETWORK_ERROR',
-        'Network error occurred. Please check your connection.',
+        'Unable to connect to the server. Please check your internet connection and try again.',
         error
       );
     }
@@ -133,36 +161,80 @@ export class HttpClient {
 export const httpClient = new HttpClient();
 
 /**
- * Handle API errors with user-friendly notifications
+ * Simple error handler that logs errors without notifications
+ * Use this for API calls where you don't need user notifications
  */
 export const handleApiError = (error: unknown): void => {
   if (error instanceof ApiError) {
-    // Handle specific error codes from backend
-    switch (error.errorCode) {
-      case 'AUTH_1001':
-        toast.error('Invalid email or password');
-        break;
-      case 'AUTH_1002':
-        toast.error('Session expired. Please login again.');
-        break;
-      case 'USER_1101':
-        toast.error('User not found');
-        break;
-      case 'CONV_2101':
-        toast.error('Conversation not found');
-        break;
-      case 'MSG_2106':
-        toast.error('Failed to send message');
-        break;
-      case 'NETWORK_ERROR':
-        toast.error('Network connection failed. Please try again.');
-        break;
-      default:
-        toast.error(error.userMessage || 'An error occurred');
-    }
+    console.error('API Error:', {
+      statusCode: error.statusCode,
+      errorCode: error.errorCode,
+      userMessage: error.userMessage,
+      details: error.details,
+      requestId: error.requestId
+    });
   } else {
-    toast.error('An unexpected error occurred');
+    console.error('Unexpected error:', error);
   }
-  
-  console.error('API Error:', error);
+};
+
+/**
+ * Handle API errors with user-friendly notifications
+ * This function should be used with the notification system from components
+ */
+export const createApiErrorHandler = (showError: (message: string, id?: string) => void) => {
+  return (error: unknown): void => {
+    if (error instanceof ApiError) {
+      // Create a unique ID for this error to prevent duplicates
+      const errorId = `${error.errorCode}-${error.statusCode}`;
+      
+      // Handle specific error codes from backend
+      switch (error.errorCode) {
+        case 'AUTH_1001':
+          showError('Invalid email or password. Please check your credentials and try again.', errorId);
+          break;
+        case 'AUTH_1002':
+          showError('Your session has expired. Please log in again.', errorId);
+          break;
+        case 'USER_1101':
+          showError('User information could not be found. Please refresh the page.', errorId);
+          break;
+        case 'CONV_2101':
+          showError('Conversation not found. It may have been deleted or moved.', errorId);
+          break;
+        case 'MSG_2106':
+          showError('Failed to send message. Please try again.', errorId);
+          break;
+        case 'NETWORK_ERROR':
+          showError('Network connection failed. Please check your internet connection and try again.', errorId);
+          break;
+        case 'REQUEST_TIMEOUT':
+          showError('Request timed out. Please try again.', errorId);
+          break;
+        case 'HTTP_404':
+          showError('The requested resource was not found. Please check the URL and try again.', errorId);
+          break;
+        case 'HTTP_403':
+          showError('You do not have permission to access this resource.', errorId);
+          break;
+        case 'HTTP_500':
+          showError('Server error occurred. Please try again later.', errorId);
+          break;
+        case 'HTTP_503':
+          showError('Service temporarily unavailable. Please try again later.', errorId);
+          break;
+        default:
+          // Check if it's a generic HTTP error
+          if (error.errorCode.startsWith('HTTP_')) {
+            showError(`Server error (${error.statusCode}). Please try again.`, errorId);
+          } else {
+            showError(error.userMessage || 'An unexpected error occurred. Please try again.', errorId);
+          }
+      }
+    } else {
+      showError('An unexpected error occurred. Please try again.');
+    }
+    
+    console.error('API Error:', error);
+  };
 };

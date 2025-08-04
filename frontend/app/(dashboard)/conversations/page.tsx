@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +15,8 @@ import { useConversations, useConversationStats } from '@/features/conversations
 import { ConversationFilters, Conversation } from '@/features/conversations/models/conversation';
 import { ConversationFilters as ConversationFiltersComponent } from '@/features/conversations/components/ConversationFilters';
 import { ConversationListItem } from '@/features/conversations/components/ConversationListItem';
+import { useUsers } from '@/features/users/hooks/useUsers';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
 import { 
   PlusIcon, 
   MagnifyingGlassIcon,
@@ -25,6 +27,7 @@ import {
 
 export default function ConversationsPage() {
   const { user } = useAuthStore();
+  const { showError } = useNotifications();
   const [filters, setFilters] = useState<ConversationFilters>({
     page: 1,
     per_page: 20,
@@ -34,6 +37,39 @@ export default function ConversationsPage() {
 
   const { data: conversationsData, isLoading, error } = useConversations(filters);
   const { data: stats, isLoading: statsLoading } = useConversationStats();
+
+  // Extract unique assigned agent IDs from conversations
+  const assignedAgentIds = useMemo(() => {
+    if (!conversationsData?.conversations) return [];
+    
+    const uniqueIds = new Set<string>();
+    conversationsData.conversations.forEach((conversation: Conversation) => {
+      if (conversation.assigned_agent_id) {
+        uniqueIds.add(conversation.assigned_agent_id);
+      }
+    });
+    
+    return Array.from(uniqueIds);
+  }, [conversationsData?.conversations]);
+
+  // Fetch all assigned agents in bulk
+  const { data: assignedAgents = [], isLoading: agentsLoading, error: agentsError } = useUsers(assignedAgentIds);
+
+  // Create a map for quick agent lookup
+  const agentsMap = useMemo(() => {
+    const map = new Map();
+    assignedAgents.forEach(agent => {
+      map.set(agent._id, agent);
+    });
+    return map;
+  }, [assignedAgents]);
+
+  // Show error notification if agent data fails to load
+  useEffect(() => {
+    if (agentsError && assignedAgentIds.length > 0) {
+      showError('Failed to load agent information for conversations. Some agent names may not display correctly.', 'agents-load-error');
+    }
+  }, [agentsError, assignedAgentIds.length, showError]);
 
   const handleFiltersChange = (newFilters: ConversationFilters) => {
     setFilters(newFilters);
@@ -178,12 +214,20 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {conversationsData.conversations.map((conversation: Conversation) => (
-                <ConversationListItem
-                  key={conversation._id}
-                  conversation={conversation}
-                />
-              ))}
+              {conversationsData.conversations.map((conversation: Conversation) => {
+                const assignedAgent = conversation.assigned_agent_id 
+                  ? agentsMap.get(conversation.assigned_agent_id) 
+                  : null;
+                
+                return (
+                  <ConversationListItem
+                    key={conversation._id}
+                    conversation={conversation}
+                    assignedAgent={assignedAgent}
+                    agentsLoading={agentsLoading}
+                  />
+                );
+              })}
 
               {/* Pagination */}
               {conversationsData && (conversationsData.pages ?? 0) > 1 && (

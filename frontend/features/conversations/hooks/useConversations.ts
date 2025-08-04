@@ -13,7 +13,8 @@ import {
   ConversationStats,
   Conversation,
 } from '../models/conversation';
-import { toast } from '@/components/ui/Toast';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
+import { createApiErrorHandler } from '@/lib/http';
 
 // Query keys for conversations
 export const conversationQueryKeys = {
@@ -29,11 +30,15 @@ export const conversationQueryKeys = {
  * Hook to fetch conversations with filters
  */
 export function useConversations(filters: ConversationFilters) {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery({
     queryKey: conversationQueryKeys.list(filters),
     queryFn: () => ConversationsApi.getConversations(filters),
     staleTime: 30 * 1000, // 30 seconds
     enabled: !!filters,
+    onError: handleError,
   });
 }
 
@@ -41,11 +46,15 @@ export function useConversations(filters: ConversationFilters) {
  * Hook to fetch a single conversation
  */
 export function useConversation(conversationId: string) {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery<Conversation>({
     queryKey: conversationQueryKeys.detail(conversationId),
     queryFn: () => ConversationsApi.getConversation(conversationId),
     staleTime: 30 * 1000, // 30 seconds
     enabled: !!conversationId,
+    onError: handleError,
   });
 }
 
@@ -53,10 +62,14 @@ export function useConversation(conversationId: string) {
  * Hook to fetch conversation statistics
  */
 export function useConversationStats() {
+  const { showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
+
   return useQuery<ConversationStats>({
     queryKey: conversationQueryKeys.stats(),
     queryFn: () => ConversationsApi.getConversationStats(),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    onError: handleError,
   });
 }
 
@@ -65,18 +78,17 @@ export function useConversationStats() {
  */
 export function useCreateConversation() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: (data: CreateConversationRequest) => ConversationsApi.createConversation(data),
     onSuccess: () => {
       // Invalidate and refetch conversations list
       queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
-      toast.success('Conversation created successfully');
+      showSuccess('Conversation created successfully');
     },
-    onError: (error) => {
-      console.error('Failed to create conversation:', error);
-      toast.error('Failed to create conversation');
-    },
+    onError: handleError,
   });
 }
 
@@ -85,6 +97,8 @@ export function useCreateConversation() {
  */
 export function useUpdateConversation() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: ({ 
@@ -100,12 +114,9 @@ export function useUpdateConversation() {
         queryKey: conversationQueryKeys.detail(variables.conversationId) 
       });
       queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
-      toast.success('Conversation updated successfully');
+      showSuccess('Conversation updated successfully');
     },
-    onError: (error) => {
-      console.error('Failed to update conversation:', error);
-      toast.error('Failed to update conversation');
-    },
+    onError: handleError,
   });
 }
 
@@ -114,6 +125,8 @@ export function useUpdateConversation() {
  */
 export function useCloseConversation() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: (conversationId: string) => ConversationsApi.closeConversation(conversationId),
@@ -123,12 +136,9 @@ export function useCloseConversation() {
         queryKey: conversationQueryKeys.detail(conversationId) 
       });
       queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
-      toast.success('Conversation closed successfully');
+      showSuccess('Conversation closed successfully');
     },
-    onError: (error) => {
-      console.error('Failed to close conversation:', error);
-      toast.error('Failed to close conversation');
-    },
+    onError: handleError,
   });
 }
 
@@ -137,6 +147,8 @@ export function useCloseConversation() {
  */
 export function useTransferConversation() {
   const queryClient = useQueryClient();
+  const { showSuccess, showError } = useNotifications();
+  const handleError = createApiErrorHandler(showError);
 
   return useMutation({
     mutationFn: ({ 
@@ -152,11 +164,8 @@ export function useTransferConversation() {
         queryKey: conversationQueryKeys.detail(variables.conversationId) 
       });
       queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
-      toast.success('Conversation transferred successfully');
+      showSuccess('Conversation transferred successfully');
     },
-    onError: (error) => {
-      console.error('Failed to transfer conversation:', error);
-      toast.error('Failed to transfer conversation');
-    },
+    onError: handleError,
   });
 }

@@ -26,21 +26,24 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     """
     try:
         await manager.connect(websocket, user_id)
-        logger.info(f"WebSocket connected for user {user_id}")
+        logger.info(f"🔌 [WEBSOCKET] Connected for user {user_id}")
+        logger.info(f"🔌 [WEBSOCKET] Total active connections: {len(manager.active_connections)}")
         
         while True:
             # Wait for messages from the client
             data = await websocket.receive_text()
             message = json.loads(data)
             
+            logger.info(f"📨 [WEBSOCKET] Received message from user {user_id}: {message}")
+            
             # Handle different message types
             await handle_websocket_message(user_id, message)
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
-        logger.info(f"WebSocket disconnected for user {user_id}")
+        logger.info(f"🔌 [WEBSOCKET] Disconnected for user {user_id}")
     except Exception as e:
-        logger.error(f"WebSocket error for user {user_id}: {str(e)}")
+        logger.error(f"❌ [WEBSOCKET] Error for user {user_id}: {str(e)}")
         manager.disconnect(websocket, user_id)
         
 
@@ -57,19 +60,23 @@ async def handle_websocket_message(user_id: str, message: dict):
         
         if message_type == "subscribe_conversation":
             conversation_id = message.get("conversation_id")
+            logger.info(f"🔔 [WEBSOCKET] User {user_id} subscribing to conversation {conversation_id}")
             if conversation_id:
                 await manager.subscribe_to_conversation(user_id, conversation_id)
-                await websocket_service.send_personal_message({
+                logger.info(f"✅ [WEBSOCKET] User {user_id} successfully subscribed to conversation {conversation_id}")
+                await manager.send_personal_message({
                     "type": "subscription_confirmed",
                     "conversation_id": conversation_id,
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }, user_id)
+            else:
+                logger.warning(f"❌ [WEBSOCKET] User {user_id} attempted to subscribe without conversation_id")
         
         elif message_type == "unsubscribe_conversation":
             conversation_id = message.get("conversation_id")
             if conversation_id:
                 await manager.unsubscribe_from_conversation(user_id, conversation_id)
-                await websocket_service.send_personal_message({
+                await manager.send_personal_message({
                     "type": "unsubscription_confirmed",
                     "conversation_id": conversation_id,
                     "timestamp": datetime.now(timezone.utc).isoformat()
@@ -93,7 +100,7 @@ async def handle_websocket_message(user_id: str, message: dict):
         
         elif message_type == "ping":
             # Respond to ping with pong
-            await websocket_service.send_personal_message({
+            await manager.send_personal_message({
                 "type": "pong",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }, user_id)
@@ -105,7 +112,7 @@ async def handle_websocket_message(user_id: str, message: dict):
         logger.error(f"Error handling WebSocket message from user {user_id}: {str(e)}")
         # Send error message to client
         try:
-            await websocket_service.send_personal_message({
+            await manager.send_personal_message({
                 "type": "error",
                 "message": "Internal server error",
                 "timestamp": datetime.now(timezone.utc).isoformat()

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Conversation } from '../models/conversation';
 import { formatRelativeTime, truncateText } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store';
-import { useUser, getUserDisplayName, getUserFullName } from '@/features/users/hooks/useUsers';
+import { User, getUserDisplayName, getUserFullName } from '@/features/users/hooks/useUsers';
 import { 
   UserIcon,
   BuildingOfficeIcon,
@@ -25,12 +25,16 @@ interface ConversationListItemProps {
   conversation: Conversation;
   onClick?: (conversation: Conversation) => void;
   className?: string;
+  assignedAgent?: User | null;
+  agentsLoading?: boolean;
 }
 
 export function ConversationListItem({ 
   conversation, 
   onClick,
-  className = '' 
+  className = '',
+  assignedAgent,
+  agentsLoading = false
 }: ConversationListItemProps) {
   const router = useRouter();
 
@@ -85,13 +89,11 @@ export function ConversationListItem({
   // Get customer phone
   const customerPhone = conversation.customer?.phone || conversation.customer_phone;
 
-  // Fetch assigned agent information
-  const { data: assignedAgentUser } = useUser(conversation.assigned_agent_id);
-  
-  // Get assigned agent info with proper name lookup
-  const assignedAgent = conversation.assigned_agent_id ? {
+  // Get assigned agent info - now passed as prop
+  const assignedAgentInfo = conversation.assigned_agent_id ? {
     id: conversation.assigned_agent_id,
-    name: assignedAgentUser ? getUserDisplayName(assignedAgentUser) : `Agent ${conversation.assigned_agent_id.slice(-4)}`,
+    name: assignedAgent ? getUserDisplayName(assignedAgent) : `Agent ${conversation.assigned_agent_id.slice(-4)}`,
+    user: assignedAgent
   } : null;
 
   // Get department info (placeholder - would need to load from department API)
@@ -192,25 +194,27 @@ export function ConversationListItem({
           {/* Assignment and department info */}
           <div className="flex flex-col items-end space-y-1 text-right">
             {/* Assigned agent */}
-            {assignedAgent && assignedAgentUser && (
-              <div className="flex items-center space-x-2 text-foreground" title={`Assigned to: ${assignedAgent.name}`}>
+            {assignedAgentInfo && assignedAgentInfo.user && (
+              <div className="flex items-center space-x-2 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
                 <UserIcon className="w-4 h-4 text-primary" />
                 <div className="text-right">
                   <div className="text-sm font-semibold leading-tight">
-                    {getUserFullName(assignedAgentUser)}
+                    {getUserFullName(assignedAgentInfo.user)}
                   </div>
                   <div className="text-xs text-muted-foreground leading-tight">
-                    {assignedAgentUser.email}
+                    {assignedAgentInfo.user.email}
                   </div>
                 </div>
               </div>
             )}
             
-            {/* Fallback for when user data is loading */}
-            {assignedAgent && !assignedAgentUser && (
-              <div className="flex items-center space-x-1 text-foreground" title={`Assigned to: ${assignedAgent.name}`}>
+            {/* Fallback for when user data is loading or failed to load */}
+            {assignedAgentInfo && !assignedAgentInfo.user && (
+              <div className="flex items-center space-x-1 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
                 <UserIcon className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">{assignedAgent.name}</span>
+                <span className="text-sm font-medium">
+                  {agentsLoading ? 'Loading...' : assignedAgentInfo.name}
+                </span>
               </div>
             )}
             
@@ -223,7 +227,7 @@ export function ConversationListItem({
             )}
             
             {/* Unassigned indicator */}
-            {!assignedAgent && (
+            {!assignedAgentInfo && (
               <div className="flex items-center space-x-1 text-muted-foreground" title="Unassigned">
                 <UserIcon className="w-4 h-4 text-warning" />
                 <span className="text-sm font-medium text-warning">Unassigned</span>

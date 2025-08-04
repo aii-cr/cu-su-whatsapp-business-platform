@@ -8,6 +8,7 @@ from .logout_user import router as logout_user_router
 from .user_profile import router as user_profile_router
 from .list_users import router as list_users_router
 from .get_user import router as get_user_router
+from .get_users_bulk import router as get_users_bulk_router
 from .manage_users import router as manage_users_router
 from .user_stats import router as user_stats_router
 
@@ -21,5 +22,6 @@ router.include_router(logout_user_router)
 router.include_router(user_profile_router)
 router.include_router(list_users_router)
 router.include_router(get_user_router)
+router.include_router(get_users_bulk_router)
 router.include_router(manage_users_router)
 router.include_router(user_stats_router) 

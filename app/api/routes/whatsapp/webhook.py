@@ -381,6 +381,14 @@ async def process_message_status(
     )
     
     logger.info(f"✅ [STATUS] Updated message {whatsapp_message_id} status to {status_obj.status}")
+    
+    # Send WebSocket notification for status update
+    from app.services import websocket_service
+    await websocket_service.notify_message_status_update(
+        conversation_id=str(message["conversation_id"]),
+        message_id=str(message["_id"]),
+        status=status_obj.status
+    )
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """

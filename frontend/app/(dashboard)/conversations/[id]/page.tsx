@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -13,11 +13,13 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { ConversationHeader } from '@/components/chat/ConversationHeader';
+import { DayBanner } from '@/components/chat/DayBanner';
 import { useAuthStore } from '@/lib/store';
 import { useMessages, useSendMessage } from '@/features/messages/hooks/useMessages';
 import { useConversation } from '@/features/conversations/hooks/useConversations';
 import { useConversationWebSocket } from '@/hooks/useWebSocket';
 import { SenderType } from '@/features/messages/models/message';
+import { isSameDay } from '@/lib/utils';
 import { 
   InformationCircleIcon,
   UserIcon
@@ -52,7 +54,7 @@ export default function ConversationDetailsPage() {
   const sendMessageMutation = useSendMessage();
 
   // WebSocket connection for real-time messaging
-  const webSocket = useConversationWebSocket(conversationId);
+  const { isConnected, sendTypingStart, sendTypingStop } = useConversationWebSocket(conversationId);
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -149,8 +151,7 @@ export default function ConversationDetailsPage() {
       {/* Messages area */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900"
-        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='none' fill-rule='evenodd'%3e%3cg fill='%23f1f5f9' fill-opacity='0.1'%3e%3ccircle cx='30' cy='30' r='2'/%3e%3c/g%3e%3c/g%3e%3c/svg%3e")` }}
+        className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800/30"
       >
         {/* Load more messages button */}
         {hasNextPage && (
@@ -187,15 +188,29 @@ export default function ConversationDetailsPage() {
             </div>
           </div>
         ) : (
-          allMessages.map((message) => (
-            <MessageBubble
-              key={message._id}
-              message={message}
-              isOwn={message.sender_role === 'agent' && message.sender_id === user?._id}
-              showAvatar={true}
-              showTimestamp={true}
-            />
-          ))
+          <div className="space-y-1">
+            {allMessages.map((message, index) => {
+              const previousMessage = index > 0 ? allMessages[index - 1] : null;
+              const showDayBanner = !previousMessage || !isSameDay(message.timestamp, previousMessage.timestamp);
+
+              return (
+                <React.Fragment key={message._id}>
+                  {/* Day banner */}
+                  {showDayBanner && (
+                    <DayBanner date={message.timestamp} />
+                  )}
+                  
+                  {/* Message bubble */}
+                  <MessageBubble
+                    message={message}
+                    isOwn={message.sender_role === 'agent' && message.sender_id === user?._id}
+                    showAvatar={true}
+                    showTimestamp={true}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </div>
         )}
 
         {/* Scroll anchor */}
@@ -213,8 +228,8 @@ export default function ConversationDetailsPage() {
             ? "This conversation is closed" 
             : "Type a message..."
         }
-        onTypingStart={webSocket.sendTypingStart}
-        onTypingStop={webSocket.sendTypingStop}
+        onTypingStart={sendTypingStart}
+        onTypingStop={sendTypingStop}
       />
     </div>
   );

@@ -61,14 +61,26 @@ export class MessagingWebSocketClient extends WebSocketClient {
    */
   subscribeToConversation(conversationId: string) {
     if (this.subscriptions.has(conversationId)) {
+      console.log('🔔 [WEBSOCKET] Already subscribed to conversation:', conversationId);
       return; // Already subscribed
     }
 
+    console.log('🔔 [WEBSOCKET] Subscribing to conversation:', conversationId);
     this.subscriptions.add(conversationId);
-    this.send({
+    
+    // Send subscription request if connected, or queue it for when connected
+    const subscriptionMessage = {
       type: 'subscribe_conversation',
       conversation_id: conversationId,
-    });
+    };
+    
+    if (this.isConnected) {
+      console.log('🔔 [WEBSOCKET] Sending subscription immediately');
+      this.send(subscriptionMessage);
+    } else {
+      console.log('🔔 [WEBSOCKET] WebSocket not connected, will subscribe after connection');
+      // The connection will trigger re-subscription in connectWithAuth
+    }
   }
 
   /**
@@ -103,37 +115,95 @@ export class MessagingWebSocketClient extends WebSocketClient {
   protected handleIncomingMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
+      console.log('📨 [WEBSOCKET] Frontend received message:', data);
       
+      // Create a WebSocket message in the format expected by the parent class
+      const webSocketMessage = {
+        type: data.type,
+        data: data.data || data,
+        timestamp: data.timestamp || new Date().toISOString(),
+        conversation_id: data.conversation_id,
+        user_id: data.user_id
+      };
+      
+      // Trigger the parent class message handlers by calling the subscription handlers directly
+      this.triggerMessageHandlers(webSocketMessage);
+      
+      // Then handle specific message types for UI updates
       switch (data.type) {
         case 'new_message':
+          console.log('🔔 [WEBSOCKET] Handling new_message');
           this.handleNewMessage(data.data || data);
           break;
           
         case 'message_status':
+        case 'message_status_update':
+          console.log('🔔 [WEBSOCKET] Handling message status update');
           this.handleMessageStatus(data.data || data);
           break;
           
         case 'conversation_update':
+          console.log('🔔 [WEBSOCKET] Handling conversation update');
           this.handleConversationUpdate(data.data || data);
           break;
           
         case 'new_conversation':
+          console.log('🔔 [WEBSOCKET] Handling new conversation');
           this.handleNewConversation(data.data || data);
           break;
           
         case 'user_activity':
+          console.log('🔔 [WEBSOCKET] Handling user activity');
           this.handleUserActivity(data.data || data);
           break;
           
+        case 'subscription_confirmed':
+          console.log('✅ [WEBSOCKET] Subscription confirmed for conversation:', data.conversation_id);
+          break;
+          
+        case 'unsubscription_confirmed':
+          console.log('✅ [WEBSOCKET] Unsubscription confirmed for conversation:', data.conversation_id);
+          break;
+          
         default:
-          console.log('Unknown WebSocket message type:', data.type);
+          console.log('❓ [WEBSOCKET] Unknown message type:', data.type, data);
       }
     } catch (error) {
-      console.error('Error handling WebSocket message:', error);
+      console.error('❌ [WEBSOCKET] Error handling message:', error);
     }
   }
 
+  /**
+   * Manually trigger message handlers for backward compatibility
+   */
+  private triggerMessageHandlers(message: any) {
+    // Access the protected messageHandlers map from the parent class
+    const messageHandlers = (this as any).messageHandlers;
+    if (!messageHandlers) return;
+
+    // Notify all handlers for this message type
+    const handlers = messageHandlers.get(message.type) || [];
+    handlers.forEach((handler: any) => {
+      try {
+        handler(message);
+      } catch (error) {
+        console.error('Error in message handler:', error);
+      }
+    });
+
+    // Also notify general message handlers
+    const generalHandlers = messageHandlers.get('*') || [];
+    generalHandlers.forEach((handler: any) => {
+      try {
+        handler(message);
+      } catch (error) {
+        console.error('Error in general message handler:', error);
+      }
+    });
+  }
+
   private handleNewMessage(data: WebSocketMessageData['new_message']) {
+    console.log('🔔 [WEBSOCKET] Frontend received new message:', data);
     const { conversation_id, message } = data;
     
     // Invalidate and refetch messages for this conversation
@@ -148,18 +218,28 @@ export class MessagingWebSocketClient extends WebSocketClient {
 
     // Show notification if message is from another user
     const currentUser = useAuthStore.getState().user;
+    console.log('🔔 [WEBSOCKET] Current user:', currentUser?._id, 'Message sender:', message.sender_id);
     if (message.sender_id !== currentUser?._id) {
+      console.log('🔔 [WEBSOCKET] Showing toast notification');
       toast.info(`New message in conversation`);
+    } else {
+      console.log('🔔 [WEBSOCKET] Not showing notification - message from current user');
     }
   }
 
   private handleMessageStatus(data: WebSocketMessageData['message_status']) {
-    const { conversation_id } = data;
+    console.log('🔔 [WEBSOCKET] Frontend received message status update:', data);
+    const { conversation_id, message_id, status } = data;
     
     // Invalidate messages to update status indicators
     this.queryClient.invalidateQueries({
       queryKey: messageQueryKeys.conversation(conversation_id),
     });
+    
+    // Show notification for status updates (optional)
+    if (status === 'delivered' || status === 'read') {
+      console.log(`🔔 [WEBSOCKET] Message ${message_id} status: ${status}`);
+    }
   }
 
   private handleConversationUpdate(data: WebSocketMessageData['conversation_update']) {
@@ -196,28 +276,55 @@ export class MessagingWebSocketClient extends WebSocketClient {
   }
 
   private handleUserActivity(data: WebSocketMessageData['user_activity']) {
-    const { conversation_id, user_name, activity } = data;
+    console.log('🔔 [WEBSOCKET] Raw user activity data:', data);
+    const { conversation_id, user_id, activity } = data;
     
     // Handle typing indicators and user presence
     // This could trigger UI updates for typing indicators
-    console.log(`User ${user_name} is ${activity} in conversation ${conversation_id}`);
+    console.log(`🔔 [WEBSOCKET] User ${user_id} activity: ${activity?.type} in conversation ${conversation_id}`);
     
     // You can implement typing indicator state management here
     // For now, we'll just log it
   }
 
   /**
-   * Connect with user authentication
+   * Connect with user authentication and set up message handling
    */
   connectWithAuth(): Promise<void> {
     const user = useAuthStore.getState().user;
     if (!user) {
-      console.error('Cannot connect WebSocket: User not authenticated');
+      console.error('❌ [WEBSOCKET] Cannot connect: User not authenticated');
       return Promise.reject(new Error('User not authenticated'));
     }
 
+    console.log('🔌 [WEBSOCKET] Connecting with user ID:', user._id);
+    
     // Connect to WebSocket with user ID
-    return this.connect(user._id);
+    const connectPromise = this.connect(user._id);
+    
+    // Override the onmessage handler after connection to use our enhanced handling
+    connectPromise.then(() => {
+      console.log('✅ [WEBSOCKET] Connection established, setting up message handler');
+      if (this.ws) {
+        this.ws.onmessage = (event: MessageEvent) => {
+          this.handleIncomingMessage(event);
+        };
+        
+        // Subscribe to all tracked conversations after connection
+        console.log('🔔 [WEBSOCKET] Re-subscribing to tracked conversations:', Array.from(this.subscriptions));
+        this.subscriptions.forEach(conversationId => {
+          console.log('🔔 [WEBSOCKET] Re-subscribing to conversation:', conversationId);
+          this.send({
+            type: 'subscribe_conversation',
+            conversation_id: conversationId,
+          });
+        });
+      }
+    }).catch((error) => {
+      console.error('❌ [WEBSOCKET] Connection failed:', error);
+    });
+    
+    return connectPromise;
   }
 
   /**

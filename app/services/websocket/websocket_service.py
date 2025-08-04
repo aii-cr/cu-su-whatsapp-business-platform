@@ -52,6 +52,8 @@ class ConnectionManager:
     
     async def subscribe_to_conversation(self, user_id: str, conversation_id: str):
         """Subscribe a user to a specific conversation."""
+        logger.info(f"🔔 [WEBSOCKET] Subscribing user {user_id} to conversation {conversation_id}")
+        
         if conversation_id not in self.conversation_subscribers:
             self.conversation_subscribers[conversation_id] = set()
         
@@ -62,7 +64,9 @@ class ConnectionManager:
         
         self.user_conversations[user_id].add(conversation_id)
         
-        logger.info(f"User {user_id} subscribed to conversation {conversation_id}")
+        logger.info(f"✅ [WEBSOCKET] User {user_id} successfully subscribed to conversation {conversation_id}")
+        logger.info(f"📋 [WEBSOCKET] Total subscribers for conversation {conversation_id}: {len(self.conversation_subscribers[conversation_id])}")
+        logger.info(f"📋 [WEBSOCKET] All conversation subscribers: {dict(self.conversation_subscribers)}")
     
     async def unsubscribe_from_conversation(self, user_id: str, conversation_id: str):
         """Unsubscribe a user from a specific conversation."""
@@ -91,9 +95,18 @@ class ConnectionManager:
     
     async def broadcast_to_conversation(self, message: dict, conversation_id: str):
         """Broadcast a message to all users subscribed to a conversation."""
+        logger.info(f"🔔 [WEBSOCKET] Broadcasting to conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Available conversation subscribers: {list(self.conversation_subscribers.keys())}")
+        logger.info(f"🔔 [WEBSOCKET] Active connections: {list(self.active_connections.keys())}")
+        
         if conversation_id in self.conversation_subscribers:
-            for user_id in self.conversation_subscribers[conversation_id]:
+            subscribers = self.conversation_subscribers[conversation_id]
+            logger.info(f"🔔 [WEBSOCKET] Found {len(subscribers)} subscribers for conversation {conversation_id}: {list(subscribers)}")
+            for user_id in subscribers:
                 await self.send_personal_message(message, user_id)
+        else:
+            logger.warning(f"❌ [WEBSOCKET] No subscribers found for conversation {conversation_id}")
+            logger.info(f"📋 [WEBSOCKET] Current conversation subscribers: {dict(self.conversation_subscribers)}")
     
     async def broadcast_to_all(self, message: dict):
         """Broadcast a message to all connected users."""
@@ -109,10 +122,38 @@ class WebSocketService:
     @staticmethod
     async def notify_new_message(conversation_id: str, message_data: dict):
         """Notify all subscribers about a new message."""
+        # Convert ObjectId fields to strings for JSON serialization
+        serialized_message = {}
+        for key, value in message_data.items():
+            if key == '_id':
+                serialized_message[key] = str(value)
+            elif key == 'conversation_id':
+                serialized_message[key] = str(value)
+            elif key == 'sender_id':
+                serialized_message[key] = str(value) if value else None
+            elif key == 'created_at' or key == 'updated_at':
+                serialized_message[key] = value.isoformat() if value else None
+            elif key == 'whatsapp_data':
+                # Handle nested whatsapp_data object
+                if isinstance(value, dict):
+                    serialized_whatsapp_data = {}
+                    for w_key, w_value in value.items():
+                        if isinstance(w_value, datetime):
+                            serialized_whatsapp_data[w_key] = w_value.isoformat()
+                        else:
+                            serialized_whatsapp_data[w_key] = w_value
+                    serialized_message[key] = serialized_whatsapp_data
+                else:
+                    serialized_message[key] = value
+            elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            else:
+                serialized_message[key] = value
+        
         notification = {
             "type": "new_message",
             "conversation_id": str(conversation_id),
-            "message": message_data,
+            "message": serialized_message,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
@@ -162,9 +203,21 @@ class WebSocketService:
     @staticmethod
     async def notify_new_conversation(conversation_data: dict):
         """Notify all connected users about a new conversation being created."""
+        # Convert ObjectId fields to strings for JSON serialization
+        serialized_conversation = {}
+        for key, value in conversation_data.items():
+            if key == '_id':
+                serialized_conversation[key] = str(value)
+            elif key == 'assigned_to':
+                serialized_conversation[key] = str(value) if value else None
+            elif key == 'created_at' or key == 'updated_at':
+                serialized_conversation[key] = value.isoformat() if value else None
+            else:
+                serialized_conversation[key] = value
+        
         notification = {
             "type": "new_conversation",
-            "conversation": conversation_data,
+            "conversation": serialized_conversation,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         

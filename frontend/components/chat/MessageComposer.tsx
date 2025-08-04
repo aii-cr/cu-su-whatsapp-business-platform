@@ -47,8 +47,22 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
     const adjustTextareaHeight = () => {
       const textarea = textareaRef.current;
       if (textarea) {
+        const maxHeight = 120; // 5-6 lines approximately
+        const minHeight = 44; // Single line height
+        
+        // Reset height to auto to get accurate scrollHeight
         textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        
+        // Calculate new height
+        const newHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
+        textarea.style.height = newHeight + 'px';
+        
+        // Enable scrolling only when content exceeds max height
+        if (textarea.scrollHeight > maxHeight) {
+          textarea.style.overflowY = 'auto';
+        } else {
+          textarea.style.overflowY = 'hidden';
+        }
       }
     };
 
@@ -69,10 +83,17 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
       }
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+Enter or Cmd+Enter: Insert new line
+          return; // Let default behavior happen (insert new line)
+        } else if (!e.shiftKey) {
+          // Plain Enter: Send message
+          e.preventDefault();
+          handleSend();
+        }
+        // Shift+Enter: Insert new line (default behavior)
       }
     };
 
@@ -138,17 +159,22 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
             ref={textareaRef}
             value={message}
             onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled || loading}
             rows={1}
             className={cn(
-              'w-full max-h-[120px] px-4 py-3 pr-12 text-sm resize-none',
+              'w-full max-h-[120px] px-4 py-3 pr-12 text-sm resize-none overflow-hidden',
               'bg-surface border border-border rounded-full',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
               'placeholder:text-muted-foreground',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'scrollbar-hide'
             )}
+            style={{ 
+              minHeight: '44px',
+              lineHeight: '1.5'
+            }}
           />
           
           {/* Character count */}
