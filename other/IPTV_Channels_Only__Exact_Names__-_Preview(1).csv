@@ -1,0 +1,31 @@
+id,section,subsection,channel_number,title,details,tags,locale,version
+f5a04e3f-7eb7-4329-919e-bd113a3b1f9d,IPTV,Canales,1,Canal 1,Canal disponible en la grilla IPTV: Canal 1.,"canal, iptv",es_CR,iptv.v1.1
+af5fb422-c4ab-4ab6-83ab-4f29ce6c72b8,IPTV,Canales,2,Canal 2 CDR,Canal disponible en la grilla IPTV: Canal 2 CDR.,"canal, iptv",es_CR,iptv.v1.1
+2003ed28-85a5-4eea-9cc0-11cc27b1c3ff,IPTV,Canales,3,Antena 6,Canal disponible en la grilla IPTV: Antena 6.,"canal, iptv",es_CR,iptv.v1.1
+06e263c3-2047-43b9-b70a-a1268ae779b0,IPTV,Canales,4,Canal 4,Canal disponible en la grilla IPTV: Canal 4.,"canal, iptv",es_CR,iptv.v1.1
+926a68a7-c1ef-4791-a321-2cbebccc23ce,IPTV,Canales,5,Trivision,Canal disponible en la grilla IPTV: Trivision.,"canal, iptv",es_CR,iptv.v1.1
+af04cd18-b91d-485c-8ed7-9d78931945d0,IPTV,Canales,6,Canal 6,Canal disponible en la grilla IPTV: Canal 6.,"canal, iptv",es_CR,iptv.v1.1
+a6bd9c59-ccde-4f78-9348-07f724b1465f,IPTV,Canales,7,Canal 7,Canal disponible en la grilla IPTV: Canal 7.,"canal, iptv",es_CR,iptv.v1.1
+c2852f5a-722a-4c13-9a23-6f27a4252d49,IPTV,Canales,8,Multimedios,Canal disponible en la grilla IPTV: Multimedios.,"canal, iptv",es_CR,iptv.v1.1
+31e96d57-9037-4d76-bc40-c30e5bbcf366,IPTV,Canales,9,UCR,Canal disponible en la grilla IPTV: UCR.,"canal, iptv",es_CR,iptv.v1.1
+8cec6d9f-1391-40f4-bd95-89936d40bcb5,IPTV,Canales,10,ExtraTV 42,Canal disponible en la grilla IPTV: ExtraTV 42.,"canal, iptv",es_CR,iptv.v1.1
+7e36c3ce-2227-47fd-9a99-109974a48276,IPTV,Canales,11,Canal 11,Canal disponible en la grilla IPTV: Canal 11.,"canal, iptv",es_CR,iptv.v1.1
+ee142251-72f7-41b9-a2fb-2c1247efe8f2,IPTV,Canales,12,OPA TV,Canal disponible en la grilla IPTV: OPA TV.,"canal, iptv",es_CR,iptv.v1.1
+ec457b8c-4404-47f7-ac50-911b71e092a8,IPTV,Canales,13,Sinart - Canal 13,Canal disponible en la grilla IPTV: Sinart - Canal 13.,"canal, iptv",es_CR,iptv.v1.1
+210f4765-ef2e-4088-af71-d6bd2246df55,IPTV,Canales,14,CB TV,Canal disponible en la grilla IPTV: CB TV.,"canal, iptv",es_CR,iptv.v1.1
+53ba8fb7-d7b3-4054-b23f-29b7e31652d4,IPTV,Canales,15,Limon TV,Canal disponible en la grilla IPTV: Limon TV.,"canal, iptv",es_CR,iptv.v1.1
+a62627b3-b1e4-4e53-8e53-5bd786256d80,IPTV,Canales,16,Nicoya TV,Canal disponible en la grilla IPTV: Nicoya TV.,"canal, iptv",es_CR,iptv.v1.1
+fb07485b-671c-4479-8b5b-1a7463991843,IPTV,Canales,17,TV Sur,Canal disponible en la grilla IPTV: TV Sur.,"canal, iptv",es_CR,iptv.v1.1
+8f66aa82-eb74-4a5f-883f-937fda075e16,IPTV,Canales,18,TV Plus,Canal disponible en la grilla IPTV: TV Plus.,"canal, iptv",es_CR,iptv.v1.1
+2c0af2e0-3d88-4a70-9958-04259a7f72da,IPTV,Canales,19,TicaVision,Canal disponible en la grilla IPTV: TicaVision.,"canal, iptv",es_CR,iptv.v1.1
+e045bd99-3f7c-4ed4-8845-2684f03cfe4c,IPTV,Canales,20,Xpert TV,Canal disponible en la grilla IPTV: Xpert TV.,"canal, iptv",es_CR,iptv.v1.1
+38780fb4-6e08-4ecb-ae57-0667bf0b2b7f,IPTV,Canales,21,Telered,Canal disponible en la grilla IPTV: Telered.,"canal, iptv",es_CR,iptv.v1.1
+6e460466-01ae-4c02-9af8-3012f986d957,IPTV,Canales,22,Telesistema,Canal disponible en la grilla IPTV: Telesistema.,"canal, iptv",es_CR,iptv.v1.1
+65242a94-811a-42d4-afe2-a780b8f0078a,IPTV,Canales,23,Canal de las Estrellas,Canal disponible en la grilla IPTV: Canal de las Estrellas.,"canal, iptv",es_CR,iptv.v1.1
+583deb92-0c8c-44a3-8f02-33bef9d5a11a,IPTV,Canales,24,TV Novelas Centro,Canal disponible en la grilla IPTV: TV Novelas Centro.,"canal, iptv",es_CR,iptv.v1.1
+d6b8cb46-7ab7-46c3-8611-ec19bce45380,IPTV,Canales,25,Univision Lat,Canal disponible en la grilla IPTV: Univision Lat.,"canal, iptv",es_CR,iptv.v1.1
+6a32c013-cd95-401d-8800-09283d89a128,IPTV,Canales,26,De Película,Canal disponible en la grilla IPTV: De Película.,"canal, cine, iptv",es_CR,iptv.v1.1
+1c79f47f-2044-4ae8-a66a-f3c9d12505b5,IPTV,Canales,27,Distrito Comedia,Canal disponible en la grilla IPTV: Distrito Comedia.,"canal, iptv",es_CR,iptv.v1.1
+688ef563-6928-47bf-88e7-8cc015bddd66,IPTV,Canales,28,BEXTV,Canal disponible en la grilla IPTV: BEXTV.,"canal, iptv",es_CR,iptv.v1.1
+8c00b2ee-7da5-4735-8b74-58a9be12636a,IPTV,Canales,29,AXN,Canal disponible en la grilla IPTV: AXN.,"canal, cine, iptv",es_CR,iptv.v1.1
+6d2fb361-1ca1-4703-aafe-a37c867f7a10,IPTV,Canales,30,A&E,Canal disponible en la grilla IPTV: A&E.,"canal, cine, iptv",es_CR,iptv.v1.1

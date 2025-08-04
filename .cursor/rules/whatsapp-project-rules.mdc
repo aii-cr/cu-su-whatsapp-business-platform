@@ -343,7 +343,6 @@ Code Documentation
 - Add docstrings to all public methods
 - Document parameters and return types
 - Include usage examples for complex methods
-- Update README.md when adding new features
 
 API Documentation
 - Use FastAPI docstrings for automatic OpenAPI generation
