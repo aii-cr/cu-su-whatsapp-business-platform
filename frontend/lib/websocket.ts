@@ -214,12 +214,12 @@ export class MessagingWebSocketClient extends WebSocketClient {
    */
   private triggerMessageHandlers(message: Record<string, unknown>) {
     // Access the protected messageHandlers map from the parent class
-    const messageHandlers = (this as unknown as { messageHandlers?: Map<string, Function[]> }).messageHandlers;
+    const messageHandlers = (this as unknown as { messageHandlers?: Map<string, ((data: unknown) => void)[]> }).messageHandlers;
     if (!messageHandlers) return;
 
     // Notify all handlers for this message type
     const handlers = messageHandlers.get(message.type as string) || [];
-    handlers.forEach((handler: Function) => {
+    handlers.forEach((handler: (data: unknown) => void) => {
       try {
         handler(message);
       } catch (error) {
@@ -229,7 +229,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
 
     // Also notify general message handlers
     const generalHandlers = messageHandlers.get('*') || [];
-    generalHandlers.forEach((handler: Function) => {
+    generalHandlers.forEach((handler: (data: unknown) => void) => {
       try {
         handler(message);
       } catch (error) {

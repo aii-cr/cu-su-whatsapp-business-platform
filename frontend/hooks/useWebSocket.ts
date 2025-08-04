@@ -18,7 +18,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuthStore();
   const wsRef = useRef<MessagingWebSocketClient | null>(null);
-  const [subscriptionState, setSubscriptionState] = useState<{
+  const subscriptionStateRef = useRef<{
     [conversationId: string]: {
       isSubscribed: boolean;
       lastSubscribed: number;
@@ -27,11 +27,24 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       isSubscribing: boolean;
     }
   }>({});
+  const [, forceUpdate] = useState({});
   const verificationTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Helper to update subscription state
+  const updateSubscriptionState = useCallback((convId: string, updates: Partial<typeof subscriptionStateRef.current[string]>) => {
+    subscriptionStateRef.current = {
+      ...subscriptionStateRef.current,
+      [convId]: {
+        ...subscriptionStateRef.current[convId],
+        ...updates
+      }
+    };
+    forceUpdate({}); // Trigger re-render without causing dependency cycles
+  }, []);
 
   // Verify subscription health with proper throttling
   const verifySubscription = useCallback(async (convId: string) => {
-    const state = subscriptionState[convId];
+    const state = subscriptionStateRef.current[convId];
     const now = Date.now();
     
     // Prevent multiple simultaneous verification attempts
@@ -66,14 +79,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         const retryDelay = Math.min(5000 * Math.pow(2, (state?.retryCount || 0)), 30000);
         console.log(`🔔 [WEBSOCKET] Will retry in ${retryDelay}ms`);
         
-        setSubscriptionState(prev => ({
-          ...prev,
-          [convId]: {
-            ...prev[convId],
-            retryCount: (prev[convId]?.retryCount || 0) + 1,
-            isSubscribing: false
-          }
-        }));
+        updateSubscriptionState(convId, {
+          retryCount: (state?.retryCount || 0) + 1,
+          isSubscribing: false
+        });
         
         // Schedule retry
         verificationTimeouts.current[convId] = setTimeout(() => {
@@ -87,44 +96,31 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     // Perform subscription if needed
     console.log('🔔 [WEBSOCKET] Subscribing to conversation:', convId);
     
-    setSubscriptionState(prev => ({
-      ...prev,
-      [convId]: {
-        ...prev[convId],
-        isSubscribing: true
-      }
-    }));
+    updateSubscriptionState(convId, { isSubscribing: true });
 
     try {
       wsRef.current?.subscribeToConversation(convId);
       
-      setSubscriptionState(prev => ({
-        ...prev,
-        [convId]: {
-          isSubscribed: true,
-          lastSubscribed: now,
-          lastVerified: now,
-          retryCount: 0, // Reset retry count on success
-          isSubscribing: false
-        }
-      }));
+      updateSubscriptionState(convId, {
+        isSubscribed: true,
+        lastSubscribed: now,
+        lastVerified: now,
+        retryCount: 0, // Reset retry count on success
+        isSubscribing: false
+      });
       
       return true;
     } catch (error) {
       console.error('❌ [WEBSOCKET] Subscription failed:', error);
       
-      setSubscriptionState(prev => ({
-        ...prev,
-        [convId]: {
-          ...prev[convId],
-          isSubscribing: false,
-          retryCount: (prev[convId]?.retryCount || 0) + 1
-        }
-      }));
+      updateSubscriptionState(convId, {
+        isSubscribing: false,
+        retryCount: (state?.retryCount || 0) + 1
+      });
       
       return false;
     }
-  }, [subscriptionState]);
+  }, [updateSubscriptionState]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -163,16 +159,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       // Register subscription status callback
       wsRef.current.onSubscriptionStatusChange(conversationId, (isSubscribed: boolean) => {
         console.log(`🔔 [WEBSOCKET] Server confirmed subscription status for ${conversationId}:`, isSubscribed);
-        setSubscriptionState(prev => ({
-          ...prev,
-          [conversationId]: {
-            ...prev[conversationId],
-            isSubscribed,
-            lastVerified: Date.now(),
-            isSubscribing: false,
-            retryCount: 0 // Reset retry count on server confirmation
-          }
-        }));
+        updateSubscriptionState(conversationId, {
+          isSubscribed,
+          lastVerified: Date.now(),
+          isSubscribing: false,
+          retryCount: 0 // Reset retry count on server confirmation
+        });
       });
 
       // Initial subscription with small delay to ensure connection is ready
@@ -193,11 +185,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         if (wsRef.current) {
           wsRef.current.offSubscriptionStatusChange(conversationId);
           wsRef.current.unsubscribeFromConversation(conversationId);
-          setSubscriptionState(prev => {
-            const newState = { ...prev };
-            delete newState[conversationId];
-            return newState;
-          });
+          
+          // Clean up subscription state
+          const newState = { ...subscriptionStateRef.current };
+          delete newState[conversationId];
+          subscriptionStateRef.current = newState;
         }
       };
     }
@@ -209,7 +201,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     const connectionCheckInterval = setInterval(() => {
       // Only re-verify if connection seems lost and we haven't verified recently
-      const state = subscriptionState[conversationId];
+      const state = subscriptionStateRef.current[conversationId];
       const now = Date.now();
       
       if (!wsRef.current?.isConnected && 
@@ -229,7 +221,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }, 30000); // Check every 30 seconds (much less aggressive)
 
     return () => clearInterval(connectionCheckInterval);
-  }, [conversationId, subscriptionState, verifySubscription]);
+  }, [conversationId, verifySubscription]);
 
   // Clean up all timeouts on unmount
   useEffect(() => {
@@ -249,18 +241,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     sendTypingIndicator: (id: string, isTyping: boolean) => 
       wsRef.current?.sendTypingIndicator(id, isTyping),
     verifySubscription,
-    subscriptionState,
-    isSubscribedTo: (id: string) => subscriptionState[id]?.isSubscribed || false,
+    subscriptionState: subscriptionStateRef.current,
+    isSubscribedTo: (id: string) => subscriptionStateRef.current[id]?.isSubscribed || false,
     // Manual subscription verification (for emergency use only)
     forceResubscribe: (id: string) => {
-      setSubscriptionState(prev => ({
-        ...prev,
-        [id]: {
-          ...prev[id],
-          lastVerified: 0, // Force re-verification
-          isSubscribed: false
-        }
-      }));
+      updateSubscriptionState(id, {
+        lastVerified: 0, // Force re-verification
+        isSubscribed: false
+      });
       verifySubscription(id);
     }
   };

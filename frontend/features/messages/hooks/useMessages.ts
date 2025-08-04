@@ -64,19 +64,13 @@ export function useSendMessage() {
     onMutate: async (variables) => {
       const conversationId = variables.conversation_id;
       
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: messageQueryKeys.conversation(conversationId)
-      });
-
-      // Snapshot the previous value
-      const previousMessages = queryClient.getQueryData(
-        messageQueryKeys.conversationMessages(conversationId)
-      );
-
-      // Create optimistic message
+      // Don't cancel queries - let WebSocket updates work normally
+      // Just create an optimistic message and add it
+      
+      // Create optimistic message with unique temp ID
+      const optimisticId = `temp-${Date.now()}-${Math.random()}`;
       const optimisticMessage: Message = {
-        _id: `temp-${Date.now()}`, // Temporary ID
+        _id: optimisticId,
         conversation_id: conversationId,
         message_type: 'text',
         direction: 'outbound',
@@ -93,14 +87,20 @@ export function useSendMessage() {
         whatsapp_data: null,
       };
 
-      // Optimistically update to the new value
+      // Get current data for rollback
+      const previousMessages = queryClient.getQueryData(
+        messageQueryKeys.conversationMessages(conversationId)
+      );
+
+      // Optimistically add the message
       queryClient.setQueryData(
         messageQueryKeys.conversationMessages(conversationId),
-        (old: any) => {
-          if (!old) return old;
+        (old: unknown) => {
+          if (!old || typeof old !== 'object') return old;
+          const oldData = old as { pages: { messages: Message[], total: number }[] };
           
           // Add the optimistic message to the first page
-          const newPages = [...old.pages];
+          const newPages = [...oldData.pages];
           if (newPages[0]) {
             newPages[0] = {
               ...newPages[0],
@@ -110,7 +110,7 @@ export function useSendMessage() {
           }
           
           return {
-            ...old,
+            ...oldData,
             pages: newPages
           };
         }
@@ -121,70 +121,62 @@ export function useSendMessage() {
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id || response.conversation_id;
       
-      // Update the optimistic message with the real response
+      // Remove optimistic message - let WebSocket handle adding the real message
       queryClient.setQueryData(
         messageQueryKeys.conversationMessages(conversationId),
-        (old: any) => {
-          if (!old || !context?.optimisticMessage) return old;
+        (old: unknown) => {
+          if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
+          const oldData = old as { pages: { messages: Message[], total: number }[] };
           
-          const newPages = [...old.pages];
+          const newPages = [...oldData.pages];
           if (newPages[0]) {
-            const messageIndex = newPages[0].messages.findIndex(
-              (msg: Message) => msg._id === context.optimisticMessage._id
-            );
-            
-            if (messageIndex !== -1) {
-              // Replace optimistic message with real message
-              newPages[0].messages[messageIndex] = {
-                ...response,
-                status: 'sent' // Mark as sent
-              };
-            }
+            // Remove the optimistic message
+            newPages[0] = {
+              ...newPages[0],
+              messages: newPages[0].messages.filter(
+                (msg: Message) => msg._id !== context.optimisticMessage._id
+              ),
+              total: Math.max(0, newPages[0].total - 1)
+            };
           }
           
           return {
-            ...old,
+            ...oldData,
             pages: newPages
           };
         }
       );
 
-      showSuccess('Message sent successfully');
+      // The real message will come via WebSocket and be added naturally
+      console.log('✅ [MESSAGE] Sent successfully, waiting for WebSocket confirmation');
     },
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;
       
-      // Revert the optimistic update
-      if (context?.previousMessages) {
-        queryClient.setQueryData(
-          messageQueryKeys.conversationMessages(conversationId),
-          context.previousMessages
-        );
-      } else {
-        // If no previous data, just remove the optimistic message
-        queryClient.setQueryData(
-          messageQueryKeys.conversationMessages(conversationId),
-          (old: any) => {
-            if (!old || !context?.optimisticMessage) return old;
-            
-            const newPages = [...old.pages];
-            if (newPages[0]) {
-              newPages[0] = {
-                ...newPages[0],
-                messages: newPages[0].messages.filter(
-                  (msg: Message) => msg._id !== context.optimisticMessage._id
-                ),
-                total: Math.max(0, newPages[0].total - 1)
-              };
-            }
-            
-            return {
-              ...old,
-              pages: newPages
+      // Remove the optimistic message since sending failed
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId),
+        (old: unknown) => {
+          if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
+          const oldData = old as { pages: { messages: Message[], total: number }[] };
+          
+          const newPages = [...oldData.pages];
+          if (newPages[0]) {
+            newPages[0] = {
+              ...newPages[0],
+              messages: newPages[0].messages.filter(
+                (msg: Message) => msg._id !== context.optimisticMessage._id
+              ),
+              total: Math.max(0, newPages[0].total - 1)
             };
           }
-        );
-      }
+          
+          return {
+            ...oldData,
+            pages: newPages
+          };
+        }
+      );
       
       handleError(error);
     },
