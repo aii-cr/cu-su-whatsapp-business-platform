@@ -69,7 +69,7 @@ export function useSendMessage() {
       
       // Create optimistic message with unique temp ID
       const optimisticId = `temp-${Date.now()}-${Math.random()}`;
-      const optimisticMessage: Message = {
+      const optimisticMessage: Message & { isOptimistic?: boolean } = {
         _id: optimisticId,
         conversation_id: conversationId,
         message_type: 'text',
@@ -78,13 +78,14 @@ export function useSendMessage() {
         sender_id: user?._id || '',
         sender_name: user?.name || user?.email || 'You',
         text_content: variables.text_content,
-        status: 'pending', // Show as pending
+        status: 'sending', // Show as sending with loading indicator
         timestamp: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         type: 'text',
         whatsapp_message_id: null,
         whatsapp_data: null,
+        isOptimistic: true, // Mark as optimistic
       };
 
       // Get current data for rollback
@@ -121,7 +122,7 @@ export function useSendMessage() {
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id || response.conversation_id;
       
-      // Remove optimistic message - let WebSocket handle adding the real message
+      // Update optimistic message status to "sent" - keep the message in UI
       queryClient.setQueryData(
         messageQueryKeys.conversationMessages(conversationId),
         (old: unknown) => {
@@ -130,14 +131,19 @@ export function useSendMessage() {
           
           const newPages = [...oldData.pages];
           if (newPages[0]) {
-            // Remove the optimistic message
-            newPages[0] = {
-              ...newPages[0],
-              messages: newPages[0].messages.filter(
-                (msg: Message) => msg._id !== context.optimisticMessage._id
-              ),
-              total: Math.max(0, newPages[0].total - 1)
-            };
+            const messageIndex = newPages[0].messages.findIndex(
+              (msg: Message) => msg._id === context.optimisticMessage._id
+            );
+            
+            if (messageIndex !== -1) {
+              // Update optimistic message with backend response and "sent" status
+              newPages[0].messages[messageIndex] = {
+                ...response, // Use real backend data
+                _id: context.optimisticMessage._id, // Keep temp ID to avoid duplicates
+                status: 'sent', // Mark as sent (single check mark)
+                isOptimistic: true // Mark as optimistic to handle WebSocket updates
+              };
+            }
           }
           
           return {
@@ -147,8 +153,7 @@ export function useSendMessage() {
         }
       );
 
-      // The real message will come via WebSocket and be added naturally
-      console.log('✅ [MESSAGE] Sent successfully, waiting for WebSocket confirmation');
+      console.log('✅ [MESSAGE] Sent successfully, updated to "sent" status');
     },
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;

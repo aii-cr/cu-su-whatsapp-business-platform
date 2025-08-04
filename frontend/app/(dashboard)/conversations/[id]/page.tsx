@@ -66,7 +66,9 @@ export default function ConversationDetailsPage() {
   }, [messagesData?.pages]);
 
   // Flatten messages from all pages
-  const allMessages = messagesData?.pages.flatMap((page) => page.messages) || [];
+  const allMessages = messagesData?.pages.flatMap((page) => 
+    (page as { messages: unknown[] }).messages
+  ) || [];
 
   // Handle sending a message
   const handleSendMessage = (text: string) => {
@@ -139,14 +141,16 @@ export default function ConversationDetailsPage() {
       return (
       <div className="h-full flex flex-col bg-background">
         {/* Header */}
-        <ConversationHeader
-          conversation={conversation}
-          onBack={() => router.back()}
-          onCall={() => console.log('Call customer')}
-          onVideoCall={() => console.log('Video call customer')}
-          onViewInfo={() => console.log('View customer info')}
-          onMoreActions={() => console.log('More actions')}
-        />
+        {conversation && (
+          <ConversationHeader
+            conversation={conversation}
+            onBack={() => router.back()}
+            onCall={() => console.log('Call customer')}
+            onVideoCall={() => console.log('Video call customer')}
+            onViewInfo={() => console.log('View customer info')}
+            onMoreActions={() => console.log('More actions')}
+          />
+        )}
 
       {/* Messages area */}
       <div 

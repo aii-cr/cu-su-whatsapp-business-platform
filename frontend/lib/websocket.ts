@@ -241,11 +241,42 @@ export class MessagingWebSocketClient extends WebSocketClient {
   private handleNewMessage(data: WebSocketMessageData['new_message']) {
     console.log('🔔 [WEBSOCKET] Frontend received new message:', data);
     const { conversation_id, message } = data;
+    const currentUser = useAuthStore.getState().user;
     
-    // Invalidate and refetch messages for this conversation
-    this.queryClient.invalidateQueries({
-      queryKey: messageQueryKeys.conversation(conversation_id),
-    });
+    // Check if this message should update an optimistic message
+    const isFromCurrentUser = message.sender_id === currentUser?._id;
+    
+    if (isFromCurrentUser) {
+      // Try to update optimistic message instead of adding duplicate
+      const updated = this.updateOptimisticMessage(conversation_id, message);
+      if (updated) {
+        console.log('🔔 [WEBSOCKET] Updated optimistic message with real data');
+        return; // Don't invalidate, we handled it manually
+      }
+    }
+    
+    // For messages from other users or if no optimistic message found, add normally
+    this.queryClient.setQueryData(
+      messageQueryKeys.conversationMessages(conversation_id),
+      (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        const oldData = old as { pages: { messages: unknown[], total: number }[] };
+        
+        const newPages = [...oldData.pages];
+        if (newPages[0]) {
+          newPages[0] = {
+            ...newPages[0],
+            messages: [message, ...newPages[0].messages],
+            total: newPages[0].total + 1
+          };
+        }
+        
+        return {
+          ...oldData,
+          pages: newPages
+        };
+      }
+    );
 
     // Update conversations list to reflect new last message
     this.queryClient.invalidateQueries({
@@ -253,28 +284,105 @@ export class MessagingWebSocketClient extends WebSocketClient {
     });
 
     // Show notification if message is from another user
-    const currentUser = useAuthStore.getState().user;
-    console.log('🔔 [WEBSOCKET] Current user:', currentUser?._id, 'Message sender:', message.sender_id);
-    if (message.sender_id !== currentUser?._id) {
+    if (!isFromCurrentUser) {
       console.log('🔔 [WEBSOCKET] Showing toast notification');
       toast.info(`New message in conversation`);
-    } else {
-      console.log('🔔 [WEBSOCKET] Not showing notification - message from current user');
     }
+  }
+
+  private updateOptimisticMessage(conversationId: string, realMessage: unknown): boolean {
+    let messageUpdated = false;
+    
+    this.queryClient.setQueryData(
+      messageQueryKeys.conversationMessages(conversationId),
+      (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        const oldData = old as { pages: { messages: (unknown & { isOptimistic?: boolean })[], total: number }[] };
+        
+        const newPages = [...oldData.pages];
+        if (newPages[0]) {
+          const messages = [...newPages[0].messages];
+          
+          // Find optimistic message that matches this real message
+          const optimisticIndex = messages.findIndex((msg) => {
+            const message = msg as { isOptimistic?: boolean; text_content?: string; sender_id?: string };
+            const real = realMessage as { text_content?: string; sender_id?: string };
+            return message.isOptimistic && 
+                   message.text_content === real.text_content &&
+                   message.sender_id === real.sender_id;
+          });
+          
+          if (optimisticIndex !== -1) {
+            // Replace optimistic message with real message
+            messages[optimisticIndex] = {
+              ...realMessage,
+              status: 'sent' // Ensure it shows as sent
+            };
+            messageUpdated = true;
+            
+            newPages[0] = {
+              ...newPages[0],
+              messages
+            };
+          }
+        }
+        
+        return {
+          ...oldData,
+          pages: newPages
+        };
+      }
+    );
+    
+    return messageUpdated;
   }
 
   private handleMessageStatus(data: WebSocketMessageData['message_status']) {
     console.log('🔔 [WEBSOCKET] Frontend received message status update:', data);
     const { conversation_id, message_id, status } = data;
     
-    // Invalidate messages to update status indicators
-    this.queryClient.invalidateQueries({
-      queryKey: messageQueryKeys.conversation(conversation_id),
-    });
+    // Update message status directly instead of invalidating
+    this.queryClient.setQueryData(
+      messageQueryKeys.conversationMessages(conversation_id),
+      (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        const oldData = old as { pages: { messages: (unknown & { _id?: string; whatsapp_message_id?: string })[], total: number }[] };
+        
+        const newPages = [...oldData.pages];
+        
+        for (const page of newPages) {
+          if (page.messages) {
+            page.messages = page.messages.map((msg) => {
+              const message = msg as { 
+                _id?: string; 
+                whatsapp_message_id?: string; 
+                status?: string;
+                isOptimistic?: boolean;
+              };
+              
+              // Update message if IDs match (either MongoDB ID or WhatsApp message ID)
+              if (message._id === message_id || message.whatsapp_message_id === message_id) {
+                return {
+                  ...message,
+                  status,
+                  isOptimistic: false // Mark as no longer optimistic
+                };
+              }
+              return message;
+            });
+          }
+        }
+        
+        return {
+          ...oldData,
+          pages: newPages
+        };
+      }
+    );
     
     // Show notification for status updates (optional)
     if (status === 'delivered' || status === 'read') {
-      console.log(`🔔 [WEBSOCKET] Message ${message_id} status: ${status}`);
+      console.log(`🔔 [WEBSOCKET] Message ${message_id} status updated to: ${status}`);
     }
   }
 

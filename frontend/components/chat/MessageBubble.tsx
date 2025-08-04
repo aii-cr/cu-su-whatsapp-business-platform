@@ -43,6 +43,12 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       const failedIconClass = shouldAlignRight ? 'text-red-200' : 'text-red-500';
       
       switch (message.status) {
+        case 'sending':
+          return (
+            <div className="flex items-center">
+              <ClockIcon className={`w-3 h-3 ${iconClass} animate-pulse`} />
+            </div>
+          );
         case 'pending':
           return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'sent':
