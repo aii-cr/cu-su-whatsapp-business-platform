@@ -48,7 +48,7 @@ export interface WebSocketMessageData {
 }
 
 export class MessagingWebSocketClient extends WebSocketClient {
-  private queryClient: ReturnType<typeof useQueryClient>;
+  public queryClient: ReturnType<typeof useQueryClient>;
   private subscriptions = new Set<string>();
 
   constructor(queryClient: ReturnType<typeof useQueryClient>) {
@@ -120,7 +120,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
       // Create a WebSocket message in the format expected by the parent class
       const webSocketMessage = {
         type: data.type,
-        data: data.data || data,
+        data: data,
         timestamp: data.timestamp || new Date().toISOString(),
         conversation_id: data.conversation_id,
         user_id: data.user_id
@@ -133,23 +133,35 @@ export class MessagingWebSocketClient extends WebSocketClient {
       switch (data.type) {
         case 'new_message':
           console.log('🔔 [WEBSOCKET] Handling new_message');
-          this.handleNewMessage(data.data || data);
+          this.handleNewMessage({
+            conversation_id: data.conversation_id,
+            message: data.message
+          });
           break;
           
         case 'message_status':
         case 'message_status_update':
           console.log('🔔 [WEBSOCKET] Handling message status update');
-          this.handleMessageStatus(data.data || data);
+          this.handleMessageStatus({
+            conversation_id: data.conversation_id,
+            message_id: data.message_id,
+            status: data.status
+          });
           break;
           
         case 'conversation_update':
           console.log('🔔 [WEBSOCKET] Handling conversation update');
-          this.handleConversationUpdate(data.data || data);
+          this.handleConversationUpdate({
+            conversation_id: data.conversation_id,
+            changes: data.update || data.changes
+          });
           break;
           
         case 'new_conversation':
           console.log('🔔 [WEBSOCKET] Handling new conversation');
-          this.handleNewConversation(data.data || data);
+          this.handleNewConversation({
+            conversation: data.conversation
+          });
           break;
           
         case 'user_activity':
@@ -243,6 +255,9 @@ export class MessagingWebSocketClient extends WebSocketClient {
     const { conversation_id, message } = data;
     const currentUser = useAuthStore.getState().user;
     
+    console.log('🔔 [WEBSOCKET] About to update query for conversation:', conversation_id);
+    console.log('🔔 [WEBSOCKET] Query key will be:', messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }));
+    
     // Check if this message should update an optimistic message
     const isFromCurrentUser = message.sender_id === currentUser?._id;
     
@@ -256,27 +271,14 @@ export class MessagingWebSocketClient extends WebSocketClient {
     }
     
     // For messages from other users or if no optimistic message found, add normally
-    this.queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversation_id),
-      (old: unknown) => {
-        if (!old || typeof old !== 'object') return old;
-        const oldData = old as { pages: { messages: unknown[], total: number }[] };
-        
-        const newPages = [...oldData.pages];
-        if (newPages[0]) {
-          newPages[0] = {
-            ...newPages[0],
-            messages: [message, ...newPages[0].messages],
-            total: newPages[0].total + 1
-          };
-        }
-        
-        return {
-          ...oldData,
-          pages: newPages
-        };
-      }
-    );
+    // Force a complete refresh to ensure UI updates
+    console.log('🔔 [WEBSOCKET] Invalidating queries to force re-fetch...');
+    
+    this.queryClient.invalidateQueries({
+      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+    });
+
+    console.log('🔔 [WEBSOCKET] Queries invalidated for new message - UI should update now');
 
     // Update conversations list to reflect new last message
     this.queryClient.invalidateQueries({
@@ -293,8 +295,9 @@ export class MessagingWebSocketClient extends WebSocketClient {
   private updateOptimisticMessage(conversationId: string, realMessage: unknown): boolean {
     let messageUpdated = false;
     
+    // Update query with default limit to match useMessages hook
     this.queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversationId),
+      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
       (old: unknown) => {
         if (!old || typeof old !== 'object') return old;
         const oldData = old as { pages: { messages: (unknown & { isOptimistic?: boolean })[], total: number }[] };
@@ -305,20 +308,38 @@ export class MessagingWebSocketClient extends WebSocketClient {
           
           // Find optimistic message that matches this real message
           const optimisticIndex = messages.findIndex((msg) => {
-            const message = msg as { isOptimistic?: boolean; text_content?: string; sender_id?: string };
-            const real = realMessage as { text_content?: string; sender_id?: string };
+            const message = msg as { 
+              isOptimistic?: boolean; 
+              text_content?: string; 
+              sender_id?: string;
+              _id?: string;
+              status?: string;
+            };
+            const real = realMessage as { 
+              text_content?: string; 
+              sender_id?: string;
+              whatsapp_message_id?: string;
+            };
+            
+            // More robust matching: check if message is optimistic and matches content and sender
+            // Also check if it's still in "sending" or "sent" status (not yet confirmed by webhook)
             return message.isOptimistic && 
                    message.text_content === real.text_content &&
-                   message.sender_id === real.sender_id;
+                   message.sender_id === real.sender_id &&
+                   (message.status === 'sending' || message.status === 'sent');
           });
           
           if (optimisticIndex !== -1) {
             // Replace optimistic message with real message
             messages[optimisticIndex] = {
               ...realMessage,
-              status: 'sent' // Ensure it shows as sent
+              _id: (realMessage as any).id || (realMessage as any)._id, // Ensure we use proper ID
+              status: 'sent', // Ensure it shows as sent
+              isOptimistic: false // No longer optimistic
             };
             messageUpdated = true;
+            
+            console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data');
             
             newPages[0] = {
               ...newPages[0],
@@ -341,45 +362,15 @@ export class MessagingWebSocketClient extends WebSocketClient {
     console.log('🔔 [WEBSOCKET] Frontend received message status update:', data);
     const { conversation_id, message_id, status } = data;
     
-    // Update message status directly instead of invalidating
-    this.queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversation_id),
-      (old: unknown) => {
-        if (!old || typeof old !== 'object') return old;
-        const oldData = old as { pages: { messages: (unknown & { _id?: string; whatsapp_message_id?: string })[], total: number }[] };
-        
-        const newPages = [...oldData.pages];
-        
-        for (const page of newPages) {
-          if (page.messages) {
-            page.messages = page.messages.map((msg) => {
-              const message = msg as { 
-                _id?: string; 
-                whatsapp_message_id?: string; 
-                status?: string;
-                isOptimistic?: boolean;
-              };
-              
-              // Update message if IDs match (either MongoDB ID or WhatsApp message ID)
-              if (message._id === message_id || message.whatsapp_message_id === message_id) {
-                return {
-                  ...message,
-                  status,
-                  isOptimistic: false // Mark as no longer optimistic
-                };
-              }
-              return message;
-            });
-          }
-        }
-        
-        return {
-          ...oldData,
-          pages: newPages
-        };
-      }
-    );
+    // Force a complete refresh to ensure status updates are visible
+    console.log(`🔔 [WEBSOCKET] Message status update: ${message_id} -> ${status}, invalidating queries...`);
     
+    this.queryClient.invalidateQueries({
+      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+    });
+
+    console.log('🔔 [WEBSOCKET] Queries invalidated for status update - UI should update now');
+
     // Show notification for status updates (optional)
     if (status === 'delivered' || status === 'read') {
       console.log(`🔔 [WEBSOCKET] Message ${message_id} status updated to: ${status}`);
@@ -486,6 +477,9 @@ let globalWebSocketClient: MessagingWebSocketClient | null = null;
 export const getWebSocketClient = (queryClient: ReturnType<typeof useQueryClient>) => {
   if (!globalWebSocketClient) {
     globalWebSocketClient = new MessagingWebSocketClient(queryClient);
+  } else {
+    // Update the queryClient reference to ensure we're using the current one
+    globalWebSocketClient.queryClient = queryClient;
   }
   return globalWebSocketClient;
 };

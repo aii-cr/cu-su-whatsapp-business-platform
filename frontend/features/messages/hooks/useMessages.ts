@@ -30,7 +30,7 @@ export function useMessages(conversationId: string, limit: number = 50) {
   const { showError } = useNotifications();
   const handleError = createApiErrorHandler(showError);
 
-  return useInfiniteQuery<MessageListResponse>({
+  const query = useInfiniteQuery<MessageListResponse>({
     queryKey: messageQueryKeys.conversationMessages(conversationId, { limit }),
     queryFn: async ({ pageParam = 0 }) => {
       return MessagesApi.getMessages({
@@ -46,8 +46,14 @@ export function useMessages(conversationId: string, limit: number = 50) {
     staleTime: 30 * 1000, // 30 seconds
     enabled: !!conversationId,
     initialPageParam: 0,
-    onError: handleError,
   });
+
+  // Handle errors manually
+  if (query.error) {
+    handleError(query.error);
+  }
+
+  return query;
 }
 
 /**
@@ -64,6 +70,10 @@ export function useSendMessage() {
     onMutate: async (variables) => {
       const conversationId = variables.conversation_id;
       
+      if (!conversationId) {
+        throw new Error('Conversation ID is required');
+      }
+      
       // Don't cancel queries - let WebSocket updates work normally
       // Just create an optimistic message and add it
       
@@ -76,26 +86,29 @@ export function useSendMessage() {
         direction: 'outbound',
         sender_role: 'agent',
         sender_id: user?._id || '',
-        sender_name: user?.name || user?.email || 'You',
+        sender_name: (user?.first_name && user?.last_name) 
+          ? `${user.first_name} ${user.last_name}` 
+          : user?.email || 'You',
         text_content: variables.text_content,
-        status: 'sending', // Show as sending with loading indicator
+        status: 'sending', // Show as sending with loading indicator (pending state)
         timestamp: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         type: 'text',
-        whatsapp_message_id: null,
-        whatsapp_data: null,
-        isOptimistic: true, // Mark as optimistic
+        whatsapp_message_id: undefined,
+        whatsapp_data: undefined,
+        isOptimistic: true, // Mark as optimistic to handle real-time updates
       };
 
       // Get current data for rollback
       const previousMessages = queryClient.getQueryData(
-        messageQueryKeys.conversationMessages(conversationId)
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
       );
 
       // Optimistically add the message
+      console.log('🔄 [OPTIMISTIC] Adding optimistic message to query:', messageQueryKeys.conversationMessages(conversationId, { limit: 50 }));
       queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId),
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
         (old: unknown) => {
           if (!old || typeof old !== 'object') return old;
           const oldData = old as { pages: { messages: Message[], total: number }[] };
@@ -117,14 +130,21 @@ export function useSendMessage() {
         }
       );
 
+      console.log('✅ [OPTIMISTIC] Optimistic message added successfully:', optimisticMessage._id);
       return { previousMessages, optimisticMessage };
     },
     onSuccess: (response, variables, context) => {
-      const conversationId = variables.conversation_id || response.conversation_id;
+      const conversationId = variables.conversation_id;
+      const sentMessage = response.message; // The actual message object is nested in the response
       
-      // Update optimistic message status to "sent" - keep the message in UI
+      if (!conversationId) {
+        console.error('No conversation ID available in success callback');
+        return;
+      }
+      
+      // Update optimistic message with real backend data
       queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId),
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
         (old: unknown) => {
           if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
           const oldData = old as { pages: { messages: Message[], total: number }[] };
@@ -136,13 +156,15 @@ export function useSendMessage() {
             );
             
             if (messageIndex !== -1) {
-              // Update optimistic message with backend response and "sent" status
+              // Replace optimistic message with real backend data
               newPages[0].messages[messageIndex] = {
-                ...response, // Use real backend data
-                _id: context.optimisticMessage._id, // Keep temp ID to avoid duplicates
+                ...sentMessage,
+                _id: sentMessage._id, // Use backend ID
                 status: 'sent', // Mark as sent (single check mark)
-                isOptimistic: true // Mark as optimistic to handle WebSocket updates
+                isOptimistic: false // No longer optimistic since it's real data
               };
+              
+              console.log('✅ [MESSAGE] Replaced optimistic message with real data:', sentMessage._id);
             }
           }
           
@@ -158,9 +180,14 @@ export function useSendMessage() {
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;
       
+      if (!conversationId) {
+        handleError(error);
+        return;
+      }
+      
       // Remove the optimistic message since sending failed
       queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId),
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
         (old: unknown) => {
           if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
           const oldData = old as { pages: { messages: Message[], total: number }[] };
@@ -208,9 +235,11 @@ export function useSendMediaMessage() {
     }) => MessagesApi.sendMediaMessage(conversationId, mediaFile, caption),
     onSuccess: (response) => {
       // Invalidate and refetch messages for the conversation
-      queryClient.invalidateQueries({
-        queryKey: messageQueryKeys.conversation(response.conversation_id),
-      });
+      if (response.message?.conversation_id) {
+        queryClient.invalidateQueries({
+          queryKey: messageQueryKeys.conversation(response.message.conversation_id),
+        });
+      }
 
       showSuccess('Media message sent successfully');
     },
@@ -225,10 +254,16 @@ export function useMessageTemplates() {
   const { showError } = useNotifications();
   const handleError = createApiErrorHandler(showError);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['messages', 'templates'],
     queryFn: () => MessagesApi.getTemplates(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    onError: handleError,
   });
+
+  // Handle errors manually
+  if (query.error) {
+    handleError(query.error);
+  }
+
+  return query;
 }

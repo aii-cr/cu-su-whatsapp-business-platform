@@ -72,6 +72,8 @@ export default function ConversationDetailsPage() {
 
   // Handle sending a message
   const handleSendMessage = (text: string) => {
+    console.log('📤 [SEND] User clicked send message:', text);
+    console.log('📤 [SEND] Conversation ID:', conversationId);
     sendMessageMutation.mutate({
       conversation_id: conversationId,
       text_content: text,

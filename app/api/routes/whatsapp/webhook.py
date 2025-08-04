@@ -386,7 +386,7 @@ async def process_message_status(
     from app.services import websocket_service
     await websocket_service.notify_message_status_update(
         conversation_id=str(message["conversation_id"]),
-        message_id=str(message["_id"]),
+        message_id=whatsapp_message_id,  # Use WhatsApp message ID for status updates
         status=status_obj.status
     )
 
