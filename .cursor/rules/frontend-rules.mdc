@@ -1,0 +1,618 @@
+---
+alwaysApply: true
+---
+# Purpose: Authoritative rules for generating a production-grade Next.js (App Router) frontend for a WhatsApp Business platform.
+# Scope: Enforce feature-based structure, BFF route handlers, cookie-session auth, WebSocket realtime, and modern Next.js APIs.
+
+───────────────────────────────────────────────────────────────────────────────
+TECHNOLOGY STACK
+- Framework: Next.js 15+ App Router with React Server Components by default
+- Styling: Tailwind CSS + CSS variables with custom design system
+- Theming: `next-themes` (class strategy) with blue/white light theme and dark theme
+- Forms: React Hook Form + Zod validation
+- Data fetching: TanStack Query for client state, Server Components for server data
+- State: Zustand for UI state, minimal local state
+- Realtime: WebSocket connection to FastAPI backend
+- Monitoring: Sentry + Playwright E2E testing
+- Code Quality: TypeScript strict mode, ESLint `next/core-web-vitals`
+
+───────────────────────────────────────────────────────────────────────────────
+DESIGN SYSTEM & THEMING (MANDATORY)
+
+COLOR PALETTE
+Light Theme:
+- Primary: #2563eb (blue-600) - Main brand color
+- Secondary: #1d4ed8 (blue-700) - Hover states
+- Background: #ffffff (white) - Main background
+- Surface: #f8fafc (slate-50) - Cards, panels
+- Text: #0f172a (slate-900) - Primary text
+- Text Secondary: #64748b (slate-500) - Secondary text
+- Border: #e2e8f0 (slate-200) - Borders, dividers
+- Success: #059669 (emerald-600) - Success states
+- Warning: #d97706 (amber-600) - Warning states
+- Error: #dc2626 (red-600) - Error states
+
+Dark Theme:
+- Primary: #3b82f6 (blue-500) - Main brand color
+- Secondary: #60a5fa (blue-400) - Hover states
+- Background: #0f172a (slate-900) - Main background
+- Surface: #1e293b (slate-800) - Cards, panels
+- Text: #f8fafc (slate-50) - Primary text
+- Text Secondary: #94a3b8 (slate-400) - Secondary text
+- Border: #334155 (slate-700) - Borders, dividers
+- Success: #10b981 (emerald-500) - Success states
+- Warning: #f59e0b (amber-500) - Warning states
+- Error: #ef4444 (red-500) - Error states
+
+CSS VARIABLES (globals.css)
+```css
+:root {
+  --primary: 37 99 235;
+  --primary-foreground: 255 255 255;
+  --secondary: 29 78 216;
+  --background: 255 255 255;
+  --foreground: 15 23 42;
+  --surface: 248 250 252;
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --border: 226 232 240;
+  --success: 5 150 105;
+  --warning: 217 119 6;
+  --error: 220 38 38;
+}
+
+.dark {
+  --primary: 59 130 246;
+  --primary-foreground: 15 23 42;
+  --secondary: 96 165 250;
+  --background: 15 23 42;
+  --foreground: 248 250 252;
+  --surface: 30 41 59;
+  --muted: 51 65 85;
+  --muted-foreground: 148 163 184;
+  --border: 51 65 85;
+  --success: 16 185 129;
+  --warning: 245 158 11;
+  --error: 239 68 68;
+}
+```
+
+COMPONENT DESIGN PRINCIPLES
+- Use rounded corners (border-radius: 8px) for cards and buttons
+- Implement subtle shadows for depth (shadow-sm, shadow-md)
+- Use consistent spacing (4px grid system)
+- WhatsApp-style chat bubbles with proper alignment
+- Responsive design with mobile-first approach
+- Smooth transitions (150ms ease-in-out)
+
+COLOR CONTRAST REQUIREMENTS (MANDATORY)
+- All interactive elements MUST maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text)
+- Button hover states MUST have visible color changes that maintain readability
+- Light theme: Ensure hover states don't wash out text - use darker backgrounds for hover
+- Dark theme: Ensure hover states don't make text unreadable - use lighter backgrounds for hover
+- All UI components must be tested in both light and dark themes
+- Focus states must be clearly visible with ring opacity and proper colors
+- Disabled states must be clearly distinguishable with reduced opacity (0.5-0.6)
+- Status indicators (success, warning, error) must maintain contrast in both themes
+
+───────────────────────────────────────────────────────────────────────────────
+ARCHITECTURE & STRUCTURE
+
+FEATURE-BASED ORGANIZATION
+```
+cu-su-frontend/
+  app/
+    (auth)/
+      login/page.tsx
+      register/page.tsx
+    (dashboard)/
+      conversations/page.tsx
+      conversations/[id]/page.tsx
+      templates/page.tsx
+      departments/page.tsx
+      users/page.tsx
+      analytics/page.tsx
+      settings/page.tsx
+    layout.tsx
+    globals.css
+    (api)/api/
+      auth/route.ts
+      conversations/route.ts
+      conversations/[id]/messages/route.ts
+      templates/route.ts
+      departments/route.ts
+      users/route.ts
+      analytics/route.ts
+  components/
+    ui/                    # Design system primitives
+      Button.tsx
+      Input.tsx
+      Dialog.tsx
+      Badge.tsx
+      Avatar.tsx
+      Card.tsx
+      Dropdown.tsx
+      Tabs.tsx
+      Toast.tsx
+    layout/
+      Sidebar.tsx
+      Header.tsx
+      Navigation.tsx
+    chat/
+      MessageBubble.tsx
+      MessageComposer.tsx
+      ConversationList.tsx
+      ConversationItem.tsx
+    feedback/
+      LoadingSpinner.tsx
+      EmptyState.tsx
+      ErrorBoundary.tsx
+    theme/
+      ThemeProvider.tsx
+      ThemeToggle.tsx
+  features/
+    conversations/
+      components/
+      hooks/
+      models/
+      api/
+    messages/
+      components/
+      hooks/
+      models/
+      api/
+    templates/
+      components/
+      hooks/
+      models/
+      api/
+    departments/
+      components/
+      hooks/
+      models/
+      api/
+    users/
+      components/
+      hooks/
+      models/
+      api/
+    analytics/
+      components/
+      hooks/
+      models/
+      api/
+  lib/
+    http.ts
+    auth.ts
+    ws.ts
+    store.ts
+    constants.ts
+    utils.ts
+  styles/
+    theme.css
+    components.css
+  test/
+    e2e/
+    unit/
+  public/
+    icons/
+    images/
+  tailwind.config.ts
+  next.config.mjs
+  tsconfig.json
+```
+
+───────────────────────────────────────────────────────────────────────────────
+CORE PRINCIPLES
+
+DO
+- Use Server Components by default, Client Components only for interactivity
+- Use `next/navigation` (not `next/router`)
+- Implement BFF pattern with Route Handlers for all API calls
+- Use semantic HTML with proper ARIA labels
+- Implement proper loading states and error boundaries
+- Use optimistic updates for better UX
+- Implement proper form validation with React Hook Form + Zod
+- Use TypeScript strict mode with no `any` types
+
+DON'T
+- Don't use legacy `pages/` directory or `getServerSideProps`
+- Don't expose API tokens in client-side code
+- Don't hardcode colors - use CSS variables
+- Don't create monolithic components - keep under 200 lines
+- Don't use `dangerouslySetInnerHTML` without sanitization
+- Don't implement client-side routing for auth-protected routes
+
+───────────────────────────────────────────────────────────────────────────────
+AUTHENTICATION & SESSION
+
+IMPLEMENTATION
+- Use httpOnly cookies for session management
+- Implement CSRF protection for unsafe methods
+- Use BFF Route Handlers for all authenticated requests
+- Implement proper session rotation and cleanup
+- Use middleware for route protection
+
+SESSION FLOW
+1. Login via BFF Route Handler
+2. Set httpOnly cookie with session token
+3. All subsequent requests go through BFF
+4. BFF validates session and forwards to FastAPI
+5. Logout clears session cookie
+
+───────────────────────────────────────────────────────────────────────────────
+REALTIME COMMUNICATION
+
+WEBSOCKET IMPLEMENTATION
+```typescript
+// lib/ws.ts
+export class WebSocketClient {
+  private ws: WebSocket | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+
+  connect(url: string) {
+    this.ws = new WebSocket(url);
+    this.ws.onopen = this.handleOpen.bind(this);
+    this.ws.onclose = this.handleClose.bind(this);
+    this.ws.onerror = this.handleError.bind(this);
+    this.ws.onmessage = this.handleMessage.bind(this);
+  }
+
+  private handleOpen() {
+    this.reconnectAttempts = 0;
+    console.log('WebSocket connected');
+  }
+
+  private handleClose(event: CloseEvent) {
+    if (!event.wasClean && this.reconnectAttempts < this.maxReconnectAttempts) {
+      setTimeout(() => {
+        this.reconnectAttempts++;
+        this.connect(this.ws?.url || '');
+      }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts));
+    }
+  }
+
+  private handleError(error: Event) {
+    console.error('WebSocket error:', error);
+  }
+
+  private handleMessage(event: MessageEvent) {
+    const data = JSON.parse(event.data);
+    // Handle different message types
+  }
+
+  send(data: any) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    }
+  }
+
+  disconnect() {
+    this.ws?.close();
+  }
+}
+```
+
+───────────────────────────────────────────────────────────────────────────────
+CHAT INTERFACE REQUIREMENTS
+
+MESSAGE BUBBLE DESIGN
+- User messages: Right-aligned, blue background
+- Agent messages: Left-aligned, gray background
+- System messages: Centered, muted styling
+- Timestamp: Small, muted text below messages
+- Status indicators: Sent, delivered, read
+- Typing indicators: Animated dots
+- Message reactions: WhatsApp-style emoji reactions
+
+CONVERSATION LIST
+- Unread indicator with badge
+- Last message preview
+- Timestamp for last activity
+- Status indicators (online/offline)
+- Department/agent assignment
+- Priority indicators
+
+MESSAGE COMPOSER
+- Text input with character limit
+- File attachment support
+- Emoji picker integration
+- Quick reply templates
+- Send button with loading state
+
+───────────────────────────────────────────────────────────────────────────────
+PERFORMANCE OPTIMIZATION
+
+IMPLEMENTATION STRATEGIES
+- Use React.memo for expensive components
+- Implement virtual scrolling for long lists
+- Use Next.js Image component for media
+- Implement proper caching strategies
+- Use Suspense boundaries for loading states
+- Code-split heavy components with dynamic imports
+
+CACHING STRATEGY
+- Server Components: `cache: 'no-store'` for user-specific data
+- Static data: Use `revalidate` or `tags`
+- Client state: TanStack Query with proper invalidation
+- WebSocket: Real-time updates override cached data
+
+───────────────────────────────────────────────────────────────────────────────
+ERROR HANDLING & MONITORING
+
+ERROR BOUNDARIES
+```typescript
+// components/feedback/ErrorBoundary.tsx
+export class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    // Send to Sentry
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback error={this.state.error} />;
+    }
+    return this.props.children;
+  }
+}
+```
+
+MONITORING
+- Sentry integration for error tracking
+- Performance monitoring with Web Vitals
+- User interaction tracking (non-PII)
+- API response time monitoring
+- WebSocket connection health monitoring
+
+───────────────────────────────────────────────────────────────────────────────
+TESTING STRATEGY
+
+E2E TESTING (Playwright)
+- Authentication flow
+- Conversation management
+- Message sending/receiving
+- Template management
+- User management
+- Theme switching
+- Responsive design testing
+
+UNIT TESTING
+- Component rendering
+- Hook logic
+- Utility functions
+- API client functions
+- Form validation
+
+TESTING REQUIREMENTS
+- Minimum 80% code coverage
+- All critical user flows covered
+- Visual regression testing for UI components
+- Performance testing for chat interface
+
+───────────────────────────────────────────────────────────────────────────────
+SECURITY REQUIREMENTS
+
+IMPLEMENTATION
+- CSP headers for XSS protection
+- Input sanitization for all user inputs
+- CSRF protection for state-changing operations
+- Rate limiting on API endpoints
+- Secure WebSocket connections (WSS)
+- PII redaction in logs
+
+CONTENT SECURITY POLICY
+```typescript
+// next.config.mjs
+const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self';
+              script-src 'self' 'unsafe-eval' 'unsafe-inline';
+              style-src 'self' 'unsafe-inline';
+              img-src 'self' data: https:;
+              connect-src 'self' ws: wss: ${process.env.NEXT_PUBLIC_API_URL};
+              font-src 'self';
+            `.replace(/\s+/g, ' ').trim()
+          }
+        ]
+      }
+    ];
+  }
+};
+```
+
+───────────────────────────────────────────────────────────────────────────────
+ACCESSIBILITY REQUIREMENTS
+
+IMPLEMENTATION
+- Semantic HTML structure
+- Proper ARIA labels and roles
+- Keyboard navigation support
+- Focus management
+- Screen reader compatibility
+- Color contrast compliance (WCAG AA)
+- Alternative text for images
+
+KEYBOARD NAVIGATION
+- Tab order follows visual layout
+- Escape key closes modals/dropdowns
+- Enter/Space for button activation
+- Arrow keys for list navigation
+- Focus indicators visible on all interactive elements
+
+───────────────────────────────────────────────────────────────────────────────
+DEPLOYMENT & CI/CD
+
+BUILD REQUIREMENTS
+- TypeScript compilation without errors
+- ESLint passes with no warnings
+- All tests pass
+- Bundle size within limits
+- Performance budgets met
+
+DEPLOYMENT CHECKLIST
+- Environment variables configured
+- Database migrations applied
+- SSL certificates installed
+- Monitoring alerts configured
+- Backup procedures in place
+- Rollback plan documented
+
+
+───────────────────────────────────────────────────────────────────────────────
+REQUIRED CONFIGURATION FILES
+
+tailwind.config.ts
+```typescript
+import type { Config } from 'tailwindcss'
+
+const config: Config = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: 'rgb(var(--primary) / 0.05)',
+          100: 'rgb(var(--primary) / 0.1)',
+          500: 'rgb(var(--primary))',
+          600: 'rgb(var(--secondary))',
+          700: 'rgb(var(--secondary) / 0.8)',
+        },
+        background: 'rgb(var(--background))',
+        foreground: 'rgb(var(--foreground))',
+        surface: 'rgb(var(--surface))',
+        muted: {
+          DEFAULT: 'rgb(var(--muted))',
+          foreground: 'rgb(var(--muted-foreground))',
+        },
+        border: 'rgb(var(--border))',
+      },
+      borderRadius: {
+        lg: '8px',
+        xl: '12px',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.2s ease-in-out',
+        'slide-up': 'slideUp 0.3s ease-out',
+        'typing': 'typing 1.4s infinite',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        typing: {
+          '0%, 20%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+          '80%, 100%': { transform: 'translateY(0)' },
+        },
+      },
+    },
+  },
+  plugins: [],
+}
+
+export default config
+```
+
+next.config.mjs
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
+  images: {
+    domains: ['localhost', 'your-api-domain.com'],
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+    ]
+  },
+}
+
+export default nextConfig
+```
+
+tsconfig.json
+```json
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/features/*": ["./features/*"],
+      "@/styles/*": ["./styles/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+- Keep components ≤200 lines ONLY where practical; extract subcomponents if growing beyond.
+- Reuse existing primitives; do not duplicate styles or behaviors.

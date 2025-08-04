@@ -1,18 +1,36 @@
-from app.config import settings
-from passlib.context import CryptContext
-from jose import jwt
-from datetime import datetime, timedelta
+"""
+Legacy security utilities - DEPRECATED.
+Please use app.services.auth utilities instead for all new code.
+This module is kept for backward compatibility only.
+"""
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Import from the new modular auth services
+from app.services.auth import *
 
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+# Re-export for backward compatibility
+__all__ = [
+    "get_current_user",
+    "get_current_active_user", 
+    "get_current_session_token",
+    "set_session_cookie",
+    "clear_session_cookie",
+    "SessionData",
+    "get_user_permissions",
+    "get_user_roles",
+    "check_user_permission",
+    "check_user_role",
+    "require_permissions",
+    "require_roles",
+    "hash_password",
+    "verify_password",
+    "RequireLogin",
+    "RequireAdmin",
+    "RequireSupervisor", 
+    "RequireAgent",
+    "RequireUserManagement",
+    "RequireConversationAccess",
+    "RequireMessageSend",
+    "RequireMediaUpload",
+    "RequireSystemAdmin",
+]
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
