@@ -9,9 +9,11 @@ import {
   MessageFilters,
   SendMessageRequest,
   MessageListResponse,
+  Message,
 } from '../models/message';
 import { useNotifications } from '@/components/feedback/NotificationSystem';
 import { createApiErrorHandler } from '@/lib/http';
+import { useAuthStore } from '@/lib/store';
 
 // Query keys for messages
 export const messageQueryKeys = {
@@ -49,25 +51,143 @@ export function useMessages(conversationId: string, limit: number = 50) {
 }
 
 /**
- * Hook to send a message
+ * Hook to send a message with optimistic updates
  */
 export function useSendMessage() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useNotifications();
   const handleError = createApiErrorHandler(showError);
+  const { user } = useAuthStore();
 
   return useMutation({
     mutationFn: (data: SendMessageRequest) => MessagesApi.sendMessage(data),
-    onSuccess: (response, variables) => {
-      // Invalidate and refetch messages for the conversation
-      const conversationId = variables.conversation_id || response.conversation_id;
-      queryClient.invalidateQueries({
-        queryKey: messageQueryKeys.conversation(conversationId),
+    onMutate: async (variables) => {
+      const conversationId = variables.conversation_id;
+      
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: messageQueryKeys.conversation(conversationId)
       });
+
+      // Snapshot the previous value
+      const previousMessages = queryClient.getQueryData(
+        messageQueryKeys.conversationMessages(conversationId)
+      );
+
+      // Create optimistic message
+      const optimisticMessage: Message = {
+        _id: `temp-${Date.now()}`, // Temporary ID
+        conversation_id: conversationId,
+        message_type: 'text',
+        direction: 'outbound',
+        sender_role: 'agent',
+        sender_id: user?._id || '',
+        sender_name: user?.name || user?.email || 'You',
+        text_content: variables.text_content,
+        status: 'pending', // Show as pending
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        type: 'text',
+        whatsapp_message_id: null,
+        whatsapp_data: null,
+      };
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId),
+        (old: any) => {
+          if (!old) return old;
+          
+          // Add the optimistic message to the first page
+          const newPages = [...old.pages];
+          if (newPages[0]) {
+            newPages[0] = {
+              ...newPages[0],
+              messages: [optimisticMessage, ...newPages[0].messages],
+              total: newPages[0].total + 1
+            };
+          }
+          
+          return {
+            ...old,
+            pages: newPages
+          };
+        }
+      );
+
+      return { previousMessages, optimisticMessage };
+    },
+    onSuccess: (response, variables, context) => {
+      const conversationId = variables.conversation_id || response.conversation_id;
+      
+      // Update the optimistic message with the real response
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId),
+        (old: any) => {
+          if (!old || !context?.optimisticMessage) return old;
+          
+          const newPages = [...old.pages];
+          if (newPages[0]) {
+            const messageIndex = newPages[0].messages.findIndex(
+              (msg: Message) => msg._id === context.optimisticMessage._id
+            );
+            
+            if (messageIndex !== -1) {
+              // Replace optimistic message with real message
+              newPages[0].messages[messageIndex] = {
+                ...response,
+                status: 'sent' // Mark as sent
+              };
+            }
+          }
+          
+          return {
+            ...old,
+            pages: newPages
+          };
+        }
+      );
 
       showSuccess('Message sent successfully');
     },
-    onError: handleError,
+    onError: (error, variables, context) => {
+      const conversationId = variables.conversation_id;
+      
+      // Revert the optimistic update
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          messageQueryKeys.conversationMessages(conversationId),
+          context.previousMessages
+        );
+      } else {
+        // If no previous data, just remove the optimistic message
+        queryClient.setQueryData(
+          messageQueryKeys.conversationMessages(conversationId),
+          (old: any) => {
+            if (!old || !context?.optimisticMessage) return old;
+            
+            const newPages = [...old.pages];
+            if (newPages[0]) {
+              newPages[0] = {
+                ...newPages[0],
+                messages: newPages[0].messages.filter(
+                  (msg: Message) => msg._id !== context.optimisticMessage._id
+                ),
+                total: Math.max(0, newPages[0].total - 1)
+              };
+            }
+            
+            return {
+              ...old,
+              pages: newPages
+            };
+          }
+        );
+      }
+      
+      handleError(error);
+    },
   });
 }
 

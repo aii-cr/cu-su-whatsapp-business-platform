@@ -176,14 +176,14 @@ export class MessagingWebSocketClient extends WebSocketClient {
   /**
    * Manually trigger message handlers for backward compatibility
    */
-  private triggerMessageHandlers(message: any) {
+  private triggerMessageHandlers(message: Record<string, unknown>) {
     // Access the protected messageHandlers map from the parent class
-    const messageHandlers = (this as any).messageHandlers;
+    const messageHandlers = (this as unknown as { messageHandlers?: Map<string, Function[]> }).messageHandlers;
     if (!messageHandlers) return;
 
     // Notify all handlers for this message type
-    const handlers = messageHandlers.get(message.type) || [];
-    handlers.forEach((handler: any) => {
+    const handlers = messageHandlers.get(message.type as string) || [];
+    handlers.forEach((handler: Function) => {
       try {
         handler(message);
       } catch (error) {
@@ -193,7 +193,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
 
     // Also notify general message handlers
     const generalHandlers = messageHandlers.get('*') || [];
-    generalHandlers.forEach((handler: any) => {
+    generalHandlers.forEach((handler: Function) => {
       try {
         handler(message);
       } catch (error) {

@@ -91,9 +91,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
-        // Only check if we think we're authenticated but don't have user data
         const state = get();
-        if (state.isAuthenticated && !state.user) {
+        
+        // Always check auth on app startup if we don't have user data
+        // This handles page reloads and session restoration
+        if (!state.user && !state.isLoading) {
           set({ isLoading: true });
           try {
             const user = await AuthApi.getCurrentUser();
@@ -102,8 +104,11 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
-          } catch (error) {
-            console.error('Auth check failed:', error);
+          } catch {
+            // Only log in development to avoid console spam
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Auth check failed - user not authenticated');
+            }
             set({
               user: null,
               isAuthenticated: false,
