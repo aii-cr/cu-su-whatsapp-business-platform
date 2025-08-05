@@ -44,7 +44,14 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const user = await AuthApi.login({ email, password });
+          // Perform login request (sets session cookie on success)
+          const userFromLogin = await AuthApi.login({ email, password });
+
+          // Some backend implementations include the user payload in the login
+          // response.  If we didn't get it for some reason, fall back to an
+          // explicit /me request.
+          const user = userFromLogin? userFromLogin : await AuthApi.getCurrentUser();
+
           set({
             user,
             isAuthenticated: true,
@@ -91,9 +98,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkAuth: async () => {
-        // Only check if we think we're authenticated but don't have user data
         const state = get();
-        if (state.isAuthenticated && !state.user) {
+        
+        // Always check auth on app startup if we don't have user data
+        // This handles page reloads and session restoration
+        if (!state.user && !state.isLoading) {
           set({ isLoading: true });
           try {
             const user = await AuthApi.getCurrentUser();
@@ -102,8 +111,11 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
-          } catch (error) {
-            console.error('Auth check failed:', error);
+          } catch {
+            // Only log in development to avoid console spam
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Auth check failed - user not authenticated');
+            }
             set({
               user: null,
               isAuthenticated: false,
@@ -117,7 +129,7 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth-storage',
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
-        // Don't persist user data for security - will be fetched on auth check
+        user: state.user,
       }),
     }
   )

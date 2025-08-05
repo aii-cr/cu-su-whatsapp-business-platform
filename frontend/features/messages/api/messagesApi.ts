@@ -3,7 +3,7 @@
  * Handles all message-related API calls to the FastAPI backend.
  */
 
-import { httpClient, handleApiError } from '@/lib/http';
+import { httpClient } from '@/lib/http';
 import {
   Message,
   MessageListResponse,
@@ -29,7 +29,6 @@ export class MessagesApi {
       );
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -42,7 +41,6 @@ export class MessagesApi {
       const response = await httpClient.post<MessageSendResponse>('/messages/send', data);
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -75,7 +73,6 @@ export class MessagesApi {
 
       return await response.json();
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -88,7 +85,6 @@ export class MessagesApi {
       const response = await httpClient.get<any[]>('/messages/templates');
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }

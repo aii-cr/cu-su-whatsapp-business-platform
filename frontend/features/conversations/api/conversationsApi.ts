@@ -3,7 +3,7 @@
  * Handles all conversation-related API calls to the FastAPI backend.
  */
 
-import { httpClient, handleApiError } from '@/lib/http';
+import { httpClient } from '@/lib/http';
 import {
   Conversation,
   ConversationListResponse,
@@ -33,7 +33,6 @@ export class ConversationsApi {
       );
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -46,7 +45,6 @@ export class ConversationsApi {
       const response = await httpClient.get<Conversation>(`/conversations/${conversationId}`);
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -59,7 +57,6 @@ export class ConversationsApi {
       const response = await httpClient.post<Conversation>('/conversations/', data);
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -75,7 +72,6 @@ export class ConversationsApi {
       const response = await httpClient.put<Conversation>(`/conversations/${conversationId}`, data);
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -87,7 +83,6 @@ export class ConversationsApi {
     try {
       await httpClient.delete(`/conversations/${conversationId}`);
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -103,7 +98,6 @@ export class ConversationsApi {
       );
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -122,7 +116,6 @@ export class ConversationsApi {
       );
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }
@@ -159,7 +152,6 @@ export class ConversationsApi {
       }>('/conversations/stats/overview');
       return response;
     } catch (error) {
-      handleApiError(error);
       throw error;
     }
   }

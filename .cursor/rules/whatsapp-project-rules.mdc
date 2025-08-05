@@ -12,7 +12,7 @@ Service Layer Architecture
 - All business logic MUST be encapsulated in service classes under `app/services/`
 - Services should inherit from `BaseService` to ensure proper database connection handling
 - Each service should have a single responsibility (e.g., `ConversationService`, `MessageService`, `AuthService`)
-- Keep service files under 300 lines - when a service grows beyond this, create subdirectories and split into focused modules
+- When a service grows, create subdirectories and split into focused python files or modules. Dont put all code in a single python file for better clean code, and mantainble code.
 - Create global service instances at the end of each service file for singleton usage across the application
 
 Database Connection Pattern

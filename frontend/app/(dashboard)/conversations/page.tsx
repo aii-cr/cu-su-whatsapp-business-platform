@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +15,10 @@ import { useConversations, useConversationStats } from '@/features/conversations
 import { ConversationFilters, Conversation } from '@/features/conversations/models/conversation';
 import { ConversationFilters as ConversationFiltersComponent } from '@/features/conversations/components/ConversationFilters';
 import { ConversationListItem } from '@/features/conversations/components/ConversationListItem';
+import { useUsers } from '@/features/users/hooks/useUsers';
+import { useNotifications } from '@/components/feedback/NotificationSystem';
+import { useDashboardWebSocket } from '@/hooks/useDashboardWebSocket';
+import { NewConversationModal } from '@/components/conversations/NewConversationModal';
 import { 
   PlusIcon, 
   MagnifyingGlassIcon,
@@ -25,15 +29,69 @@ import {
 
 export default function ConversationsPage() {
   const { user } = useAuthStore();
+  const { showError } = useNotifications();
   const [filters, setFilters] = useState<ConversationFilters>({
     page: 1,
     per_page: 20,
     sort_by: 'updated_at',
     sort_order: 'desc',
   });
+  const [isNewConversationModalOpen, setIsNewConversationModalOpen] = useState(false);
 
   const { data: conversationsData, isLoading, error } = useConversations(filters);
   const { data: stats, isLoading: statsLoading } = useConversationStats();
+  
+  // Dashboard WebSocket for real-time updates
+  const { 
+    isConnected: wsConnected, 
+    unreadCounts, 
+    getUnreadCount,
+    getTotalUnreadCount,
+    markConversationAsRead 
+  } = useDashboardWebSocket();
+
+  // Extract unique assigned agent IDs from conversations
+  const assignedAgentIds = useMemo(() => {
+    if (!conversationsData?.conversations) return [];
+    
+    const uniqueIds = new Set<string>();
+    conversationsData.conversations.forEach((conversation: Conversation) => {
+      if (conversation.assigned_agent_id) {
+        uniqueIds.add(conversation.assigned_agent_id);
+      }
+    });
+    
+    return Array.from(uniqueIds);
+  }, [conversationsData?.conversations]);
+
+  // Fetch all assigned agents in bulk
+  const { data: assignedAgents = [], isLoading: agentsLoading, error: agentsError } = useUsers(assignedAgentIds);
+
+  // Create a map for quick agent lookup
+  const agentsMap = useMemo(() => {
+    const map = new Map();
+    assignedAgents.forEach(agent => {
+      map.set(agent._id, agent);
+    });
+    return map;
+  }, [assignedAgents]);
+
+  // Merge conversations with real-time unread counts
+  const conversationsWithUnreadCounts = useMemo(() => {
+    if (!conversationsData?.conversations) return [];
+    
+    return conversationsData.conversations.map((conversation: Conversation) => ({
+      ...conversation,
+      unread_count: getUnreadCount(conversation._id)
+    }));
+  }, [conversationsData?.conversations, getUnreadCount]);
+
+  // Show error notification if agent data fails to load
+  useEffect(() => {
+    if (agentsError && assignedAgentIds.length > 0) {
+      showError('Failed to load agent information for conversations. Some agent names may not display correctly.', 'agents-load-error');
+    }
+  }, [agentsError, assignedAgentIds.length, showError]);
 
   const handleFiltersChange = (newFilters: ConversationFilters) => {
     setFilters(newFilters);
@@ -48,17 +106,43 @@ export default function ConversationsPage() {
     });
   };
 
+  const handleConversationClick = (conversation: Conversation) => {
+    // Mark conversation as read when clicked
+    if (getUnreadCount(conversation._id) > 0) {
+      markConversationAsRead(conversation._id);
+    }
+    // Navigate to conversation
+    window.location.href = `/conversations/${conversation._id}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Conversations</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl font-bold text-foreground">Conversations</h1>
+            
+            {/* WebSocket connection status */}
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-muted-foreground">
+                {wsConnected ? 'Live' : 'Offline'}
+              </span>
+            </div>
+            
+            {/* Total unread count */}
+            {getTotalUnreadCount() > 0 && (
+              <Badge variant="destructive" className="text-xs">
+                {getTotalUnreadCount()} unread
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">
             Welcome back, {user ? getUserDisplayName(user) : 'User'}!
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsNewConversationModalOpen(true)}>
           <PlusIcon className="w-4 h-4 mr-2" />
           New Conversation
         </Button>
@@ -160,7 +244,7 @@ export default function ConversationsPage() {
                 Retry
               </Button>
             </div>
-          ) : !conversationsData?.conversations.length ? (
+          ) : !conversationsWithUnreadCounts.length ? (
             <div className="text-center py-12">
               <ChatBubbleLeftRightIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">
@@ -170,7 +254,10 @@ export default function ConversationsPage() {
                 ) ? 'No conversations match your filters.' : 'No conversations yet.'}
               </p>
               {!filters.search && (
-                <Button variant="outline">
+                <Button 
+                  variant="outline"
+                  onClick={() => setIsNewConversationModalOpen(true)}
+                >
                   <PlusIcon className="w-4 h-4 mr-2" />
                   Start First Conversation
                 </Button>
@@ -178,12 +265,21 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {conversationsData.conversations.map((conversation: Conversation) => (
-                <ConversationListItem
-                  key={conversation._id}
-                  conversation={conversation}
-                />
-              ))}
+              {conversationsWithUnreadCounts.map((conversation: Conversation) => {
+                const assignedAgent = conversation.assigned_agent_id 
+                  ? agentsMap.get(conversation.assigned_agent_id) 
+                  : null;
+                
+                return (
+                  <ConversationListItem
+                    key={conversation._id}
+                    conversation={conversation}
+                    assignedAgent={assignedAgent}
+                    agentsLoading={agentsLoading}
+                    onClick={handleConversationClick}
+                  />
+                );
+              })}
 
               {/* Pagination */}
               {conversationsData && (conversationsData.pages ?? 0) > 1 && (
@@ -203,6 +299,16 @@ export default function ConversationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* New Conversation Modal */}
+      <NewConversationModal
+        isOpen={isNewConversationModalOpen}
+        onClose={() => setIsNewConversationModalOpen(false)}
+        onSuccess={() => {
+          // Refresh conversations list after successful creation
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

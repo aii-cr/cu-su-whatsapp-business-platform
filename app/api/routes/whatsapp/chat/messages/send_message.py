@@ -182,6 +182,11 @@ async def send_message(
             correlation_id=correlation_id
         )
 
+        # ===== WEBSOCKET NOTIFICATION =====
+        # Send WebSocket notification for real-time message updates
+        from app.services import websocket_service
+        await websocket_service.notify_new_message(conversation_id, message)
+
         # ===== RESPONSE =====
         logger.info(f"✅ [SEND_MESSAGE] Message sent successfully. Message ID: {message['_id']}")
         

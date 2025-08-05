@@ -157,5 +157,141 @@ class WhatsAppService:
             raise WhatsAppAPIError(-1, str(e))
 
     async def get_message_templates(self) -> List[Dict[str, Any]]:
-        logger.info("Pretend to fetch WhatsApp message templates")
-        return [] 
+        """
+        Fetch available WhatsApp message templates from Meta API.
+        
+        Returns:
+            List of template objects with name, language, category, components, etc.
+        """
+        try:
+            # Build the URL for fetching templates
+            business_account_id = settings.WHATSAPP_BUSINESS_ID
+            url = f"{self.base_url}/{business_account_id}/message_templates"
+            
+            logger.info(f"[WHATSAPP_API] Fetching templates from {url}")
+            
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(url, headers=self.headers)
+                
+                logger.info(f"[WHATSAPP_API] Templates response status: {response.status_code}")
+                logger.info(f"[WHATSAPP_API] Templates response body: {response.text}")
+                
+                if response.status_code // 100 != 2:
+                    try:
+                        error_json = response.json()
+                    except Exception:
+                        error_json = None
+                    raise WhatsAppAPIError(response.status_code, response.text, error_json)
+                
+                response_data = response.json()
+                templates = response_data.get("data", [])
+                
+                # Parse and format templates for frontend consumption
+                formatted_templates = []
+                for template in templates:
+                    formatted_template = {
+                        "id": template.get("id"),
+                        "name": template.get("name"),
+                        "language": template.get("language"),
+                        "status": template.get("status"),
+                        "category": template.get("category"),
+                        "sub_category": template.get("sub_category"),
+                        "parameter_format": template.get("parameter_format"),
+                        "components": template.get("components", []),
+                        # Extract text content for preview
+                        "preview_text": self._extract_template_preview(template.get("components", [])),
+                        # Extract parameters for form generation
+                        "parameters": self._extract_template_parameters(template.get("components", []))
+                    }
+                    formatted_templates.append(formatted_template)
+                
+                logger.info(f"[WHATSAPP_API] Found {len(formatted_templates)} templates")
+                return formatted_templates
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"[WHATSAPP_API] HTTP error fetching templates: {e.response.status_code} - {e.response.text}")
+            raise WhatsAppAPIError(e.response.status_code, e.response.text)
+        except Exception as e:
+            logger.error(f"[WHATSAPP_API] Unexpected error fetching templates: {str(e)}")
+            raise WhatsAppAPIError(-1, str(e))
+
+    def _extract_template_preview(self, components: List[Dict[str, Any]]) -> str:
+        """
+        Extract preview text from template components.
+        
+        Args:
+            components: List of template components
+            
+        Returns:
+            Preview text for the template
+        """
+        preview_parts = []
+        
+        for component in components:
+            component_type = component.get("type", "")
+            
+            if component_type == "HEADER":
+                text = component.get("text", "")
+                if text:
+                    preview_parts.append(f"Header: {text}")
+                    
+            elif component_type == "BODY":
+                text = component.get("text", "")
+                if text:
+                    # Truncate body text for preview
+                    preview_text = text[:100] + "..." if len(text) > 100 else text
+                    preview_parts.append(f"Body: {preview_text}")
+                    
+            elif component_type == "FOOTER":
+                text = component.get("text", "")
+                if text:
+                    preview_parts.append(f"Footer: {text}")
+        
+        return " | ".join(preview_parts) if preview_parts else "No preview available"
+
+    def _extract_template_parameters(self, components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Extract parameters from template components for form generation.
+        
+        Args:
+            components: List of template components
+            
+        Returns:
+            List of parameter objects for form inputs
+        """
+        parameters = []
+        
+        for component in components:
+            component_type = component.get("type", "")
+            
+            if component_type == "HEADER":
+                # Check if header has parameters
+                if "example" in component and "header_text" in component["example"]:
+                    for i, example in enumerate(component["example"]["header_text"]):
+                        parameters.append({
+                            "type": "text",
+                            "name": f"header_param_{i+1}",
+                            "label": f"Header Parameter {i+1}",
+                            "example": example,
+                            "component": "header",
+                            "position": i
+                        })
+                        
+            elif component_type == "BODY":
+                # Check if body has parameters (usually {{1}}, {{2}}, etc.)
+                text = component.get("text", "")
+                import re
+                param_matches = re.findall(r'\{\{(\d+)\}\}', text)
+                
+                for match in param_matches:
+                    param_num = int(match)
+                    parameters.append({
+                        "type": "text",
+                        "name": f"body_param_{param_num}",
+                        "label": f"Body Parameter {param_num}",
+                        "example": f"Parameter {param_num}",
+                        "component": "body",
+                        "position": param_num - 1
+                    })
+        
+        return parameters 

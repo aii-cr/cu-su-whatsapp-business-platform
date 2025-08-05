@@ -13,17 +13,17 @@ export const config: Record<string, AppConfig> = {
   development: {
     baseUrl: 'http://localhost:8000',
     apiPrefix: '/api/v1',
-    wsUrl: 'ws://localhost:8000/ws'
+    wsUrl: 'ws://localhost:8000/api/v1/ws'
   },
   staging: {
     baseUrl: process.env.NEXT_PUBLIC_STAGING_BASE_URL || 'https://staging-api.yourdomain.com',
     apiPrefix: '/api/v1',
-    wsUrl: process.env.NEXT_PUBLIC_STAGING_WS_URL || 'wss://staging-api.yourdomain.com/ws'
+    wsUrl: process.env.NEXT_PUBLIC_STAGING_WS_URL || 'wss://staging-api.yourdomain.com/api/v1/ws'
   },
   production: {
     baseUrl: process.env.NEXT_PUBLIC_PRODUCTION_BASE_URL || 'https://api.yourdomain.com',
     apiPrefix: '/api/v1',
-    wsUrl: process.env.NEXT_PUBLIC_PRODUCTION_WS_URL || 'wss://api.yourdomain.com/ws'
+    wsUrl: process.env.NEXT_PUBLIC_PRODUCTION_WS_URL || 'wss://api.yourdomain.com/api/v1/ws'
   }
 };
 

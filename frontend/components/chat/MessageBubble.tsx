@@ -7,8 +7,7 @@ import * as React from 'react';
 import { Message, SenderType, MessageStatus, MessageType } from '@/features/messages/models/message';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { formatRelativeTime } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { formatMessageTime, cn } from '@/lib/utils';
 import { 
   CheckIcon, 
   ClockIcon,
@@ -39,27 +38,37 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       // For outbound messages, show status
       if (!shouldAlignRight) return null;
       
+      const iconClass = shouldAlignRight ? 'text-white/90' : 'text-slate-500 dark:text-slate-400';
+      const readIconClass = shouldAlignRight ? 'text-white' : 'text-blue-500';
+      const failedIconClass = shouldAlignRight ? 'text-red-200' : 'text-red-500';
+      
       switch (message.status) {
+        case 'sending':
+          return (
+            <div className="flex items-center">
+              <ClockIcon className={`w-3 h-3 ${iconClass} animate-pulse`} />
+            </div>
+          );
         case 'pending':
-          return <ClockIcon className="w-3 h-3 text-muted-foreground" />;
+          return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'sent':
-          return <CheckIcon className="w-3 h-3 text-muted-foreground" />;
+          return <CheckIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'delivered':
           return (
             <div className="flex">
-              <CheckIcon className="w-3 h-3 text-muted-foreground -mr-1" />
-              <CheckIcon className="w-3 h-3 text-muted-foreground" />
+              <CheckIcon className={`w-3 h-3 ${iconClass} -mr-1`} />
+              <CheckIcon className={`w-3 h-3 ${iconClass}`} />
             </div>
           );
         case 'read':
           return (
             <div className="flex">
-              <CheckIcon className="w-3 h-3 text-primary -mr-1" />
-              <CheckIcon className="w-3 h-3 text-primary" />
+              <CheckIcon className={`w-3 h-3 ${readIconClass} -mr-1`} />
+              <CheckIcon className={`w-3 h-3 ${readIconClass}`} />
             </div>
           );
         case 'failed':
-          return <ExclamationTriangleIcon className="w-3 h-3 text-destructive" />;
+          return <ExclamationTriangleIcon className={`w-3 h-3 ${failedIconClass}`} />;
         default:
           return null;
       }
@@ -155,11 +164,18 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           </div>
         )}
 
-        <div className={cn('max-w-xs lg:max-w-md', shouldAlignRight && showAvatar && 'mr-2')}>
+        <div className={cn('max-w-sm lg:max-w-lg xl:max-w-xl', shouldAlignRight && showAvatar && 'mr-2')}>
           {/* Sender name for received messages */}
           {!shouldAlignRight && message.sender_name && (
             <p className="text-xs text-muted-foreground mb-1 ml-1">
               {message.sender_name}
+            </p>
+          )}
+          
+          {/* Sender info for outbound business messages */}
+          {shouldAlignRight && message.direction === 'outbound' && message.sender_name && (
+            <p className="text-xs text-muted-foreground mb-1 text-right mr-1">
+              Sent by {message.sender_name}
             </p>
           )}
 
@@ -168,13 +184,13 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
             className={cn(
               'relative px-4 py-2 rounded-lg shadow-sm',
               shouldAlignRight 
-                ? 'bg-primary text-primary-foreground' // Agent messages - blue
-                : 'bg-surface border border-border text-foreground', // Customer messages - surface color
+                ? 'bg-blue-500 text-white' // Agent messages - solid blue with white text for better contrast
+                : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100', // Customer messages with better contrast
               // WhatsApp-style bubble tail (optional)
               'before:absolute before:content-[""] before:w-0 before:h-0',
               shouldAlignRight
-                ? 'before:right-[-6px] before:top-2 before:border-l-[6px] before:border-l-primary before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
-                : 'before:left-[-6px] before:top-2 before:border-r-[6px] before:border-r-surface before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
+                ? 'before:right-[-6px] before:top-2 before:border-l-[6px] before:border-l-blue-500 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
+                : 'before:left-[-6px] before:top-2 before:border-r-[6px] before:border-r-white dark:before:border-r-slate-700 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
             )}
           >
             {/* Media content */}
@@ -203,11 +219,11 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
             {/* Timestamp and status */}
             <div className={cn(
               'flex items-center justify-end mt-1 space-x-1',
-              shouldAlignRight ? 'text-primary-foreground/70' : 'text-muted-foreground'
+              shouldAlignRight ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
             )}>
               {showTimestamp && (
-                <span className="text-xs">
-                  {formatRelativeTime(getDisplayTimestamp())}
+                <span className="text-xs font-medium">
+                  {formatMessageTime(getDisplayTimestamp())}
                 </span>
               )}
               <StatusIcon />

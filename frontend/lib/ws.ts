@@ -88,7 +88,11 @@ export class WebSocketClient {
           this.isConnecting = false;
           console.error('WebSocket error:', error);
           console.error('WebSocket URL:', this.url);
-          reject(new Error(`WebSocket connection failed to ${this.url}`));
+          
+          // Don't reject immediately, let the onclose handler handle reconnection
+          if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            reject(new Error(`WebSocket connection failed to ${this.url}`));
+          }
         };
 
         this.ws.onmessage = (event: MessageEvent) => {

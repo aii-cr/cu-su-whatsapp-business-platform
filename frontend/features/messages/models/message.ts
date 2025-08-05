@@ -37,6 +37,7 @@ export const MessageSchema = z.object({
   conversation_id: z.string(),
   whatsapp_message_id: z.string().optional(),
   type: z.string(), // Backend uses "type" instead of "message_type"
+  message_type: z.string().optional(), // Frontend compatibility field
   direction: z.enum(['inbound', 'outbound']), // Backend field for direction
   sender_role: z.enum(['customer', 'agent', 'system']), // Backend field
   sender_id: z.string().optional(),
@@ -70,6 +71,7 @@ export const MessageSchema = z.object({
   reply_to_message_id: z.string().optional(),
   is_automated: z.boolean().optional(),
   whatsapp_data: z.record(z.string(), z.unknown()).optional(),
+  isOptimistic: z.boolean().optional(), // Frontend-only field for optimistic updates
 });
 
 export type Message = z.infer<typeof MessageSchema>;
@@ -94,13 +96,10 @@ export const SendMessageSchema = z.object({
 
 export type SendMessageRequest = z.infer<typeof SendMessageSchema>;
 
-// Message send response
+// Message send response (matching backend MessageSendResponse)
 export const MessageSendResponseSchema = z.object({
-  message_id: z.string(),
-  conversation_id: z.string(),
-  whatsapp_message_id: z.string().optional(),
-  status: z.nativeEnum(MessageStatus),
-  timestamp: z.string(),
+  message: MessageSchema,
+  whatsapp_response: z.record(z.string(), z.unknown()),
 });
 
 export type MessageSendResponse = z.infer<typeof MessageSendResponseSchema>;

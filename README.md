@@ -200,7 +200,6 @@ The advanced retrieval pipeline has been comprehensively tested against the orig
 
 The evaluation confirms that advanced retrieval methods provide measurable improvements over the original RAG application, with the Semantic Retriever emerging as the optimal choice for production deployment, offering the best balance of accuracy, precision, and reliability for the WhatsApp Business platform.
 
-
 ## ✅ Articulate the changes that you expect to make to your app in the second half of the course. How will you improve your application?
 
 The current application provides a solid foundation with basic FastAPI backend and Next.js frontend, but most features are currently non-functional and require significant development. The comprehensive RAG pipeline evaluation documented in `rag-langchain-Implementation.ipynb` shows excellent performance with the Semantic Retriever achieving a 0.7694 score, providing a proven foundation for production deployment.

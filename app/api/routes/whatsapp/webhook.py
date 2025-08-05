@@ -19,6 +19,8 @@ from app.core.logger import logger
 from app.services import audit_service
 from app.services import automation_service
 from app.services import message_service, conversation_service
+from app.services import websocket_service
+from app.services.websocket.websocket_service import manager
 from app.core.error_handling import handle_database_error
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])
@@ -317,7 +319,7 @@ async def process_incoming_message(
     current_status = conversation.get("status", "pending")
     if current_status in ["active", "pending"]:
         logger.info(f"🔄 [MESSAGE] Updating conversation status to 'waiting' for customer response")
-        await conversation_service.update_conversation(
+        updated_conversation = await conversation_service.update_conversation(
             conversation_id=str(conversation["_id"]),
             update_data={"status": "waiting"},
             updated_by=None  # System update
@@ -326,18 +328,14 @@ async def process_incoming_message(
     # Process automation
     await automation_service.process_incoming_message(message)
     
-    # Send WebSocket notifications
-    from app.services import websocket_service
-    
-    # Always notify about the new message
-    await websocket_service.notify_new_message(str(conversation["_id"]), message)
-    
-    # If this is a new conversation, notify all users about it
-    if is_new_conversation:
-        logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation['_id']}")
-        await websocket_service.notify_new_conversation(conversation)
-    
-    logger.info(f"✅ [MESSAGE] Processed incoming message {incoming_msg.id} for conversation {conversation['_id']}")
+    # ===== SINGLE WEBSOCKET NOTIFICATION =====
+    # Send a single notification that will trigger all necessary updates
+    await websocket_service.notify_incoming_message_processed(
+        conversation_id=str(conversation["_id"]),
+        message=message,
+        is_new_conversation=is_new_conversation,
+        conversation=conversation
+    )
 
 async def process_message_status(
     status_data: Dict[str, Any], business_account_id: str
@@ -381,6 +379,13 @@ async def process_message_status(
     )
     
     logger.info(f"✅ [STATUS] Updated message {whatsapp_message_id} status to {status_obj.status}")
+    
+    # Send WebSocket notification for status update
+    await websocket_service.notify_message_status_update(
+        conversation_id=str(message["conversation_id"]),
+        message_id=whatsapp_message_id,  # Use WhatsApp message ID for status updates
+        status=status_obj.status
+    )
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """

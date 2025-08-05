@@ -614,5 +614,5 @@ tsconfig.json
 }
 ```
 
-- Keep components ≤200 lines ONLY where practical; extract subcomponents if growing beyond.
+- split components if they grow, extract subcomponents if growing beyond.
 - Reuse existing primitives; do not duplicate styles or behaviors.

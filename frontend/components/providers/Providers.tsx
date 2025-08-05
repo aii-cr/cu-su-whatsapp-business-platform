@@ -2,11 +2,11 @@
 
 /**
  * Combined providers for the application.
- * Includes theme provider and query client for data fetching.
+ * Includes theme provider, notification system, and query client for data fetching.
  */
 
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
-import { ToastContainer } from '@/components/ui/Toast';
+import { NotificationProvider } from '@/components/feedback/NotificationSystem';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
@@ -36,9 +36,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        {children}
-        <ToastContainer />
-        <ReactQueryDevtools initialIsOpen={false} />
+        <NotificationProvider>
+          {children}
+          <ReactQueryDevtools initialIsOpen={false} />
+        </NotificationProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

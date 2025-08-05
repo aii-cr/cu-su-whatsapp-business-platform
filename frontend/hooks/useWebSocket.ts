@@ -3,7 +3,7 @@
  * Provides a clean interface for components to use WebSocket functionality.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import { MessagingWebSocketClient, getWebSocketClient } from '@/lib/websocket';
@@ -18,6 +18,109 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuthStore();
   const wsRef = useRef<MessagingWebSocketClient | null>(null);
+  const subscriptionStateRef = useRef<{
+    [conversationId: string]: {
+      isSubscribed: boolean;
+      lastSubscribed: number;
+      lastVerified: number;
+      retryCount: number;
+      isSubscribing: boolean;
+    }
+  }>({});
+  const [, forceUpdate] = useState({});
+  const verificationTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Helper to update subscription state
+  const updateSubscriptionState = useCallback((convId: string, updates: Partial<typeof subscriptionStateRef.current[string]>) => {
+    subscriptionStateRef.current = {
+      ...subscriptionStateRef.current,
+      [convId]: {
+        ...subscriptionStateRef.current[convId],
+        ...updates
+      }
+    };
+    forceUpdate({}); // Trigger re-render without causing dependency cycles
+  }, []);
+
+  // Verify subscription health with proper throttling
+  const verifySubscription = useCallback(async (convId: string) => {
+    const state = subscriptionStateRef.current[convId];
+    const now = Date.now();
+    
+    // Prevent multiple simultaneous verification attempts
+    if (state?.isSubscribing) {
+      console.log('🔔 [WEBSOCKET] Subscription verification already in progress for:', convId);
+      return true;
+    }
+
+    // Check if recently subscribed (prevent spam)
+    if (state?.lastSubscribed && (now - state.lastSubscribed) < 5000) {
+      console.log('🔔 [WEBSOCKET] Recently subscribed, skipping verification for:', convId);
+      return true;
+    }
+
+    // Check if subscription is still valid (long verification interval)
+    if (state?.isSubscribed && state.lastVerified && (now - state.lastVerified) < 60000) {
+      console.log('🔔 [WEBSOCKET] Subscription still valid for:', convId);
+      return true;
+    }
+
+    // Check WebSocket connection
+    if (!wsRef.current?.isConnected) {
+      console.log('🔔 [WEBSOCKET] Connection lost, attempting to reconnect...');
+      try {
+        await wsRef.current?.connectWithAuth();
+        // Wait a bit for connection to stabilize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error('❌ [WEBSOCKET] Reconnection failed:', error);
+        
+        // Implement exponential backoff for failed connections
+        const retryDelay = Math.min(5000 * Math.pow(2, (state?.retryCount || 0)), 30000);
+        console.log(`🔔 [WEBSOCKET] Will retry in ${retryDelay}ms`);
+        
+        updateSubscriptionState(convId, {
+          retryCount: (state?.retryCount || 0) + 1,
+          isSubscribing: false
+        });
+        
+        // Schedule retry
+        verificationTimeouts.current[convId] = setTimeout(() => {
+          verifySubscription(convId);
+        }, retryDelay);
+        
+        return false;
+      }
+    }
+
+    // Perform subscription if needed
+    console.log('🔔 [WEBSOCKET] Subscribing to conversation:', convId);
+    
+    updateSubscriptionState(convId, { isSubscribing: true });
+
+    try {
+      wsRef.current?.subscribeToConversation(convId);
+      
+      updateSubscriptionState(convId, {
+        isSubscribed: true,
+        lastSubscribed: now,
+        lastVerified: now,
+        retryCount: 0, // Reset retry count on success
+        isSubscribing: false
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('❌ [WEBSOCKET] Subscription failed:', error);
+      
+      updateSubscriptionState(convId, {
+        isSubscribing: false,
+        retryCount: (state?.retryCount || 0) + 1
+      });
+      
+      return false;
+    }
+  }, [updateSubscriptionState]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -44,18 +147,91 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     };
   }, [isAuthenticated, user, autoConnect, queryClient]);
 
-  // Subscribe to conversation when conversationId changes
+  // Subscribe to conversation when conversationId changes (simplified)
   useEffect(() => {
     if (conversationId && wsRef.current) {
-      wsRef.current.subscribeToConversation(conversationId);
+      // Clear any existing timeouts for this conversation
+      if (verificationTimeouts.current[conversationId]) {
+        clearTimeout(verificationTimeouts.current[conversationId]);
+        delete verificationTimeouts.current[conversationId];
+      }
+
+      // Register subscription status callback
+      wsRef.current.onSubscriptionStatusChange(conversationId, (isSubscribed: boolean) => {
+        console.log(`🔔 [WEBSOCKET] Server confirmed subscription status for ${conversationId}:`, isSubscribed);
+        updateSubscriptionState(conversationId, {
+          isSubscribed,
+          lastVerified: Date.now(),
+          isSubscribing: false,
+          retryCount: 0 // Reset retry count on server confirmation
+        });
+      });
+
+      // Initial subscription with small delay to ensure connection is ready
+      const subscribeTimeout = setTimeout(() => {
+        verifySubscription(conversationId);
+      }, 500);
 
       return () => {
+        clearTimeout(subscribeTimeout);
+        
+        // Clear verification timeouts
+        if (verificationTimeouts.current[conversationId]) {
+          clearTimeout(verificationTimeouts.current[conversationId]);
+          delete verificationTimeouts.current[conversationId];
+        }
+
+        // Remove subscription status callback
         if (wsRef.current) {
+          wsRef.current.offSubscriptionStatusChange(conversationId);
           wsRef.current.unsubscribeFromConversation(conversationId);
+          
+          // Clean up subscription state
+          const newState = { ...subscriptionStateRef.current };
+          delete newState[conversationId];
+          subscriptionStateRef.current = newState;
         }
       };
     }
-  }, [conversationId]);
+  }, [conversationId, verifySubscription]);
+
+  // Simple connection monitoring (much less aggressive)
+  useEffect(() => {
+    if (!wsRef.current || !conversationId) return;
+
+    const connectionCheckInterval = setInterval(() => {
+      // Only re-verify if connection seems lost and we haven't verified recently
+      const state = subscriptionStateRef.current[conversationId];
+      const now = Date.now();
+      
+      if (!wsRef.current?.isConnected && 
+          (!state?.lastVerified || (now - state.lastVerified) > 30000)) {
+        console.log('🔔 [WEBSOCKET] Connection lost, scheduling recovery...');
+        
+        // Clear any existing timeout
+        if (verificationTimeouts.current[conversationId]) {
+          clearTimeout(verificationTimeouts.current[conversationId]);
+        }
+        
+        // Schedule verification with delay to avoid spam
+        verificationTimeouts.current[conversationId] = setTimeout(() => {
+          verifySubscription(conversationId);
+        }, 2000);
+      }
+    }, 30000); // Check every 30 seconds (much less aggressive)
+
+    return () => clearInterval(connectionCheckInterval);
+  }, [conversationId, verifySubscription]);
+
+  // Clean up all timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(verificationTimeouts.current).forEach(timeout => {
+        clearTimeout(timeout);
+      });
+      verificationTimeouts.current = {};
+    };
+  }, []);
 
   return {
     client: wsRef.current,
@@ -64,6 +240,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     unsubscribeFromConversation: (id: string) => wsRef.current?.unsubscribeFromConversation(id),
     sendTypingIndicator: (id: string, isTyping: boolean) => 
       wsRef.current?.sendTypingIndicator(id, isTyping),
+    verifySubscription,
+    subscriptionState: subscriptionStateRef.current,
+    isSubscribedTo: (id: string) => subscriptionStateRef.current[id]?.isSubscribed || false,
+    // Manual subscription verification (for emergency use only)
+    forceResubscribe: (id: string) => {
+      updateSubscriptionState(id, {
+        lastVerified: 0, // Force re-verification
+        isSubscribed: false
+      });
+      verifySubscription(id);
+    }
   };
 }
 
