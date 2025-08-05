@@ -7,7 +7,8 @@ import * as React from 'react';
 import { Message, SenderType, MessageStatus, MessageType } from '@/features/messages/models/message';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
-import { formatMessageTime, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { formatMessageTime } from '@/lib/timezone';
 import { 
   CheckIcon, 
   ClockIcon,

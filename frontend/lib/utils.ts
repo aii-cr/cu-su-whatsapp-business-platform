@@ -137,65 +137,9 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   };
 }
 
-/**
- * Format message timestamp in WhatsApp style
- * Shows time (09:48) for messages within today
- * Shows date for older messages
- */
-// Default timezone for all date formatting (Costa Rica)
-const CR_TIMEZONE = 'America/Costa_Rica';
-
-/**
- * Format message timestamp (WhatsApp style)
- * Always returns HH:mm in 24-hour format using Costa Rica timezone.
- */
-export function formatMessageTime(date: Date | string | number): string {
-  return new Date(date).toLocaleTimeString('es-CR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: CR_TIMEZONE,
-  });
-}
-
-/**
- * Get day banner text for message grouping
- * Returns "Today", "Yesterday", or date string for grouping messages by day
- */
-export function getMessageDayBanner(date: Date | string | number): string {
-  const messageDate = new Date(date);
-  const now = new Date();
-  
-  // Check if message is from today
-  const isToday = messageDate.toDateString() === now.toDateString();
-  
-  if (isToday) {
-    return 'Today';
-  }
-  
-  // Check if message is from yesterday
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = messageDate.toDateString() === yesterday.toDateString();
-  
-  if (isYesterday) {
-    return 'Yesterday';
-  }
-  
-  // For older messages, return formatted date
-  return messageDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: messageDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-  });
-}
-
-/**
- * Check if two dates are on the same day
- */
-export function isSameDay(date1: Date | string | number, date2: Date | string | number): boolean {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  return d1.toDateString() === d2.toDateString();
-}
+// Re-export timezone utilities for backward compatibility
+export { 
+  formatMessageTime, 
+  getMessageDayBanner, 
+  isSameDay 
+} from './timezone';
