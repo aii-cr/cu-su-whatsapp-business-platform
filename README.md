@@ -2,6 +2,13 @@
 
 Made by Steve Arce :D
 
+# LOOM VIDEO
+https://www.loom.com/share/f4c4994f19e045109eb66f3f027f2647?sid=a43944c8-7666-4a2b-ac2a-b42239c2618a 
+
+# All relevant code
+
+All relevant code is in `rag-langchain-Implementation.ipynb`
+
 ## Table of Contents
 
 - [Description of the Problem](#-description-of-the-problem)
