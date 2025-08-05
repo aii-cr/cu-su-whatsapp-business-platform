@@ -44,7 +44,14 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-          const user = await AuthApi.login({ email, password });
+          // Perform login request (sets session cookie on success)
+          const userFromLogin = await AuthApi.login({ email, password });
+
+          // Some backend implementations include the user payload in the login
+          // response.  If we didn't get it for some reason, fall back to an
+          // explicit /me request.
+          const user = userFromLogin? userFromLogin : await AuthApi.getCurrentUser();
+
           set({
             user,
             isAuthenticated: true,

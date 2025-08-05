@@ -43,6 +43,13 @@ export class AuthApi {
       const response = await httpClient.get<User>('/auth/users/me');
       return response;
     } catch (error) {
+      // A 401 here simply means the user is not authenticated. We silently
+      // propagate that without cluttering the console/logs. All other errors
+      // are still handled normally.
+      if (error instanceof ApiError && error.statusCode === 401) {
+        throw error; // caller decides what to do
+      }
+
       handleApiError(error);
       throw error;
     }
