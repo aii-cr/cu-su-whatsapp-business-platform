@@ -28,7 +28,7 @@ class ConnectionManager:
     
     async def connect(self, websocket: WebSocket, user_id: str):
         """Connect a new WebSocket client."""
-        await websocket.accept()
+        # Note: websocket.accept() is now called in the route handler
         
         if user_id not in self.active_connections:
             self.active_connections[user_id] = set()
@@ -357,6 +357,56 @@ class WebSocketService:
         """Reset unread count when user reads messages."""
         manager.reset_unread_count(user_id, conversation_id)
         await WebSocketService.notify_unread_count_update(user_id, conversation_id, 0)
+
+    @staticmethod
+    async def notify_incoming_message_processed(
+        conversation_id: str, 
+        message: dict, 
+        is_new_conversation: bool = False,
+        conversation: dict = None
+    ):
+        """
+        Handle all notifications for an incoming message processing.
+        This centralizes all WebSocket notifications for incoming messages.
+        """
+        try:
+            # 1. Always notify about the new message to conversation subscribers
+            await WebSocketService.notify_new_message(conversation_id, message)
+            
+            # 2. Update unread counts for dashboard subscribers
+            active_viewers = manager.conversation_subscribers.get(conversation_id, set())
+            
+            for subscriber_id in manager.dashboard_subscribers:
+                # Only increment if they're not currently viewing this conversation
+                if subscriber_id not in active_viewers:
+                    manager.increment_unread_count(subscriber_id, conversation_id)
+                    # Notify about unread count update
+                    unread_count = manager.unread_counts.get(subscriber_id, {}).get(conversation_id, 0)
+                    await WebSocketService.notify_unread_count_update(subscriber_id, conversation_id, unread_count)
+            
+            # 3. If this is a new conversation, notify dashboard subscribers
+            if is_new_conversation and conversation:
+                logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation_id}")
+                await WebSocketService.notify_new_conversation(conversation)
+                await WebSocketService.notify_conversation_list_update(conversation, "created")
+            
+            # 4. If conversation status was updated, notify dashboard
+            if conversation and conversation.get("status") == "waiting":
+                await WebSocketService.notify_conversation_list_update(conversation, "status_changed")
+            
+            # 5. Update dashboard stats
+            try:
+                from app.services import conversation_service
+                stats = await conversation_service.get_conversation_stats()
+                await WebSocketService.notify_dashboard_stats_update(stats)
+            except Exception as e:
+                logger.error(f"Failed to update dashboard stats: {str(e)}")
+            
+            logger.info(f"✅ [WEBSOCKET] All notifications sent for incoming message in conversation {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ [WEBSOCKET] Error in notify_incoming_message_processed: {str(e)}")
+            # Don't re-raise to avoid breaking the webhook processing
 
 # Global WebSocket service instance
 websocket_service = WebSocketService() 

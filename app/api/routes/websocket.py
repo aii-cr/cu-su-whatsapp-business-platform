@@ -25,6 +25,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         user_id: User ID for the connection
     """
     try:
+        # Accept the WebSocket connection first
+        await websocket.accept()
+        
+        # Validate user_id format (basic validation)
+        if not user_id or len(user_id) < 10:  # Basic validation
+            logger.warning(f"🔌 [WEBSOCKET] Invalid user_id format: {user_id}")
+            await websocket.close(code=4003, reason="Invalid user ID")
+            return
+        
+        # Connect to manager
         await manager.connect(websocket, user_id)
         logger.info(f"🔌 [WEBSOCKET] Connected for user {user_id}")
         logger.info(f"🔌 [WEBSOCKET] Total active connections: {len(manager.active_connections)}")
@@ -56,7 +66,18 @@ async def dashboard_websocket_endpoint(websocket: WebSocket, user_id: str):
         user_id: User ID for the connection
     """
     try:
+        # Accept the WebSocket connection first
+        await websocket.accept()
+        
+        # Validate user_id format (basic validation)
+        if not user_id or len(user_id) < 10:  # Basic validation
+            logger.warning(f"🏠 [DASHBOARD_WS] Invalid user_id format: {user_id}")
+            await websocket.close(code=4003, reason="Invalid user ID")
+            return
+        
+        # Connect to manager
         await manager.connect(websocket, user_id)
+        
         # Automatically subscribe to dashboard updates
         await manager.subscribe_to_dashboard(user_id)
         logger.info(f"🏠 [DASHBOARD_WS] Connected and subscribed to dashboard for user {user_id}")

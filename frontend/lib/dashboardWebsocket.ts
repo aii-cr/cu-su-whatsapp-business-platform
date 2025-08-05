@@ -5,6 +5,7 @@
 
 import { WebSocketClient } from './ws';
 import { useAuthStore } from './store';
+import { getWsUrl } from './config';
 import { useQueryClient } from '@tanstack/react-query';
 import { conversationQueryKeys } from '@/features/conversations/hooks/useConversations';
 import { toast } from '@/components/ui/Toast';
@@ -332,13 +333,8 @@ export class DashboardWebSocketClient extends WebSocketClient {
    */
   connectToDashboard(userId: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Import getWsUrl function
-      const getWsUrl = () => {
-        if (typeof window === 'undefined') return '';
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = process.env.NEXT_PUBLIC_WS_URL || `${window.location.hostname}:8000`;
-        return `${protocol}//${host}`;
-      };
+      // Determine WebSocket base URL using shared config helper
+      const wsUrl = getWsUrl();
 
       // If already connected to the same user, resolve immediately
       if (this.ws?.readyState === WebSocket.OPEN && this.url.includes(userId)) {
@@ -354,7 +350,6 @@ export class DashboardWebSocketClient extends WebSocketClient {
 
       this.isConnecting = true;
       this.isIntentionallyClosed = false;
-      const wsUrl = getWsUrl();
       this.url = `${wsUrl}/dashboard/${userId}`;
 
       console.log('🏠 [DASHBOARD_WS] Debug URL construction:');

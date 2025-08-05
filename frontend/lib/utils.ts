@@ -142,46 +142,20 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * Shows time (09:48) for messages within today
  * Shows date for older messages
  */
+// Default timezone for all date formatting (Costa Rica)
+const CR_TIMEZONE = 'America/Costa_Rica';
+
+/**
+ * Format message timestamp (WhatsApp style)
+ * Always returns HH:mm in 24-hour format using Costa Rica timezone.
+ */
 export function formatMessageTime(date: Date | string | number): string {
-  const messageDate = new Date(date);
-  const now = new Date();
-  
-  // Check if message is from today
-  const isToday = messageDate.toDateString() === now.toDateString();
-  
-  if (isToday) {
-    // Show time in 24-hour format (09:48)
-    return messageDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  } else {
-    // Check if message is from yesterday
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday = messageDate.toDateString() === yesterday.toDateString();
-    
-    if (isYesterday) {
-      return 'Yesterday';
-    }
-    
-    // Check if message is from this week
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    
-    if (messageDate > weekAgo) {
-      // Show day of week (Monday, Tuesday, etc.)
-      return messageDate.toLocaleDateString('en-US', { weekday: 'long' });
-    }
-    
-    // Show date for older messages (Dec 25, 2023)
-    return messageDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: messageDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-    });
-  }
+  return new Date(date).toLocaleTimeString('es-CR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: CR_TIMEZONE,
+  });
 }
 
 /**

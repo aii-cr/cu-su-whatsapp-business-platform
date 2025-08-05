@@ -27,15 +27,23 @@ export function useDashboardWebSocket() {
   
   const clientRef = useRef<DashboardWebSocketClient | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitializedRef = useRef(false);
 
-  // Initialize WebSocket client
+  // Initialize WebSocket client and handle connection
   useEffect(() => {
-    if (isAuthenticated && user && !clientRef.current) {
+    if (isAuthenticated && user && !isInitializedRef.current) {
       console.log('🏠 [DASHBOARD_HOOK] Initializing dashboard WebSocket client');
       clientRef.current = createDashboardWebSocketClient(queryClient);
+      isInitializedRef.current = true;
       
       // Set up event handlers for connection state
       setupConnectionHandlers();
+      
+      // Auto-connect after initialization
+      if (!state.isConnected && !state.isConnecting) {
+        console.log('🏠 [DASHBOARD_HOOK] Auto-connecting to dashboard WebSocket');
+        connect();
+      }
     }
     
     return () => {
@@ -44,14 +52,6 @@ export function useDashboardWebSocket() {
       }
     };
   }, [isAuthenticated, user, queryClient]);
-
-  // Auto-connect when authenticated
-  useEffect(() => {
-    if (isAuthenticated && user && clientRef.current && !state.isConnected && !state.isConnecting) {
-      console.log('🏠 [DASHBOARD_HOOK] Auto-connecting to dashboard WebSocket');
-      connect();
-    }
-  }, [isAuthenticated, user, state.isConnected, state.isConnecting]);
 
   // Setup connection event handlers
   const setupConnectionHandlers = useCallback(() => {
@@ -83,8 +83,14 @@ export function useDashboardWebSocket() {
     }
 
     if (state.isConnecting || state.isConnected) {
-      console.log('🏠 [DASHBOARD_HOOK] Already connecting or connected');
+      console.log('🏠 [DASHBOARD_HOOK] Already connecting or connected, skipping');
       return;
+    }
+
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     setState(prev => ({ ...prev, isConnecting: true, error: null }));
@@ -113,13 +119,16 @@ export function useDashboardWebSocket() {
         error: error instanceof Error ? error.message : 'Connection failed'
       }));
       
-      // Auto-retry connection after delay
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (isAuthenticated && user) {
-          console.log('🔄 [DASHBOARD_HOOK] Retrying connection...');
-          connect();
-        }
-      }, 5000);
+      // Auto-retry connection after delay (only if still authenticated)
+      if (isAuthenticated && user) {
+        console.log('🔄 [DASHBOARD_HOOK] Scheduling retry in 5 seconds...');
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (isAuthenticated && user && !state.isConnected && !state.isConnecting) {
+            console.log('🔄 [DASHBOARD_HOOK] Retrying connection...');
+            connect();
+          }
+        }, 5000);
+      }
     }
   }, [isAuthenticated, user, state.isConnecting, state.isConnected]);
 
@@ -132,13 +141,18 @@ export function useDashboardWebSocket() {
         isConnected: false, 
         isConnecting: false,
         unreadCounts: {},
+        error: null,
       }));
     }
     
+    // Clear reconnect timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    
+    // Reset initialization state when disconnecting
+    isInitializedRef.current = false;
   }, []);
 
   const markConversationAsRead = useCallback((conversationId: string) => {
@@ -167,12 +181,17 @@ export function useDashboardWebSocket() {
 
   // Cleanup on unmount or auth change
   useEffect(() => {
+    if (!isAuthenticated || !user) {
+      console.log('🏠 [DASHBOARD_HOOK] User not authenticated, disconnecting');
+      disconnect();
+    }
+    
     return () => {
       if (!isAuthenticated) {
         disconnect();
       }
     };
-  }, [isAuthenticated, disconnect]);
+  }, [isAuthenticated, user, disconnect]);
 
   return {
     // Connection state

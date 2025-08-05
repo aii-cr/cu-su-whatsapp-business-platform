@@ -51,13 +51,32 @@ const NewConversationSchema = z.object({
 type NewConversationFormData = z.infer<typeof NewConversationSchema>;
 
 interface Template {
+  id: string;
   name: string;
   language: string;
   category: string;
+  status: string;
+  sub_category?: string;
+  parameter_format?: string;
   components?: Array<{
     type: string;
     text?: string;
-    parameters?: Array<{ type: string; text: string }>;
+    format?: string;
+    example?: any;
+    buttons?: Array<{
+      type: string;
+      text: string;
+      url?: string;
+    }>;
+  }>;
+  preview_text?: string;
+  parameters?: Array<{
+    type: string;
+    name: string;
+    label: string;
+    example: string;
+    component: string;
+    position: number;
   }>;
 }
 
@@ -185,6 +204,12 @@ export function NewConversationModal({
   };
 
   const getTemplatePreview = (template: Template) => {
+    // Use the preview_text from backend if available
+    if (template.preview_text) {
+      return template.preview_text;
+    }
+    
+    // Fallback to old method if preview_text is not available
     if (!template.components) return 'No preview available';
     
     const textComponent = template.components.find(c => c.type === 'BODY');
@@ -313,10 +338,26 @@ export function NewConversationModal({
                             <Badge variant="secondary" className="text-xs">
                               {template.language}
                             </Badge>
+                            <Badge 
+                              variant={template.status === 'APPROVED' ? 'default' : 'destructive'} 
+                              className="text-xs"
+                            >
+                              {template.status}
+                            </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground mb-2">
                             {getTemplatePreview(template)}
                           </p>
+                          {template.parameters && template.parameters.length > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">Parameters: </span>
+                              {template.parameters.map((param, index) => (
+                                <span key={param.name} className="inline-block bg-muted px-2 py-1 rounded mr-1 mb-1">
+                                  {param.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         {selectedTemplate === template.name && (
                           <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center ml-2">
