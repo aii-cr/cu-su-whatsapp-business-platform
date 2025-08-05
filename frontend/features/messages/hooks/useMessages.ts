@@ -113,12 +113,12 @@ export function useSendMessage() {
           if (!old || typeof old !== 'object') return old;
           const oldData = old as { pages: { messages: Message[], total: number }[] };
           
-          // Add the optimistic message to the first page
+          // Add the optimistic message to the end of the first page (newest messages)
           const newPages = [...oldData.pages];
           if (newPages[0]) {
             newPages[0] = {
               ...newPages[0],
-              messages: [optimisticMessage, ...newPages[0].messages],
+              messages: [...newPages[0].messages, optimisticMessage],
               total: newPages[0].total + 1
             };
           }

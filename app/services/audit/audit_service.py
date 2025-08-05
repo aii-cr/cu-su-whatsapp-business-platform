@@ -313,6 +313,31 @@ class AuditService(BaseService):
             correlation_id=correlation_id,
         )
 
+    async def log_conversation_accessed(
+        self,
+        actor_id: str,
+        actor_name: str,
+        conversation_id: str,
+        customer_phone: Optional[str] = None,
+        messages_loaded: Optional[int] = None,
+        access_method: str = "view",
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log conversation access event for performance tracking and security."""
+        return await self.log_event(
+            action="conversation_accessed",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            customer_phone=customer_phone,
+            conversation_id=conversation_id,
+            payload={
+                "access_method": access_method,
+                "messages_loaded": messages_loaded,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            correlation_id=correlation_id,
+        )
+
 
 # Global audit service instance
 audit_service = AuditService()

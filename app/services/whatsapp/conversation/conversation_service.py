@@ -322,6 +322,110 @@ class ConversationService(BaseService):
         except Exception as e:
             logger.error(f"Error updating unread count for {conversation_id}: {str(e)}")
             return False
+    
+    async def get_conversation_with_messages(
+        self,
+        conversation_id: str,
+        user_id: str,
+        is_super_admin: bool = False,
+        messages_limit: int = 50,
+        messages_offset: int = 0
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get conversation with recent messages in a single optimized query.
+        
+        This method uses MongoDB aggregation to fetch conversation + messages
+        efficiently, reducing the number of database round trips.
+        
+        Args:
+            conversation_id: Conversation ID
+            user_id: Current user ID for permission checking
+            is_super_admin: Whether user is super admin
+            messages_limit: Number of messages to return
+            messages_offset: Number of messages to skip
+            
+        Returns:
+            Dictionary with conversation, messages, total count, and access info
+        """
+        try:
+            db = await self._get_db()
+            
+            # First get conversation to check permissions
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found")
+                return None
+            
+            # Check access permissions
+            has_access = is_super_admin
+            if not has_access:
+                # Check if user is assigned to conversation or has read_all permission
+                has_access = (
+                    conversation.get("assigned_agent_id") == ObjectId(user_id) or
+                    conversation.get("created_by") == ObjectId(user_id)
+                    # Note: Additional permission check for read_all would need auth service
+                )
+            
+            if not has_access:
+                return {
+                    "conversation": conversation,
+                    "messages": [],
+                    "messages_total": 0,
+                    "has_access": False
+                }
+            
+            # Use aggregation pipeline to get messages efficiently
+            pipeline = [
+                # Match messages for this conversation
+                {
+                    "$match": {
+                        "conversation_id": ObjectId(conversation_id)
+                    }
+                },
+                # Sort by timestamp descending (newest first)
+                {
+                    "$sort": {
+                        "timestamp": -1
+                    }
+                },
+                # Facet to get both count and paginated results
+                {
+                    "$facet": {
+                        "messages": [
+                            {"$skip": messages_offset},
+                            {"$limit": messages_limit},
+                            {"$sort": {"timestamp": 1}}  # Re-sort for display order
+                        ],
+                        "total_count": [
+                            {"$count": "count"}
+                        ]
+                    }
+                }
+            ]
+            
+            # Execute aggregation
+            result = await db.messages.aggregate(pipeline).to_list(1)
+            
+            if result:
+                messages = result[0]["messages"]
+                total_count = result[0]["total_count"][0]["count"] if result[0]["total_count"] else 0
+            else:
+                messages = []
+                total_count = 0
+            
+            logger.info(f"Retrieved conversation {conversation_id} with {len(messages)} messages (total: {total_count})")
+            
+            return {
+                "conversation": conversation,
+                "messages": messages,
+                "messages_total": total_count,
+                "has_access": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting conversation with messages {conversation_id}: {str(e)}", exc_info=True)
+            return None
 
 
 # Global conversation service instance
