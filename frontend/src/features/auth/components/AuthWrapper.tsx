@@ -18,6 +18,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading, checkAuth } = useAuthStore();
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [shouldShowLoading, setShouldShowLoading] = useState(true);
+  const isPublicRoute = publicRoutes.includes(pathname);
 
   useEffect(() => {
     // Check authentication status on app startup
@@ -35,8 +36,6 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     // Only perform redirects after initial auth check is complete
     if (!hasCheckedAuth) return;
     
-    const isPublicRoute = publicRoutes.includes(pathname);
-    
     // If user is authenticated and on public route, redirect to dashboard
     if (isAuthenticated && user && isPublicRoute) {
       router.replace('/conversations');
@@ -48,10 +47,12 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
       router.replace('/login');
       return;
     }
-  }, [isAuthenticated, user, pathname, router, isLoading, hasCheckedAuth]);
+  }, [isAuthenticated, user, pathname, router, isLoading, hasCheckedAuth, isPublicRoute]);
 
   // Show loading spinner during authentication check or if loading state is active
-  if (shouldShowLoading || isLoading || !hasCheckedAuth) {
+  // Never block public routes (e.g., /login) with the global loading screen.
+  // This prevents flashes when logging in: the login button handles its own disabled/loading state.
+  if (!isPublicRoute && (shouldShowLoading || isLoading || !hasCheckedAuth)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <LoadingSpinner size="lg" text="Loading..." />
@@ -60,7 +61,6 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   }
 
   // For protected routes, ensure user is authenticated before showing content
-  const isPublicRoute = publicRoutes.includes(pathname);
   if (!isPublicRoute && (!isAuthenticated || !user)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

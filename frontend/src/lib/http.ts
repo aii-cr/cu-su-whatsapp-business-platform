@@ -76,20 +76,23 @@ export class HttpClient {
       }
 
       if (!response.ok) {
-        // Handle authentication errors
-        if (response.status === 401) {
-          // Redirect to login on authentication failure
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
+        // Handle authentication/authorization failures
+        if (response.status === 401 || response.status === 403) {
+          // Mark session expired so the login page can show a toast, but do not hard-redirect here.
+          // Global redirects from the HTTP layer can cause reload loops if already on /login.
+          try {
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('sessionExpired', '1');
+            }
+          } catch {}
         }
 
         throw new ApiError(
           response.status,
-          data.error_code || `HTTP_${response.status}`,
-          data.error_message || data.message || 'Request failed',
-          data.details,
-          data.request_id
+          (data as any).error_code || `HTTP_${response.status}`,
+          (data as any).error_message || (data as any).message || 'Request failed',
+          (data as any).details,
+          (data as any).request_id
         );
       }
 
