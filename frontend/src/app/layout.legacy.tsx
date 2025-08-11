@@ -1,3 +1,8 @@
+/**
+ * Root layout for the ADN Contact Center frontend.
+ * Provides global styling, theme support, and authentication context.
+ */
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
