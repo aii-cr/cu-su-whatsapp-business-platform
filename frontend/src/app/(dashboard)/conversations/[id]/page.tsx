@@ -14,6 +14,7 @@ import { MessageBubble } from '@/features/conversations/components/MessageBubble
 import { MessageComposer } from '@/features/conversations/components/MessageComposer';
 import { ConversationHeader } from '@/features/conversations/components/ConversationHeader';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
+import { hasPermission } from '@/lib/auth';
 import { useAuthStore } from '@/lib/store';
 import { useMessages, useSendMessage } from '@/features/messages/hooks/useMessages';
 import { useConversation } from '@/features/conversations/hooks/useConversations';
@@ -222,6 +223,8 @@ export default function ConversationDetailsPage() {
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
+
+
 
       {/* Message composer */}
       <MessageComposer

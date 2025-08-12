@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { TagDenormalizedSchema } from '@/features/tags';
 
 // Conversation status enum
 export const ConversationStatus = {
@@ -71,7 +72,7 @@ export const ConversationSchema = z.object({
   channel: z.string(),
   department_id: z.string().optional(),
   assigned_agent_id: z.string().optional(),
-  tags: z.array(z.string()).default([]),
+  tags: z.array(TagDenormalizedSchema).default([]),
   last_message: LastMessageSchema.optional(),
   unread_count: z.number().default(0),
   created_at: z.string(),
@@ -105,6 +106,7 @@ export interface ConversationFilters {
   assigned_agent_id?: string;
   customer_type?: string;
   has_unread?: boolean;
+  is_archived?: boolean;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
 }
@@ -116,7 +118,7 @@ export const CreateConversationSchema = z.object({
   initial_message: z.string(),
   department_id: z.string().optional(),
   priority: z.nativeEnum(ConversationPriority).default(ConversationPriority.MEDIUM),
-  tags: z.array(z.string()).default([]),
+  tags: z.array(TagDenormalizedSchema).default([]),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

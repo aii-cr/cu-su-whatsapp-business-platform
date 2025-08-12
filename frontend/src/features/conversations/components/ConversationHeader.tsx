@@ -14,8 +14,13 @@ import {
   PhoneIcon,
   VideoCameraIcon,
   EllipsisVerticalIcon,
-  InformationCircleIcon 
+  InformationCircleIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { ParticipantsModal } from './ParticipantsModal';
+import { useHistoryPanel } from '@/hooks/useHistoryPanel';
+import { ConversationTagManager } from '@/features/tags';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -50,6 +55,9 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
       }
     };
 
+    const [showParticipants, setShowParticipants] = useState(false);
+    const { isHistoryVisible, setHistoryVisible } = useHistoryPanel();
+    
     return (
       <div 
         ref={ref}
@@ -95,17 +103,50 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
               </Badge>
             </div>
             
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
               <span className="truncate">
                 {(conversation.customer?.phone || conversation.customer_phone) && `${conversation.customer?.phone || conversation.customer_phone} • `}
                 Last seen {formatRelativeTime(conversation.updated_at)}
               </span>
             </div>
+            
+            {/* Tags */}
+            <div className="mt-2">
+              <ConversationTagManager 
+                conversationId={String(conversation._id)}
+                variant="compact"
+                size="sm"
+                maxTags={5}
+              />
+            </div>
           </div>
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center space-x-1 flex-shrink-0">
+        <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+          {/* Show History button when hidden */}
+          {!isHistoryVisible && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setHistoryVisible(true)}
+              className="text-xs md:text-sm px-2 md:px-3"
+              title="Show history timeline"
+            >
+              <ClockIcon className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">History</span>
+            </Button>
+          )}
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowParticipants(true)}
+            className="text-xs md:text-sm px-2 md:px-3"
+          >
+            <span className="hidden sm:inline">Participants</span>
+            <span className="sm:hidden">👥</span>
+          </Button>
           {onCall && (
             <Button 
               variant="ghost" 
@@ -150,6 +191,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
             </Button>
           )}
         </div>
+        <ParticipantsModal open={showParticipants} onOpenChange={setShowParticipants} conversationId={String(conversation._id)} canWrite={true} />
       </div>
     );
   }

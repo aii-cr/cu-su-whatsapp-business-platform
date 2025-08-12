@@ -46,6 +46,7 @@ const NewConversationSchema = z.object({
   customerName: z.string().optional(),
   templateName: z.string().min(1, 'Template is required'),
   templateLanguage: z.string().default('en_US'),
+  participants: z.array(z.object({ user_id: z.string().min(1), role: z.enum(['primary','agent','observer']).default('primary') })).default([]),
 });
 
 type NewConversationFormData = z.infer<typeof NewConversationSchema>;
@@ -111,6 +112,7 @@ export function NewConversationModal({
   });
 
   const selectedTemplate = watch('templateName');
+  const participants = watch('participants');
 
   // Load templates when modal opens
   useEffect(() => {
@@ -373,6 +375,42 @@ export function NewConversationModal({
             {errors.templateName && (
               <p className="text-sm text-error">{errors.templateName.message}</p>
             )}
+          </div>
+
+          {/* Participants (optional) */}
+          <div className="space-y-2">
+            <Label>Participants (optional)</Label>
+            <div className="space-y-2">
+              {participants?.map((p, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    placeholder="User ID"
+                    value={p.user_id}
+                    onChange={(e) => setValue(`participants.${idx}.user_id` as any, e.target.value)}
+                  />
+                  <Select value={p.role} onValueChange={(v) => setValue(`participants.${idx}.role` as any, v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="primary">primary</SelectItem>
+                      <SelectItem value="agent">agent</SelectItem>
+                      <SelectItem value="observer">observer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setValue('participants', participants.filter((_, i) => i !== idx))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={() => setValue('participants', [...(participants || []), { user_id: '', role: 'primary' }])}>
+                Add participant
+              </Button>
+            </div>
           </div>
 
           {/* Actions */}

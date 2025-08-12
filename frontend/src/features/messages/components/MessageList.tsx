@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Message } from '../models/message';
-import { useInfiniteMessages } from '../hooks/useInfiniteMessages';
+import { useMessages } from '../hooks/useMessages';
 import { Button } from '@/components/ui/Button';
 import { MessageBubble } from '@/features/conversations/components/MessageBubble';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
@@ -12,22 +12,34 @@ interface MessageListProps {
 
 export function MessageList({ conversationId }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
   const {
-    messages,
+    data: messagesData,
     isLoading,
     error,
     hasNextPage,
     isFetchingNextPage,
-    handleLoadOlderMessages,
-    messagesContainerRef,
-    scrollToBottom,
-    isNearBottom,
-  } = useInfiniteMessages({ conversationId });
+    fetchNextPage,
+  } = useMessages(conversationId);
 
-  // Sort messages chronologically (oldest → newest)
+  // Flatten messages from all pages and sort chronologically (oldest → newest)
+  const messages = messagesData?.pages.flatMap((page) => page.messages) || [];
   const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+
+  // Scroll utility functions
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const isNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const threshold = 100; // pixels from bottom
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  };
 
   // Auto-scroll to bottom when new messages arrive (but only if user is near bottom)
   useEffect(() => {
@@ -38,7 +50,7 @@ export function MessageList({ conversationId }: MessageListProps) {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [messages.length, scrollToBottom, isNearBottom]);
+  }, [messages.length]);
 
   if (isLoading && (!messages || messages.length === 0)) {
     return (
@@ -55,7 +67,7 @@ export function MessageList({ conversationId }: MessageListProps) {
           title="Error loading messages"
           description="Failed to load conversation messages. Please try again."
           action={
-            <Button onClick={() => window.location.reload()} variant="primary">
+            <Button onClick={() => window.location.reload()} variant="default">
               Retry
             </Button>
           }
@@ -85,7 +97,7 @@ export function MessageList({ conversationId }: MessageListProps) {
         {hasNextPage && (
           <div className="flex justify-center py-4 mb-4">
             <Button
-              onClick={handleLoadOlderMessages}
+              onClick={() => fetchNextPage()}
               disabled={isFetchingNextPage}
               variant="secondary"
               size="sm"

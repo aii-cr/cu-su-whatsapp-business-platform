@@ -20,6 +20,8 @@ import {
   ClockIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
+import { Button } from '@/components/ui/Button';
+import { TagList } from '@/features/tags';
 
 interface ConversationListItemProps {
   conversation: Conversation;
@@ -164,7 +166,20 @@ export function ConversationListItem({
           </p>
         )}
         
-        {/* Status and priority badges */}
+        {/* Tags */}
+        {conversation.tags && conversation.tags.length > 0 && (
+          <div className="mb-2">
+            <TagList 
+              tags={conversation.tags}
+              variant="compact"
+              size="sm"
+              maxDisplay={3}
+              className="gap-1"
+            />
+          </div>
+        )}
+        
+        {/* Status, priority, and participants */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 flex-wrap">
             <Badge 
@@ -189,6 +204,11 @@ export function ConversationListItem({
                 {conversation.channel}
               </Badge>
             )}
+            {conversation.participants?.length ? (
+              <Badge variant="outline" className="text-xs">
+                {conversation.participants.length} participants
+              </Badge>
+            ) : null}
           </div>
           
           {/* Assignment and department info */}
@@ -238,10 +258,8 @@ export function ConversationListItem({
       </div>
 
       {/* Hover indicator */}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-2">
-        <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-2 flex items-center gap-2">
+        <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); window.location.href = `/conversations/${conversation._id}`; }}>Open</Button>
       </div>
     </div>
   );
