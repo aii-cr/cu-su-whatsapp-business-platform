@@ -27,9 +27,8 @@ from .chat import (
     MediaQueryParams, MediaDownloadRequest, MediaUploadProgress,
     BulkMediaDelete, BulkMediaTagUpdate, MediaStatsResponse,
     MediaValidationResponse, MediaProcessingJob, TagCreate, TagUpdate, TagResponse, 
-    TagListResponse, GroupedTagsResponse, TagQueryParams, TagAssignment, TagRemoval, 
-    BulkTagAssignment, TagStatsResponse, TagUsageAnalytics, TagAutoAssignRule, 
-    TagExportRequest, NoteCreate, NoteUpdate, NoteResponse, NoteDetailResponse, 
+    TagListResponse, TagSummaryResponse, TagSuggestRequest, TagSuggestResponse, TagListRequest,
+    ConversationTagAssignRequest, ConversationTagUnassignRequest, ConversationTagResponse, NoteCreate, NoteUpdate, NoteResponse, NoteDetailResponse, 
     NoteListResponse, NoteQueryParams, NotePinToggle, BulkNoteDelete, BulkNoteTagUpdate,
     NoteTemplate, NoteStatsResponse, NoteReminder, NoteActivity, NoteExportRequest
 )
@@ -61,9 +60,8 @@ __all__ = [
     "MediaQueryParams", "MediaDownloadRequest", "MediaUploadProgress",
     "BulkMediaDelete", "BulkMediaTagUpdate", "MediaStatsResponse",
     "MediaValidationResponse", "MediaProcessingJob", "TagCreate", "TagUpdate", "TagResponse", 
-    "TagListResponse", "GroupedTagsResponse", "TagQueryParams", "TagAssignment", "TagRemoval", 
-    "BulkTagAssignment", "TagStatsResponse", "TagUsageAnalytics", "TagAutoAssignRule", 
-    "TagExportRequest", "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", 
+    "TagListResponse", "TagSummaryResponse", "TagSuggestRequest", "TagSuggestResponse", "TagListRequest",
+    "ConversationTagAssignRequest", "ConversationTagUnassignRequest", "ConversationTagResponse", "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", 
     "NoteListResponse", "NoteQueryParams", "NotePinToggle", "BulkNoteDelete", "BulkNoteTagUpdate",
     "NoteTemplate", "NoteStatsResponse", "NoteReminder", "NoteActivity", "NoteExportRequest"
 ] 

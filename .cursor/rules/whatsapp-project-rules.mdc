@@ -1,5 +1,4 @@
 ---
-description: Guidelines for updating the FastAPI backend to ensure consistency with the project’s established structure and standards
 alwaysApply: false
 ---
 *This document should be updated whenever new patterns emerge or existing ones are refined. All team members should follow these guidelines to maintain code quality and project consistency.*
@@ -436,12 +435,10 @@ Critical Rules Summary
 3. Import schemas from `app.schemas` - Never import response schemas from `app.db.models`
 4. Use global service instances - Never create local service instances in routes
 5. Follow the `_get_db()` pattern - Always use `db = await self._get_db()` in service methods
-6. Keep files under 300 lines - Split into subdirectories when services grow
+6. Split into subdirectories when services grow, avoid monolites.
 7. Proper error handling - Catch specific exceptions, then generic ones
 8. Clean imports - Organize imports and avoid circular dependencies
 
-Update runbooks based on lessons learned
-Communicate status to stakeholders promptly
 
 
 

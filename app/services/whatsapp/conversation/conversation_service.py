@@ -7,6 +7,7 @@ from bson import ObjectId
 from app.services.base_service import BaseService
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode
+from app.services.audit.audit_service import audit_service
 
 
 class ConversationService(BaseService):
@@ -127,6 +128,7 @@ class ConversationService(BaseService):
         assigned_agent_id: Optional[ObjectId] = None,
         customer_type: Optional[str] = None,
         has_unread: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
         tags: Optional[List[str]] = None,
@@ -166,6 +168,8 @@ class ConversationService(BaseService):
             query["customer_type"] = customer_type
         if has_unread is not None:
             query["unread_count"] = {"$gt": 0} if has_unread else {"$eq": 0}
+        if is_archived is not None:
+            query["is_archived"] = bool(is_archived)
         if created_from:
             query.setdefault("created_at", {})["$gte"] = created_from
         if created_to:
@@ -426,6 +430,132 @@ class ConversationService(BaseService):
         except Exception as e:
             logger.error(f"Error getting conversation with messages {conversation_id}: {str(e)}", exc_info=True)
             return None
+
+    # ----------------- Participants Management -----------------
+    async def add_participant(self, conversation_id: str, user_id: str, role: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            update = {
+                "$addToSet": {
+                    "participants": {
+                        "_id": ObjectId(),
+                        "user_id": ObjectId(user_id),
+                        "role": role,
+                        "added_at": datetime.now(timezone.utc)
+                    }
+                },
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+            result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, update)
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_added",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"user_id": user_id, "role": role},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error adding participant: {str(e)}")
+            return False
+
+    async def remove_participant(self, conversation_id: str, participant_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$pull": {"participants": {"_id": ObjectId(participant_id)}}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+            )
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_removed",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"participant_id": participant_id},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error removing participant: {str(e)}")
+            return False
+
+    async def change_participant_role(self, conversation_id: str, participant_id: str, new_role: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id), "participants._id": ObjectId(participant_id)},
+                {"$set": {"participants.$.role": new_role, "updated_at": datetime.now(timezone.utc)}}
+            )
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_role_changed",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"participant_id": participant_id, "new_role": new_role},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error changing participant role: {str(e)}")
+            return False
+
+    async def get_participants(self, conversation_id: str) -> List[Dict[str, Any]]:
+        db = await self._get_db()
+        conv = await db.conversations.find_one({"_id": ObjectId(conversation_id)}, {"participants": 1})
+        return conv.get("participants", []) if conv else []
+
+    async def get_participant_history(self, conversation_id: str) -> List[Dict[str, Any]]:
+        db = await self._get_db()
+        # Leverage audit logs for history
+        cursor = db.audit_logs.find({
+            "conversation_id": ObjectId(conversation_id),
+            "action": {"$in": ["participant_added", "participant_removed", "participant_role_changed"]}
+        }).sort("created_at", 1)
+        return await cursor.to_list(length=500)
+
+    # ----------------- Archiving / Soft Deletion -----------------
+    async def archive_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": True, "archived_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}})
+        if result.modified_count:
+            await audit_service.log_event(
+                action="conversation_archived",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.modified_count > 0
+
+    async def restore_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": False, "archived_at": None, "updated_at": datetime.now(timezone.utc)}})
+        if result.modified_count:
+            await audit_service.log_event(
+                action="conversation_restored",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.modified_count > 0
+
+    async def purge_conversation(self, conversation_id: str, confirm: bool, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        if not confirm:
+            return False
+        db = await self._get_db()
+        conv = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+        if not conv:
+            return False
+        await db.messages.delete_many({"conversation_id": ObjectId(conversation_id)})
+        result = await db.conversations.delete_one({"_id": ObjectId(conversation_id)})
+        if result.deleted_count:
+            await audit_service.log_event(
+                action="conversation_purged",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.deleted_count > 0
 
 
 # Global conversation service instance

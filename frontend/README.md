@@ -110,7 +110,7 @@ frontend/
    
    Edit `.env.local` with your backend configuration:
    ```env
-   NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+   NEXT_PUBLIC_API_BASE_URL=http://localhost:8010
    NEXT_PUBLIC_API_PREFIX=/api/v1
    NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
    ```

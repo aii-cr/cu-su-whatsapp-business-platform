@@ -1,6 +1,6 @@
 # CERT CHALLENGE
 
-Made by Steve Arce :D
+Made by Steve Arce
 
 # LOOM VIDEO
 https://www.loom.com/share/f4c4994f19e045109eb66f3f027f2647?sid=a43944c8-7666-4a2b-ac2a-b42239c2618a 

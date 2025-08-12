@@ -13,14 +13,14 @@ export interface AppConfig {
 
 const defaults: Record<string, AppConfig> = {
   development: {
-    baseUrl: 'http://localhost:8000',
+    baseUrl: 'http://localhost:8010',
     apiPrefix: '/api/v1',
-    wsUrl: 'ws://localhost:8000/api/v1/ws',
+    wsUrl: 'ws://localhost:8010/api/v1/ws',
   },
   test: {
-    baseUrl: 'http://localhost:8000',
+    baseUrl: 'http://localhost:8010',
     apiPrefix: '/api/v1',
-    wsUrl: 'ws://localhost:8000/api/v1/ws',
+    wsUrl: 'ws://localhost:8010/api/v1/ws',
   },
   production: {
     baseUrl: 'https://api.yourdomain.com',

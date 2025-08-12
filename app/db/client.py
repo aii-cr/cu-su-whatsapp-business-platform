@@ -223,19 +223,59 @@ class DatabaseClient:
         """Create indexes for tags collection."""
         collection = self.db.tags
         indexes = [
-            IndexModel([("name", ASCENDING), ("scope", ASCENDING)], 
-                      unique=True, name="idx_tags_name_scope"),
-            IndexModel([("tag_type", ASCENDING)], name="idx_tags_type"),
-            IndexModel([("scope", ASCENDING)], name="idx_tags_scope"),
-            IndexModel([("is_active", ASCENDING)], name="idx_tags_active"),
+            # Unique constraint on slug (case-insensitive)
+            IndexModel([("slug", ASCENDING)], unique=True, name="idx_tags_slug_unique"),
+            # Core tag fields
+            IndexModel([("name", ASCENDING)], name="idx_tags_name"),
+            IndexModel([("category", ASCENDING)], name="idx_tags_category"),
+            IndexModel([("status", ASCENDING)], name="idx_tags_status"),
+            IndexModel([("color", ASCENDING)], name="idx_tags_color"),
+            # System and configuration
             IndexModel([("is_system_tag", ASCENDING)], name="idx_tags_system"),
+            IndexModel([("is_auto_assignable", ASCENDING)], name="idx_tags_auto_assignable"),
+            # Hierarchy
             IndexModel([("parent_tag_id", ASCENDING)], name="idx_tags_parent"),
+            # Access control
+            IndexModel([("department_ids", ASCENDING)], name="idx_tags_departments"),
+            IndexModel([("user_ids", ASCENDING)], name="idx_tags_users"),
+            # Performance metrics
+            IndexModel([("usage_count", DESCENDING)], name="idx_tags_usage_count"),
+            # Timestamps
             IndexModel([("created_at", DESCENDING)], name="idx_tags_created"),
+            IndexModel([("updated_at", DESCENDING)], name="idx_tags_updated"),
+            # Text search
             IndexModel([("name", TEXT), ("display_name", TEXT), ("description", TEXT)], 
-                      name="idx_tags_search")
+                      name="idx_tags_search"),
+            # Compound indexes for filtering
+            IndexModel([("category", ASCENDING), ("status", ASCENDING), ("usage_count", DESCENDING)], 
+                      name="idx_tags_category_status_usage"),
+            IndexModel([("status", ASCENDING), ("name", ASCENDING)], name="idx_tags_status_name")
         ]
         await collection.create_indexes(indexes)
         logger.info("Created indexes for tags collection")
+        
+        # Create conversation_tags collection indexes
+        conv_tags_collection = self.db.conversation_tags
+        conv_tags_indexes = [
+            # Primary lookup indexes
+            IndexModel([("conversation_id", ASCENDING)], name="idx_conv_tags_conversation"),
+            IndexModel([("tag.id", ASCENDING)], name="idx_conv_tags_tag_id"),
+            # Compound for conversation tag queries
+            IndexModel([("conversation_id", ASCENDING), ("tag.id", ASCENDING)], 
+                      unique=True, name="idx_conv_tags_conversation_tag"),
+            # Assignment metadata
+            IndexModel([("assigned_by", ASCENDING)], name="idx_conv_tags_assigned_by"),
+            IndexModel([("auto_assigned", ASCENDING)], name="idx_conv_tags_auto_assigned"),
+            IndexModel([("confidence_score", DESCENDING)], name="idx_conv_tags_confidence"),
+            # Timestamps
+            IndexModel([("assigned_at", DESCENDING)], name="idx_conv_tags_assigned_at"),
+            IndexModel([("created_at", DESCENDING)], name="idx_conv_tags_created"),
+            # Tag metadata searches
+            IndexModel([("tag.category", ASCENDING)], name="idx_conv_tags_tag_category"),
+            IndexModel([("tag.name", TEXT)], name="idx_conv_tags_tag_search")
+        ]
+        await conv_tags_collection.create_indexes(conv_tags_indexes)
+        logger.info("Created indexes for conversation_tags collection")
     
     async def _create_note_indexes(self) -> None:
         """Create indexes for notes collection."""

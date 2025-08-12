@@ -305,6 +305,28 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "status_code": 501,
         "detail": "This feature is not yet available"
     },
+    
+    # Tag Management
+    ErrorCode.TAG_NOT_FOUND: {
+        "message": "Tag not found",
+        "status_code": 404,
+        "detail": "The requested tag does not exist"
+    },
+    ErrorCode.TAG_ALREADY_EXISTS: {
+        "message": "Tag already exists",
+        "status_code": 409,
+        "detail": "A tag with this name already exists"
+    },
+    ErrorCode.TAG_INVALID_DATA: {
+        "message": "Invalid tag data",
+        "status_code": 422,
+        "detail": "The tag data provided is invalid or incomplete"
+    },
+    ErrorCode.TAG_ASSIGNMENT_FAILED: {
+        "message": "Tag assignment failed",
+        "status_code": 422,
+        "detail": "Unable to assign tag to conversation"
+    },
 }
 
 

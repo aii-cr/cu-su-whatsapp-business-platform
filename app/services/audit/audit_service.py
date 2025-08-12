@@ -215,6 +215,133 @@ class AuditService(BaseService):
             correlation_id=correlation_id,
         )
 
+    # ===== TAG MANAGEMENT AUDIT METHODS =====
+
+    async def log_tag_created(
+        self,
+        actor_id: str,
+        actor_name: str,
+        tag_id: str,
+        tag_name: str,
+        tag_category: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log tag creation event."""
+        return await self.log_event(
+            action="tag_created",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "tag_id": tag_id,
+                "tag_name": tag_name,
+                "tag_category": tag_category
+            },
+            correlation_id=correlation_id,
+        )
+
+    async def log_tag_updated(
+        self,
+        actor_id: str,
+        actor_name: str,
+        tag_id: str,
+        tag_name: str,
+        changes: Dict[str, Any],
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log tag update event."""
+        return await self.log_event(
+            action="tag_updated",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "tag_id": tag_id,
+                "tag_name": tag_name,
+                "changes": changes
+            },
+            correlation_id=correlation_id,
+        )
+
+    async def log_tag_deleted(
+        self,
+        actor_id: str,
+        actor_name: str,
+        tag_id: str,
+        tag_name: str,
+        tag_category: str,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log tag deletion event."""
+        return await self.log_event(
+            action="tag_deleted",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            payload={
+                "tag_id": tag_id,
+                "tag_name": tag_name,
+                "tag_category": tag_category
+            },
+            correlation_id=correlation_id,
+        )
+
+    async def log_conversation_tag_added(
+        self,
+        actor_id: str,
+        actor_name: str,
+        conversation_id: str,
+        customer_phone: str,
+        tag_id: str,
+        tag_name: str,
+        auto_assigned: bool = False,
+        confidence_score: Optional[float] = None,
+        department_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log conversation tag assignment event."""
+        payload = {
+            "tag_id": tag_id,
+            "tag_name": tag_name,
+            "auto_assigned": auto_assigned
+        }
+        if confidence_score is not None:
+            payload["confidence_score"] = confidence_score
+            
+        return await self.log_event(
+            action="conversation_tag_added",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            customer_phone=customer_phone,
+            conversation_id=conversation_id,
+            department_id=department_id,
+            payload=payload,
+            correlation_id=correlation_id,
+        )
+
+    async def log_conversation_tag_removed(
+        self,
+        actor_id: str,
+        actor_name: str,
+        conversation_id: str,
+        customer_phone: str,
+        tag_id: str,
+        tag_name: str,
+        department_id: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[str]:
+        """Log conversation tag removal event."""
+        return await self.log_event(
+            action="conversation_tag_removed",
+            actor_id=actor_id,
+            actor_name=actor_name,
+            customer_phone=customer_phone,
+            conversation_id=conversation_id,
+            department_id=department_id,
+            payload={
+                "tag_id": tag_id,
+                "tag_name": tag_name
+            },
+            correlation_id=correlation_id,
+        )
+
     async def log_note_added(
         self,
         actor_id: str,

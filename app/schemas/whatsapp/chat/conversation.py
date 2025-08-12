@@ -59,6 +59,8 @@ class ConversationResponse(BaseModel):
     last_message_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    archived_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     tags: List[str] = []
     message_count: int = 0

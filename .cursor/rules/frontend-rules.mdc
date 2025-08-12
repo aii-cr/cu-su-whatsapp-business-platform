@@ -1,50 +1,51 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-# Purpose: Authoritative rules for generating a production-grade Next.js (App Router) frontend for a WhatsApp Business platform.
-# Scope: Enforce feature-based structure, BFF route handlers, cookie-session auth, WebSocket realtime, and modern Next.js APIs.
 
-───────────────────────────────────────────────────────────────────────────────
-TECHNOLOGY STACK
-- Framework: Next.js 15+ App Router with React Server Components by default
-- Styling: Tailwind CSS + CSS variables with custom design system
-- Theming: `next-themes` (class strategy) with blue/white light theme and dark theme
-- Forms: React Hook Form + Zod validation
-- Data fetching: TanStack Query for client state, Server Components for server data
-- State: Zustand for UI state, minimal local state
-- Realtime: WebSocket connection to FastAPI backend
-- Monitoring: Sentry + Playwright E2E testing
-- Code Quality: TypeScript strict mode, ESLint `next/core-web-vitals`
+# TECHNOLOGY STACK
 
-───────────────────────────────────────────────────────────────────────────────
-DESIGN SYSTEM & THEMING (MANDATORY)
+* Framework: Next.js 15+ (App Router) using React Server Components by default; Client Components only for interactivity.
+* Styling: Tailwind CSS with CSS variables (design tokens). Never hardcode hex in components.
+* Theming: `next-themes` (class strategy) with Light/Dark themes aligned to WhatsApp-like UI.
+* Forms: React Hook Form + Zod (schemas shared client/server).
+* Data: Server Components for server data; TanStack Query for client mutations/cache and optimistic UI.
+* State: Zustand for UI/ephemeral state; keep domain state colocated in features.
+* Realtime: WebSocket (WSS) to FastAPI backend with auto-reconnect, heartbeats, and message routing.
+* Monitoring: Sentry for errors + Web Vitals; Playwright for E2E; Vitest/Jest for unit tests.
+* Code Quality: TypeScript strict; ESLint `next/core-web-vitals`; Prettier; no `@ts-ignore` unless justified.
 
-COLOR PALETTE
-Light Theme:
-- Primary: #2563eb (blue-600) - Main brand color
-- Secondary: #1d4ed8 (blue-700) - Hover states
-- Background: #ffffff (white) - Main background
-- Surface: #f8fafc (slate-50) - Cards, panels
-- Text: #0f172a (slate-900) - Primary text
-- Text Secondary: #64748b (slate-500) - Secondary text
-- Border: #e2e8f0 (slate-200) - Borders, dividers
-- Success: #059669 (emerald-600) - Success states
-- Warning: #d97706 (amber-600) - Warning states
-- Error: #dc2626 (red-600) - Error states
+# DESIGN SYSTEM & THEMING (MANDATORY)
 
-Dark Theme:
-- Primary: #3b82f6 (blue-500) - Main brand color
-- Secondary: #60a5fa (blue-400) - Hover states
-- Background: #0f172a (slate-900) - Main background
-- Surface: #1e293b (slate-800) - Cards, panels
-- Text: #f8fafc (slate-50) - Primary text
-- Text Secondary: #94a3b8 (slate-400) - Secondary text
-- Border: #334155 (slate-700) - Borders, dividers
-- Success: #10b981 (emerald-500) - Success states
-- Warning: #f59e0b (amber-500) - Warning states
-- Error: #ef4444 (red-500) - Error states
+## Color Palette (WCAG-AA–vetted base tokens)
 
-CSS VARIABLES (globals.css)
+**Light Theme**
+
+* Primary: #2563eb (blue-600) — main brand / primary actions
+* Secondary: #1d4ed8 (blue-700) — hover/active for primary
+* Background: #ffffff (white)
+* Surface: #f8fafc (slate-50)
+* Text: #0f172a (slate-900)
+* Text Secondary: #64748b (slate-500)
+* Border: #e2e8f0 (slate-200)
+* Success: #059669 (emerald-600)
+* Warning: #d97706 (amber-600)
+* Error: #dc2626 (red-600)
+
+**Dark Theme**
+
+* Primary: #3b82f6 (blue-500) — requires **dark** foreground to pass AA
+* Secondary: #60a5fa (blue-400) — hover/active for primary
+* Background: #0f172a (slate-900)
+* Surface: #1e293b (slate-800)
+* Text: #f8fafc (slate-50)
+* Text Secondary: #94a3b8 (slate-400)
+* Border: #334155 (slate-700)
+* Success: #10b981 (emerald-500)
+* Warning: #f59e0b (amber-500)
+* Error: #ef4444 (red-500)
+
+## CSS Variables (define in `src/app/globals.css`)
+
 ```css
 :root {
   --primary: 37 99 235;
@@ -63,6 +64,7 @@ CSS VARIABLES (globals.css)
 
 .dark {
   --primary: 59 130 246;
+  /* important: dark text over blue-500 to pass AA */
   --primary-foreground: 15 23 42;
   --secondary: 96 165 250;
   --background: 15 23 42;
@@ -77,542 +79,509 @@ CSS VARIABLES (globals.css)
 }
 ```
 
-COMPONENT DESIGN PRINCIPLES
-- Use rounded corners (border-radius: 8px) for cards and buttons
-- Implement subtle shadows for depth (shadow-sm, shadow-md)
-- Use consistent spacing (4px grid system)
-- WhatsApp-style chat bubbles with proper alignment
-- Responsive design with mobile-first approach
-- Smooth transitions (150ms ease-in-out)
+## Color Contrast Requirements (MANDATORY)
 
-COLOR CONTRAST REQUIREMENTS (MANDATORY)
-- All interactive elements MUST maintain WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text)
-- Button hover states MUST have visible color changes that maintain readability
-- Light theme: Ensure hover states don't wash out text - use darker backgrounds for hover
-- Dark theme: Ensure hover states don't make text unreadable - use lighter backgrounds for hover
-- All UI components must be tested in both light and dark themes
-- Focus states must be clearly visible with ring opacity and proper colors
-- Disabled states must be clearly distinguishable with reduced opacity (0.5-0.6)
-- Status indicators (success, warning, error) must maintain contrast in both themes
+* All text/interactive labels MUST meet **WCAG AA** (4.5:1 normal, 3:1 large).
+* Primary buttons:
 
-───────────────────────────────────────────────────────────────────────────────
-ARCHITECTURE & STRUCTURE
+  * Light: bg `rgb(var(--primary))` + text `rgb(var(--primary-foreground))` → passes AA.
+  * Dark: bg `rgb(var(--primary))` + text `rgb(var(--primary-foreground))` (**dark text**) → passes AA.
+* Hover/active states remain AA-compliant: darker bg in light theme; lighter bg in dark theme; adjust `--primary-foreground` if needed.
+* Focus states must be obvious (e.g., `ring-2 ring-offset-2` using token colors).
+* Disabled states clearly distinguishable (opacity 0.5–0.6; maintain label readability).
+* Status (success/warning/error) badges/buttons must meet AA in both themes.
+* Every new component/variant MUST be reviewed in both themes; if it fails AA, **fix tokens**, not ad-hoc hex.
 
-FEATURE-BASED ORGANIZATION
-```
-cu-su-frontend/
+# ARCHITECTURE & STRUCTURE (CANONICAL; ALWAYS FOLLOW)
+
+```txt
+public/
+  icons/
+  images/
+src/
   app/
-    (auth)/
-      login/page.tsx
-      register/page.tsx
-    (dashboard)/
-      conversations/page.tsx
-      conversations/[id]/page.tsx
-      templates/page.tsx
-      departments/page.tsx
-      users/page.tsx
-      analytics/page.tsx
-      settings/page.tsx
     layout.tsx
     globals.css
-    (api)/api/
-      auth/route.ts
-      conversations/route.ts
-      conversations/[id]/messages/route.ts
-      templates/route.ts
-      departments/route.ts
-      users/route.ts
-      analytics/route.ts
+    providers.tsx
+    (auth)/
+      layout.tsx
+      login/page.tsx
+    (dashboard)/
+      layout.tsx
+      conversations/
+        page.tsx
+        [id]/page.tsx
+    api/
+      conversations/start/route.ts
+      whatsapp/messages/templates/route.ts
   components/
-    ui/                    # Design system primitives
-      Button.tsx
-      Input.tsx
-      Dialog.tsx
-      Badge.tsx
+    ui/                    # Reusable primitives only (no feature logic)
       Avatar.tsx
+      Badge.tsx
+      Button.tsx
       Card.tsx
-      Dropdown.tsx
+      Dialog.tsx
+      Input.tsx
+      Label.tsx
+      Select.tsx
       Tabs.tsx
       Toast.tsx
-    layout/
-      Sidebar.tsx
+    layout/                 # App shell & branding
       Header.tsx
-      Navigation.tsx
-    chat/
-      MessageBubble.tsx
-      MessageComposer.tsx
-      ConversationList.tsx
-      ConversationItem.tsx
+      Sidebar.tsx
+      BrandLogo.tsx
     feedback/
-      LoadingSpinner.tsx
       EmptyState.tsx
       ErrorBoundary.tsx
+      LoadingSpinner.tsx
     theme/
       ThemeProvider.tsx
       ThemeToggle.tsx
   features/
+    auth/
+      api/authApi.ts
+      components/AuthWrapper.tsx
     conversations/
+      api/conversationsApi.ts
       components/
-      hooks/
-      models/
-      api/
+        ConversationFilters.tsx
+        ConversationListItem.tsx
+        ConversationHeader.tsx
+        ConversationView.tsx
+        DayBanner.tsx
+        MessageBubble.tsx
+        MessageComposer.tsx
+        TypingIndicator.tsx
+      hooks/useConversations.ts
+      models/conversation.ts
     messages/
-      components/
-      hooks/
-      models/
-      api/
-    templates/
-      components/
-      hooks/
-      models/
-      api/
+      api/messagesApi.ts
+      components/MessageList.tsx
+      hooks/useMessages.ts
+      hooks/useInfiniteMessages.ts
+      models/message.ts
     departments/
-      components/
-      hooks/
-      models/
-      api/
+      api/departmentsApi.ts
+      models/department.ts
     users/
-      components/
-      hooks/
-      models/
-      api/
-    analytics/
-      components/
-      hooks/
-      models/
-      api/
-  lib/
-    http.ts
+      hooks/useUsers.ts
+  hooks/                    # Truly shared, generic hooks only
+    useDebounce.ts
+  lib/                      # Cross-cutting utilities (no feature knowledge)
+    env.ts                  # Zod-validated env (fail fast)
     auth.ts
-    ws.ts
+    config.ts
+    branding.ts
+    http.ts
+    logger.ts
     store.ts
-    constants.ts
+    timezone.ts
     utils.ts
-  styles/
-    theme.css
-    components.css
-  test/
-    e2e/
+    ws.ts                   # Single WebSocket client
+  tests/
     unit/
-  public/
-    icons/
-    images/
-  tailwind.config.ts
-  next.config.mjs
-  tsconfig.json
+    e2e/
+  types/
+    globals.d.ts
 ```
 
-───────────────────────────────────────────────────────────────────────────────
-CORE PRINCIPLES
+# PLACEMENT RULES
 
-DO
-- Use Server Components by default, Client Components only for interactivity
-- Use `next/navigation` (not `next/router`)
-- Implement BFF pattern with Route Handlers for all API calls
-- Use semantic HTML with proper ARIA labels
-- Implement proper loading states and error boundaries
-- Use optimistic updates for better UX
-- Implement proper form validation with React Hook Form + Zod
-- Use TypeScript strict mode with no `any` types
+* Route Handlers live **only** under `src/app/api/**`.
+* `components/ui` contains primitives only (accept `className`/`style`, forwardRef for inputs).
+* Feature UI/hooks/api/models/schemas live under `src/features/<feature>/**`.
+* Global providers in `src/app/providers.tsx` and wired in `src/app/layout.tsx`.
+* Server-only helpers go under `src/server/**` or feature server folders; **never** import them into client components.
 
-DON'T
-- Don't use legacy `pages/` directory or `getServerSideProps`
-- Don't expose API tokens in client-side code
-- Don't hardcode colors - use CSS variables
-- Don't create monolithic components - keep under 200 lines
-- Don't use `dangerouslySetInnerHTML` without sanitization
-- Don't implement client-side routing for auth-protected routes
+# REFACTOR & MIGRATION RULES (MANDATORY)
 
-───────────────────────────────────────────────────────────────────────────────
-AUTHENTICATION & SESSION
+* Use a single app root: `src/app`. Delete any top-level `/app` duplicates.
+* Move `/app/(api)/api/**` → `src/app/api/**` preserving URL paths; delete the `(api)` group.
+* Remove duplicate pages/layouts/globals; keep only `src/app` versions.
+* Keep one Next config (`next.config.mjs`). Delete `next.config.ts` and temp files (e.g., `tsconfig.json.save`).
+* After any restructure, update **every** import/reference; run `tsc --noEmit` and `eslint --fix`; ensure Tailwind content globs include `src/**/*`.
 
-IMPLEMENTATION
-- Use httpOnly cookies for session management
-- Implement CSRF protection for unsafe methods
-- Use BFF Route Handlers for all authenticated requests
-- Implement proper session rotation and cleanup
-- Use middleware for route protection
+# REUSABILITY & COMPOSITION (MANDATORY)
 
-SESSION FLOW
-1. Login via BFF Route Handler
-2. Set httpOnly cookie with session token
-3. All subsequent requests go through BFF
-4. BFF validates session and forwards to FastAPI
-5. Logout clears session cookie
+* Promote reuse when **proven**: if used in ≥3 places across features and feature-agnostic, promote to `components/ui` (or `components/layout` for shell). Refactor all imports; delete duplicates.
+* Prefer composition over “mode flags”; use variant string unions or slots/children; avoid boolean prop explosions.
+* APIs must be minimal and typed; forward refs for input-like primitives; always accept `className`/`style`.
+* Before adding a new component/hook, search for an existing one; extend via composition when possible.
 
-───────────────────────────────────────────────────────────────────────────────
-REALTIME COMMUNICATION
+# ANTI-MONOLITH GUARDRAILS (MANDATORY)
 
-WEBSOCKET IMPLEMENTATION
-```typescript
-// lib/ws.ts
-export class WebSocketClient {
-  private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+* Max component file length: **200 LOC**; extract subcomponents/hooks when exceeded.
+* Max hook length: **120 LOC**; max cyclomatic complexity: **10** per function.
+* Max props per component: **10**; otherwise split into subcomponents or a typed config object.
+* For multi-part components, use a folder (`Component/index.tsx`, `Component.Header.tsx`, `Component.Footer.tsx`, `types.ts`).
+* Exceptions allowed for performance-critical or clarity-preserving cases with a one-line justification and follow-up task.
 
-  connect(url: string) {
-    this.ws = new WebSocket(url);
-    this.ws.onopen = this.handleOpen.bind(this);
-    this.ws.onclose = this.handleClose.bind(this);
-    this.ws.onerror = this.handleError.bind(this);
-    this.ws.onmessage = this.handleMessage.bind(this);
-  }
+# WHATSAPP-SPECIFIC UI REQUIREMENTS (MANDATORY)
 
-  private handleOpen() {
-    this.reconnectAttempts = 0;
-    console.log('WebSocket connected');
-  }
+* **Chat bubbles**: user right-aligned; agent left-aligned; system centered/muted. Bubble radii 16–18px; tight vertical rhythm (4/8/12 grid); timestamps muted under each bubble.
+* **Message status**: single tick (sent), double tick (delivered), double tick colored/read (read). Persist in lists and detail view.
+* **Typing indicator**: animated dots aligned with sender row; `aria-live="polite"`.
+* **Grouping**: day banners (Today/Yesterday/Date); collapse consecutive messages by same author.
+* **Conversation list**: avatar/initials, name, last message preview, relative timestamp, unread badge count, online/offline dot, department/assignee/priority chips.
+* **Composer**: text input with character limit indicator, file attachments (chips/thumbnails), emoji picker, quick templates, send button with loading/disabled; Enter sends, Shift+Enter newline.
+* **Media**: `next/image`, aspect-ratio preserved, skeleton/fail states, downloads respect CSP and allowed MIME types.
+* **Theme fidelity**: everything must look/read well in **both** themes, using **tokens** only.
 
-  private handleClose(event: CloseEvent) {
-    if (!event.wasClean && this.reconnectAttempts < this.maxReconnectAttempts) {
-      setTimeout(() => {
-        this.reconnectAttempts++;
-        this.connect(this.ws?.url || '');
-      }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts));
-    }
-  }
+# AUTHENTICATION & SESSION
 
-  private handleError(error: Event) {
-    console.error('WebSocket error:', error);
-  }
+* Cookie-based httpOnly sessions (secure, sameSite, proper expiry); rotate on login; never store tokens in localStorage.
+* CSRF protection for unsafe methods; validate token in BFF Route Handlers.
+* All authenticated requests go through **BFF** Route Handlers (never call upstream from client).
+* `middleware.ts` guards protected routes and optional i18n; logout clears cookies.
 
-  private handleMessage(event: MessageEvent) {
-    const data = JSON.parse(event.data);
-    // Handle different message types
-  }
+# REALTIME (WEBSOCKET)
 
-  send(data: any) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
-    }
-  }
+* Single reusable client in `lib/ws.ts`: WSS, exponential backoff, optional heartbeats, safe send queue, message-type routing.
+* Feature hooks subscribe/unsubscribe to WS events and reconcile with TanStack Query caches (invalidate or silent update).
+* Back-pressure: batch or drop low-priority events; keep UI responsive with long threads.
 
-  disconnect() {
-    this.ws?.close();
-  }
+# SECURITY (MANDATORY, NON-BREAKING)
+
+* CSP headers (avoid `'unsafe-eval'`); `connect-src` includes your API and WSS endpoints; `img-src` is `self data: https:`.
+* HSTS + security headers (X-Frame-Options `DENY`; X-Content-Type-Options `nosniff`; Referrer-Policy `strict-origin-when-cross-origin`).
+* Sanitize any HTML; avoid `dangerouslySetInnerHTML` unless sanitized.
+* Zod validation on **all** route handlers (input) + typed outputs; reject unexpected fields.
+* CSRF for state-changing ops; same-site cookies; double-submit or header token strategy.
+* Rate limit BFF endpoints (IP + session); exponential penalties on abuse; never block essential receives.
+* WebSocket auth via cookie/session at handshake; validate origin; drop unauthenticated connections.
+* File uploads: validate MIME/size; strip EXIF; disallow executables; safe previews; scan if available.
+* Logging: never log PII/secrets; redact phone numbers beyond last 4 digits; sample logs to reduce noise.
+* RBAC/ABAC checks for actions (template send, department reassignment, exports); **fail closed**.
+
+# PERFORMANCE
+
+* Virtualize long lists (conversations/messages); stable keys by id (never indexes).
+* `next/image` for media; lazy-load attachments; prefetch avatars in viewport.
+* Server data: `cache: 'no-store'` for user-specific; use `revalidate`/`tags` for cacheable.
+* Dynamic imports for heavy panels; Suspense boundaries per page/section.
+* Memoize pure list items (`React.memo`) and handlers in hot lists; profile re-renders.
+
+# ERROR HANDLING & MONITORING
+
+* `ErrorBoundary` wraps client trees; standard `ErrorFallback` from `components/feedback`; log to Sentry in boundary + `instrumentation.ts`.
+* Standard loading states via `components/feedback` (no bespoke spinners everywhere).
+* Track Web Vitals and WS health; show reconnection toasts only when user action is impacted.
+
+# TESTING
+
+* **E2E (Playwright)**: auth, conversation list, message send/receive, templates, user admin, theme toggle, responsive breakpoints.
+* **Unit**: components, hooks, utils, API clients, form schemas; mock network/WS.
+* Coverage: ≥80% on critical paths; CI runs typecheck, lint, unit, and E2E smoke on PRs.
+
+# DEPLOYMENT & CI/CD
+
+* Build must pass TS strict, ESLint, unit tests, and E2E smoke.
+* Tailwind content globs include `src/**/*`.
+* Env vars validated at boot (`lib/env.ts` with Zod) — **fail fast**.
+* Performance budgets for JS and LCP/INP on key routes; PR template calls out hot-path changes.
+
+# AUTO-FIX EXPECTATIONS
+
+* When violations occur, automatically move/rename/delete to comply with structure and rules.
+* Update all imports/references; remove dead code; consolidate to a single `lib/ws.ts`.
+* After fixes: run `tsc --noEmit` and `eslint --fix`; ensure routes/behavior remain unchanged.
+
+# POST-REFACTOR ACCEPTANCE CRITERIA
+
+* App compiles with zero TS errors; ESLint passes.
+* Routes and APIs behave as before.
+* `components/ui` contains primitives only; feature UI lives under `features/**`.
+* **Both themes pass AA checks** for all buttons, text, and status indicators.
+* Only one WebSocket client exists (`lib/ws.ts`); all imports updated.
+
+# TECHNOLOGY STACK
+
+* Framework: Next.js 15+ (App Router) using React Server Components by default; Client Components only for interactivity.
+* Styling: Tailwind CSS with CSS variables (design tokens). Never hardcode hex in components.
+* Theming: `next-themes` (class strategy) with Light/Dark themes aligned to WhatsApp-like UI.
+* Forms: React Hook Form + Zod (schemas shared client/server).
+* Data: Server Components for server data; TanStack Query for client mutations/cache and optimistic UI.
+* State: Zustand for UI/ephemeral state; keep domain state colocated in features.
+* Realtime: WebSocket (WSS) to FastAPI backend with auto-reconnect, heartbeats, and message routing.
+* Monitoring: Sentry for errors + Web Vitals; Playwright for E2E; Vitest/Jest for unit tests.
+* Code Quality: TypeScript strict; ESLint `next/core-web-vitals`; Prettier; no `@ts-ignore` unless justified.
+
+# DESIGN SYSTEM & THEMING (MANDATORY)
+
+## Color Palette (WCAG-AA–vetted base tokens)
+
+**Light Theme**
+
+* Primary: #2563eb (blue-600) — main brand / primary actions
+* Secondary: #1d4ed8 (blue-700) — hover/active for primary
+* Background: #ffffff (white)
+* Surface: #f8fafc (slate-50)
+* Text: #0f172a (slate-900)
+* Text Secondary: #64748b (slate-500)
+* Border: #e2e8f0 (slate-200)
+* Success: #059669 (emerald-600)
+* Warning: #d97706 (amber-600)
+* Error: #dc2626 (red-600)
+
+**Dark Theme**
+
+* Primary: #3b82f6 (blue-500) — requires **dark** foreground to pass AA
+* Secondary: #60a5fa (blue-400) — hover/active for primary
+* Background: #0f172a (slate-900)
+* Surface: #1e293b (slate-800)
+* Text: #f8fafc (slate-50)
+* Text Secondary: #94a3b8 (slate-400)
+* Border: #334155 (slate-700)
+* Success: #10b981 (emerald-500)
+* Warning: #f59e0b (amber-500)
+* Error: #ef4444 (red-500)
+
+## CSS Variables (define in `src/app/globals.css`)
+
+```css
+:root {
+  --primary: 37 99 235;
+  --primary-foreground: 255 255 255;
+  --secondary: 29 78 216;
+  --background: 255 255 255;
+  --foreground: 15 23 42;
+  --surface: 248 250 252;
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --border: 226 232 240;
+  --success: 5 150 105;
+  --warning: 217 119 6;
+  --error: 220 38 38;
+}
+
+.dark {
+  --primary: 59 130 246;
+  /* important: dark text over blue-500 to pass AA */
+  --primary-foreground: 15 23 42;
+  --secondary: 96 165 250;
+  --background: 15 23 42;
+  --foreground: 248 250 252;
+  --surface: 30 41 59;
+  --muted: 51 65 85;
+  --muted-foreground: 148 163 184;
+  --border: 51 65 85;
+  --success: 16 185 129;
+  --warning: 245 158 11;
+  --error: 239 68 68;
 }
 ```
 
-───────────────────────────────────────────────────────────────────────────────
-CHAT INTERFACE REQUIREMENTS
+## Color Contrast Requirements (MANDATORY)
 
-MESSAGE BUBBLE DESIGN
-- User messages: Right-aligned, blue background
-- Agent messages: Left-aligned, gray background
-- System messages: Centered, muted styling
-- Timestamp: Small, muted text below messages
-- Status indicators: Sent, delivered, read
-- Typing indicators: Animated dots
-- Message reactions: WhatsApp-style emoji reactions
+* All text/interactive labels MUST meet **WCAG AA** (4.5:1 normal, 3:1 large).
+* Primary buttons:
 
-CONVERSATION LIST
-- Unread indicator with badge
-- Last message preview
-- Timestamp for last activity
-- Status indicators (online/offline)
-- Department/agent assignment
-- Priority indicators
+  * Light: bg `rgb(var(--primary))` + text `rgb(var(--primary-foreground))` → passes AA.
+  * Dark: bg `rgb(var(--primary))` + text `rgb(var(--primary-foreground))` (**dark text**) → passes AA.
+* Hover/active states remain AA-compliant: darker bg in light theme; lighter bg in dark theme; adjust `--primary-foreground` if needed.
+* Focus states must be obvious (e.g., `ring-2 ring-offset-2` using token colors).
+* Disabled states clearly distinguishable (opacity 0.5–0.6; maintain label readability).
+* Status (success/warning/error) badges/buttons must meet AA in both themes.
+* Every new component/variant MUST be reviewed in both themes; if it fails AA, **fix tokens**, not ad-hoc hex.
 
-MESSAGE COMPOSER
-- Text input with character limit
-- File attachment support
-- Emoji picker integration
-- Quick reply templates
-- Send button with loading state
+# ARCHITECTURE & STRUCTURE (CANONICAL; ALWAYS FOLLOW)
 
-───────────────────────────────────────────────────────────────────────────────
-PERFORMANCE OPTIMIZATION
-
-IMPLEMENTATION STRATEGIES
-- Use React.memo for expensive components
-- Implement virtual scrolling for long lists
-- Use Next.js Image component for media
-- Implement proper caching strategies
-- Use Suspense boundaries for loading states
-- Code-split heavy components with dynamic imports
-
-CACHING STRATEGY
-- Server Components: `cache: 'no-store'` for user-specific data
-- Static data: Use `revalidate` or `tags`
-- Client state: TanStack Query with proper invalidation
-- WebSocket: Real-time updates override cached data
-
-───────────────────────────────────────────────────────────────────────────────
-ERROR HANDLING & MONITORING
-
-ERROR BOUNDARIES
-```typescript
-// components/feedback/ErrorBoundary.tsx
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-    // Send to Sentry
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} />;
-    }
-    return this.props.children;
-  }
-}
+```txt
+public/
+  icons/
+  images/
+src/
+  app/
+    layout.tsx
+    globals.css
+    providers.tsx
+    (auth)/
+      layout.tsx
+      login/page.tsx
+    (dashboard)/
+      layout.tsx
+      conversations/
+        page.tsx
+        [id]/page.tsx
+    api/
+      conversations/start/route.ts
+      whatsapp/messages/templates/route.ts
+  components/
+    ui/                    # Reusable primitives only (no feature logic)
+      Avatar.tsx
+      Badge.tsx
+      Button.tsx
+      Card.tsx
+      Dialog.tsx
+      Input.tsx
+      Label.tsx
+      Select.tsx
+      Tabs.tsx
+      Toast.tsx
+    layout/                 # App shell & branding
+      Header.tsx
+      Sidebar.tsx
+      BrandLogo.tsx
+    feedback/
+      EmptyState.tsx
+      ErrorBoundary.tsx
+      LoadingSpinner.tsx
+    theme/
+      ThemeProvider.tsx
+      ThemeToggle.tsx
+  features/
+    auth/
+      api/authApi.ts
+      components/AuthWrapper.tsx
+    conversations/
+      api/conversationsApi.ts
+      components/
+        ConversationFilters.tsx
+        ConversationListItem.tsx
+        ConversationHeader.tsx
+        ConversationView.tsx
+        DayBanner.tsx
+        MessageBubble.tsx
+        MessageComposer.tsx
+        TypingIndicator.tsx
+      hooks/useConversations.ts
+      models/conversation.ts
+    messages/
+      api/messagesApi.ts
+      components/MessageList.tsx
+      hooks/useMessages.ts
+      hooks/useInfiniteMessages.ts
+      models/message.ts
+    departments/
+      api/departmentsApi.ts
+      models/department.ts
+    users/
+      hooks/useUsers.ts
+  hooks/                    # Truly shared, generic hooks only
+    useDebounce.ts
+  lib/                      # Cross-cutting utilities (no feature knowledge)
+    env.ts                  # Zod-validated env (fail fast)
+    auth.ts
+    config.ts
+    branding.ts
+    http.ts
+    logger.ts
+    store.ts
+    timezone.ts
+    utils.ts
+    ws.ts                   # Single WebSocket client
+  tests/
+    unit/
+    e2e/
+  types/
+    globals.d.ts
 ```
 
-MONITORING
-- Sentry integration for error tracking
-- Performance monitoring with Web Vitals
-- User interaction tracking (non-PII)
-- API response time monitoring
-- WebSocket connection health monitoring
+# PLACEMENT RULES
 
-───────────────────────────────────────────────────────────────────────────────
-TESTING STRATEGY
+* Route Handlers live **only** under `src/app/api/**`.
+* `components/ui` contains primitives only (accept `className`/`style`, forwardRef for inputs).
+* Feature UI/hooks/api/models/schemas live under `src/features/<feature>/**`.
+* Global providers in `src/app/providers.tsx` and wired in `src/app/layout.tsx`.
+* Server-only helpers go under `src/server/**` or feature server folders; **never** import them into client components.
 
-E2E TESTING (Playwright)
-- Authentication flow
-- Conversation management
-- Message sending/receiving
-- Template management
-- User management
-- Theme switching
-- Responsive design testing
+# REFACTOR & MIGRATION RULES (MANDATORY)
 
-UNIT TESTING
-- Component rendering
-- Hook logic
-- Utility functions
-- API client functions
-- Form validation
+* Use a single app root: `src/app`. Delete any top-level `/app` duplicates.
+* Move `/app/(api)/api/**` → `src/app/api/**` preserving URL paths; delete the `(api)` group.
+* Remove duplicate pages/layouts/globals; keep only `src/app` versions.
+* Keep one Next config (`next.config.mjs`). Delete `next.config.ts` and temp files (e.g., `tsconfig.json.save`).
+* After any restructure, update **every** import/reference; run `tsc --noEmit` and `eslint --fix`; ensure Tailwind content globs include `src/**/*`.
 
-TESTING REQUIREMENTS
-- Minimum 80% code coverage
-- All critical user flows covered
-- Visual regression testing for UI components
-- Performance testing for chat interface
+# REUSABILITY & COMPOSITION (MANDATORY)
 
-───────────────────────────────────────────────────────────────────────────────
-SECURITY REQUIREMENTS
+* Promote reuse when **proven**: if used in ≥3 places across features and feature-agnostic, promote to `components/ui` (or `components/layout` for shell). Refactor all imports; delete duplicates.
+* Prefer composition over “mode flags”; use variant string unions or slots/children; avoid boolean prop explosions.
+* APIs must be minimal and typed; forward refs for input-like primitives; always accept `className`/`style`.
+* Before adding a new component/hook, search for an existing one; extend via composition when possible.
 
-IMPLEMENTATION
-- CSP headers for XSS protection
-- Input sanitization for all user inputs
-- CSRF protection for state-changing operations
-- Rate limiting on API endpoints
-- Secure WebSocket connections (WSS)
-- PII redaction in logs
+# ANTI-MONOLITH GUARDRAILS (MANDATORY)
 
-CONTENT SECURITY POLICY
-```typescript
-// next.config.mjs
-const nextConfig = {
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: `
-              default-src 'self';
-              script-src 'self' 'unsafe-eval' 'unsafe-inline';
-              style-src 'self' 'unsafe-inline';
-              img-src 'self' data: https:;
-              connect-src 'self' ws: wss: ${process.env.NEXT_PUBLIC_API_URL};
-              font-src 'self';
-            `.replace(/\s+/g, ' ').trim()
-          }
-        ]
-      }
-    ];
-  }
-};
-```
+* Max component file length: **200 LOC**; extract subcomponents/hooks when exceeded.
+* Max hook length: **120 LOC**; max cyclomatic complexity: **10** per function.
+* Max props per component: **10**; otherwise split into subcomponents or a typed config object.
+* For multi-part components, use a folder (`Component/index.tsx`, `Component.Header.tsx`, `Component.Footer.tsx`, `types.ts`).
+* Exceptions allowed for performance-critical or clarity-preserving cases with a one-line justification and follow-up task.
 
-───────────────────────────────────────────────────────────────────────────────
-ACCESSIBILITY REQUIREMENTS
+# WHATSAPP-SPECIFIC UI REQUIREMENTS (MANDATORY)
 
-IMPLEMENTATION
-- Semantic HTML structure
-- Proper ARIA labels and roles
-- Keyboard navigation support
-- Focus management
-- Screen reader compatibility
-- Color contrast compliance (WCAG AA)
-- Alternative text for images
+* **Chat bubbles**: user right-aligned; agent left-aligned; system centered/muted. Bubble radii 16–18px; tight vertical rhythm (4/8/12 grid); timestamps muted under each bubble.
+* **Message status**: single tick (sent), double tick (delivered), double tick colored/read (read). Persist in lists and detail view.
+* **Typing indicator**: animated dots aligned with sender row; `aria-live="polite"`.
+* **Grouping**: day banners (Today/Yesterday/Date); collapse consecutive messages by same author.
+* **Conversation list**: avatar/initials, name, last message preview, relative timestamp, unread badge count, online/offline dot, department/assignee/priority chips.
+* **Composer**: text input with character limit indicator, file attachments (chips/thumbnails), emoji picker, quick templates, send button with loading/disabled; Enter sends, Shift+Enter newline.
+* **Media**: `next/image`, aspect-ratio preserved, skeleton/fail states, downloads respect CSP and allowed MIME types.
+* **Theme fidelity**: everything must look/read well in **both** themes, using **tokens** only.
 
-KEYBOARD NAVIGATION
-- Tab order follows visual layout
-- Escape key closes modals/dropdowns
-- Enter/Space for button activation
-- Arrow keys for list navigation
-- Focus indicators visible on all interactive elements
+# AUTHENTICATION & SESSION
 
-───────────────────────────────────────────────────────────────────────────────
-DEPLOYMENT & CI/CD
+* Cookie-based httpOnly sessions (secure, sameSite, proper expiry); rotate on login; never store tokens in localStorage.
+* CSRF protection for unsafe methods; validate token in BFF Route Handlers.
+* All authenticated requests go through **BFF** Route Handlers (never call upstream from client).
+* `middleware.ts` guards protected routes and optional i18n; logout clears cookies.
 
-BUILD REQUIREMENTS
-- TypeScript compilation without errors
-- ESLint passes with no warnings
-- All tests pass
-- Bundle size within limits
-- Performance budgets met
+# REALTIME (WEBSOCKET)
 
-DEPLOYMENT CHECKLIST
-- Environment variables configured
-- Database migrations applied
-- SSL certificates installed
-- Monitoring alerts configured
-- Backup procedures in place
-- Rollback plan documented
+* Single reusable client in `lib/ws.ts`: WSS, exponential backoff, optional heartbeats, safe send queue, message-type routing.
+* Feature hooks subscribe/unsubscribe to WS events and reconcile with TanStack Query caches (invalidate or silent update).
+* Back-pressure: batch or drop low-priority events; keep UI responsive with long threads.
 
+# SECURITY (MANDATORY, NON-BREAKING)
 
-───────────────────────────────────────────────────────────────────────────────
-REQUIRED CONFIGURATION FILES
+* CSP headers (avoid `'unsafe-eval'`); `connect-src` includes your API and WSS endpoints; `img-src` is `self data: https:`.
+* HSTS + security headers (X-Frame-Options `DENY`; X-Content-Type-Options `nosniff`; Referrer-Policy `strict-origin-when-cross-origin`).
+* Sanitize any HTML; avoid `dangerouslySetInnerHTML` unless sanitized.
+* Zod validation on **all** route handlers (input) + typed outputs; reject unexpected fields.
+* CSRF for state-changing ops; same-site cookies; double-submit or header token strategy.
+* Rate limit BFF endpoints (IP + session); exponential penalties on abuse; never block essential receives.
+* WebSocket auth via cookie/session at handshake; validate origin; drop unauthenticated connections.
+* File uploads: validate MIME/size; strip EXIF; disallow executables; safe previews; scan if available.
+* Logging: never log PII/secrets; redact phone numbers beyond last 4 digits; sample logs to reduce noise.
+* RBAC/ABAC checks for actions (template send, department reassignment, exports); **fail closed**.
 
-tailwind.config.ts
-```typescript
-import type { Config } from 'tailwindcss'
+# PERFORMANCE
 
-const config: Config = {
-  content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-  ],
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          50: 'rgb(var(--primary) / 0.05)',
-          100: 'rgb(var(--primary) / 0.1)',
-          500: 'rgb(var(--primary))',
-          600: 'rgb(var(--secondary))',
-          700: 'rgb(var(--secondary) / 0.8)',
-        },
-        background: 'rgb(var(--background))',
-        foreground: 'rgb(var(--foreground))',
-        surface: 'rgb(var(--surface))',
-        muted: {
-          DEFAULT: 'rgb(var(--muted))',
-          foreground: 'rgb(var(--muted-foreground))',
-        },
-        border: 'rgb(var(--border))',
-      },
-      borderRadius: {
-        lg: '8px',
-        xl: '12px',
-      },
-      animation: {
-        'fade-in': 'fadeIn 0.2s ease-in-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'typing': 'typing 1.4s infinite',
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        slideUp: {
-          '0%': { transform: 'translateY(10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        typing: {
-          '0%, 20%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
-          '80%, 100%': { transform: 'translateY(0)' },
-        },
-      },
-    },
-  },
-  plugins: [],
-}
+* Virtualize long lists (conversations/messages); stable keys by id (never indexes).
+* `next/image` for media; lazy-load attachments; prefetch avatars in viewport.
+* Server data: `cache: 'no-store'` for user-specific; use `revalidate`/`tags` for cacheable.
+* Dynamic imports for heavy panels; Suspense boundaries per page/section.
+* Memoize pure list items (`React.memo`) and handlers in hot lists; profile re-renders.
 
-export default config
-```
+# ERROR HANDLING & MONITORING
 
-next.config.mjs
-```javascript
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
-  images: {
-    domains: ['localhost', 'your-api-domain.com'],
-  },
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-        ],
-      },
-    ]
-  },
-}
+* `ErrorBoundary` wraps client trees; standard `ErrorFallback` from `components/feedback`; log to Sentry in boundary + `instrumentation.ts`.
+* Standard loading states via `components/feedback` (no bespoke spinners everywhere).
+* Track Web Vitals and WS health; show reconnection toasts only when user action is impacted.
 
-export default nextConfig
-```
+# TESTING
 
-tsconfig.json
-```json
-{
-  "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "es6"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./*"],
-      "@/components/*": ["./components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/features/*": ["./features/*"],
-      "@/styles/*": ["./styles/*"]
-    }
-  },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
-}
-```
+* **E2E (Playwright)**: auth, conversation list, message send/receive, templates, user admin, theme toggle, responsive breakpoints.
+* **Unit**: components, hooks, utils, API clients, form schemas; mock network/WS.
+* Coverage: ≥80% on critical paths; CI runs typecheck, lint, unit, and E2E smoke on PRs.
 
-- split components if they grow, extract subcomponents if growing beyond.
-- Reuse existing primitives; do not duplicate styles or behaviors.
+# DEPLOYMENT & CI/CD
+
+* Build must pass TS strict, ESLint, unit tests, and E2E smoke.
+* Tailwind content globs include `src/**/*`.
+* Env vars validated at boot (`lib/env.ts` with Zod) — **fail fast**.
+* Performance budgets for JS and LCP/INP on key routes; PR template calls out hot-path changes.
+
+# AUTO-FIX EXPECTATIONS
+
+* When violations occur, automatically move/rename/delete to comply with structure and rules.
+* Update all imports/references; remove dead code; consolidate to a single `lib/ws.ts`.
+* After fixes: run `tsc --noEmit` and `eslint --fix`; ensure routes/behavior remain unchanged.
+
+# POST-REFACTOR ACCEPTANCE CRITERIA
+
+* App compiles with zero TS errors; ESLint passes.
+* Routes and APIs behave as before.
+* `components/ui` contains primitives only; feature UI lives under `features/**`.
+* **Both themes pass AA checks** for all buttons, text, and status indicators.
+* Only one WebSocket client exists (`lib/ws.ts`); all imports updated.

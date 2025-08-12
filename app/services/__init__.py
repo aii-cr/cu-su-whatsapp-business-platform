@@ -2,6 +2,7 @@
 
 from app.services.whatsapp.message.message_service import message_service
 from app.services.whatsapp.conversation.conversation_service import conversation_service
+from app.services.whatsapp.tag_service import tag_service
 from app.services.audit.audit_service import audit_service
 from app.services.whatsapp.whatsapp_service import WhatsAppService
 from app.services.whatsapp.automation_service import automation_service
@@ -25,7 +26,8 @@ whatsapp_service = WhatsAppService()
 
 __all__ = [
     "message_service",
-    "conversation_service", 
+    "conversation_service",
+    "tag_service",
     "audit_service",
     "whatsapp_service",
     "automation_service",

@@ -19,6 +19,7 @@ from .auth.permissions import router as permissions_router
 from .websocket import router as websocket_router
 from .whatsapp.chat.conversations import router as conversations_router
 from .whatsapp.chat.messages import router as messages_router
+from .whatsapp.chat.tags import router as tags_router
 from .whatsapp.webhook import router as webhook_router
 from .business import router as business_router
 
@@ -36,6 +37,7 @@ api_router.include_router(webhook_router)
 # Include WhatsApp chat routes
 api_router.include_router(conversations_router)
 api_router.include_router(messages_router)
+api_router.include_router(tags_router)
 
 # Include business routes
 api_router.include_router(business_router)

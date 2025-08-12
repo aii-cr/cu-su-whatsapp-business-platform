@@ -13,7 +13,6 @@ alwaysApply: false
  - Organize code by feature under `app/` (`routes/`, `services/`, `db/models/`, `schemas/`, `utils/`).  
  - Encapsulate business logic in service classes under `app/services/` (e.g., `ConversationService`, `NotificationService`).  
  - Place reusable helpers in `app/utils/<feature>/`; group routes by feature in `app/routes/<feature>/`.  
- - Avoid files >300 lines; When a service’s code grows beyond this, create sub‑directories under that service and group related modules together. Within each sub‑folder, define as many focused Python files as needed—each encapsulating a single task or function—to maintain cohesion and avoid sprawling, monolithic files.
 
 [Validation & Schemas]
  - Validate all incoming data with Pydantic request schemas under `db/schemas/<feature>_in.py`; enforce strict types.  

@@ -32,7 +32,7 @@ export class HttpClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = getApiUrl(''); // This will return: http://localhost:8000/api/v1
+    this.baseUrl = getApiUrl(''); // This will return: http://localhost:8010/api/v1
   }
 
   /**
