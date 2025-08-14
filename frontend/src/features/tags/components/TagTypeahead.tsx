@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { TagSummary } from '../models/tag';
 import { TagChip } from './TagChip';
 import { useTagSuggestions } from '../hooks/useTagSuggestions';
+import { useCreateTag } from '../hooks/useTags';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -47,6 +48,9 @@ export function TagTypeahead({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Tag creation mutation
+  const createTagMutation = useCreateTag();
 
   // Debounce query for API calls
   const [debouncedQuery, setDebouncedQuery] = React.useState('');
@@ -124,16 +128,14 @@ export function TagTypeahead({
     if (!createFormData.name.trim()) return;
 
     try {
-      const newTag: TagSummary = {
-        id: `temp-${Date.now()}`,
+      // Create the tag via API
+      const newTag = await createTagMutation.mutateAsync({
         name: createFormData.name.trim(),
-        slug: createFormData.name.trim().toLowerCase().replace(/\s+/g, '-'),
-        display_name: createFormData.name.trim(),
         category: 'general',
         color: createFormData.color,
-        usage_count: 0,
-      };
+      });
       
+      // Call the callback with the created tag
       onNewTagCreated?.(newTag);
       setShowCreateForm(false);
       setCreateFormData({ name: '', color: '#2563eb' });
@@ -142,7 +144,7 @@ export function TagTypeahead({
     } catch (error) {
       console.error('Failed to create tag:', error);
     }
-  }, [createFormData, onNewTagCreated]);
+  }, [createFormData, createTagMutation, onNewTagCreated]);
 
   // Handle input change
   const handleInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,26 +309,33 @@ export function TagTypeahead({
                 )}
                 
                 {/* Tag suggestions */}
-                {suggestions.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => handleTagSelect(tag)}
-                    className="w-full px-4 py-3 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none flex items-center gap-3 transition-colors border-b border-border/50 last:border-b-0"
-                  >
-                    <div 
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: tag.color }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{tag.display_name || tag.name}</div>
-                      {tag.category && (
-                        <div className="text-xs text-muted-foreground capitalize">{tag.category}</div>
+                {suggestions.map((tag) => {
+                  const isSelected = selectedTags.some(t => t.id === tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => handleTagSelect(tag)}
+                      className="w-full px-4 py-3 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none flex items-center gap-3 transition-colors border-b border-border/50 last:border-b-0 group"
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{tag.display_name || tag.name}</div>
+                        {tag.category && (
+                          <div className="text-xs text-muted-foreground capitalize">{tag.category}</div>
+                        )}
+                      </div>
+                      {isSelected ? (
+                        <Check className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Check className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                       )}
-                    </div>
-                    <Check className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
                 
                 {/* Create new tag option */}
                 {canCreateNew && (
@@ -400,10 +409,17 @@ export function TagTypeahead({
                           type="button"
                           size="sm"
                           onClick={handleCreateTag}
-                          disabled={!createFormData.name.trim()}
+                          disabled={!createFormData.name.trim() || createTagMutation.isPending}
                           className="flex-1"
                         >
-                          Create & Add
+                          {createTagMutation.isPending ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Creating...
+                            </>
+                          ) : (
+                            'Create & Add'
+                          )}
                         </Button>
                         <Button
                           type="button"

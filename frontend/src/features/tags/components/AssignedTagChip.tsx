@@ -50,7 +50,7 @@ export function AssignedTagChip({
       style={{
         backgroundColor: `${tag.color}15`, // 15 = ~8% opacity in hex
         borderColor: `${tag.color}40`, // 40 = ~25% opacity in hex
-        color: getContrastTextColor(tag.color),
+        color: 'rgb(var(--foreground))', // Use CSS variable for proper theme support
       }}
     >
       {/* Tag name */}
@@ -98,20 +98,6 @@ export function AssignedTagChip({
       )}
     </div>
   );
-}
-
-// Helper function to calculate contrast text color
-function getContrastTextColor(hexColor: string): string {
-  const hex = hexColor.replace('#', '');
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  
-  // Calculate relative luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  
-  // Return appropriate text color
-  return luminance > 0.5 ? '#1f2937' : '#ffffff'; // gray-800 or white
 }
 
 export default AssignedTagChip;

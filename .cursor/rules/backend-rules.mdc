@@ -62,3 +62,24 @@ alwaysApply: false
 
 [Route File Size & Specificity]
  - Each route file in `app/api/routes/` should contain only one endpoint. Avoid large files with multiple endpoints; instead, create more specific route files under the correct subfolder to keep files small and focused.
+
+
+## 🚀 **Implementation Checklist**
+
+When creating new backend features, ensure:
+
+- [ ] ✅ Service layer follows single responsibility principle
+- [ ] ✅ Proper error handling with standardized responses
+- [ ] ✅ Database indexes are optimized for common queries
+- [ ] ✅ Input validation with Pydantic schemas
+- [ ] ✅ Audit logging for all operations
+- [ ] ✅ Proper authentication and authorization
+- [ ] ✅ Comprehensive API documentation
+- [ ] ✅ Unit and integration tests
+- [ ] ✅ Configuration management with environment variables
+- [ ] ✅ Proper logging with correlation IDs
+- [ ] ✅ Database transactions for complex operations
+- [ ] ✅ Rate limiting and security measures
+- [ ] ✅ Performance monitoring and metrics
+- [ ] ✅ Proper HTTP status codes
+- [ ] ✅ Consistent API response formats
