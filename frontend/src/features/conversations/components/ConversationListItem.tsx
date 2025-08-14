@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/Button';
 import { TagList } from '@/features/tags';
 import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
 import { useState, useEffect, useRef } from 'react';
+import { toast } from '@/components/feedback/Toast';
+import { ConversationsApi } from '../api/conversationsApi';
 
 interface ConversationListItemProps {
   conversation: Conversation;
@@ -43,8 +45,10 @@ export function ConversationListItem({
   agentsLoading = false
 }: ConversationListItemProps) {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [showEditTags, setShowEditTags] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside or pressing Escape
@@ -77,6 +81,31 @@ export function ConversationListItem({
     } else {
       // Default navigation to conversation details
       router.push(`/conversations/${conversation._id}`);
+    }
+  };
+
+  const handleClaimConversation = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      toast.error('You must be logged in to claim conversations');
+      return;
+    }
+
+    if (isClaiming) return;
+
+    try {
+      setIsClaiming(true);
+      await ConversationsApi.claimConversation(conversation._id);
+      toast.success('Conversation claimed successfully!');
+      
+      // Refresh the page to show updated assignment
+      window.location.reload();
+    } catch (error) {
+      console.error('Error claiming conversation:', error);
+      toast.error('Failed to claim conversation. Please try again.');
+    } finally {
+      setIsClaiming(false);
     }
   };
 
@@ -281,11 +310,22 @@ export function ConversationListItem({
               </div>
             )}
             
-            {/* Unassigned indicator */}
+            {/* Unassigned indicator with claim button */}
             {!assignedAgentInfo && (
-              <div className="flex items-center space-x-1 text-muted-foreground" title="Unassigned">
-                <UserIcon className="w-4 h-4 text-warning" />
-                <span className="text-sm font-medium text-warning">Unassigned</span>
+              <div className="flex flex-col items-end space-y-2">
+                <div className="flex items-center space-x-1 text-muted-foreground" title="Unassigned">
+                  <UserIcon className="w-4 h-4 text-warning" />
+                  <span className="text-sm font-medium text-warning">Unassigned</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleClaimConversation}
+                  disabled={isClaiming}
+                  className="text-xs px-2 py-1 h-7"
+                >
+                  {isClaiming ? 'Claiming...' : 'Claim'}
+                </Button>
               </div>
             )}
           </div>

@@ -100,6 +100,66 @@ class MessageService(BaseService):
         
         logger.info(f"Created message {message_id} for conversation {conversation_id}")
         
+        # Auto-assign conversation if agent sends first message and conversation is unassigned
+        if (sender_role == "agent" and sender_id and 
+            direction == "outbound" and not is_automated):
+            
+            # Check if conversation is unassigned
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if conversation and not conversation.get("assigned_agent_id"):
+                logger.info(f"🤖 [AUTO_ASSIGN] Auto-assigning conversation {conversation_id} to agent {sender_id}")
+                
+                # Auto-assign the conversation directly here to avoid circular import
+                try:
+                    # Update conversation with assigned agent
+                    update_data = {
+                        "assigned_agent_id": sender_id,
+                        "updated_at": datetime.now(timezone.utc),
+                        "status": "active"  # Activate the conversation when assigned
+                    }
+                    
+                    result = await db.conversations.update_one(
+                        {"_id": ObjectId(conversation_id)},
+                        {"$set": update_data}
+                    )
+                    
+                    if result.modified_count > 0:
+                        # Import audit service here to avoid circular import
+                        from app.services.audit.audit_service import audit_service
+                        
+                        # Log audit event
+                        await audit_service.log_event(
+                            action="conversation_auto_assigned",
+                            actor_id=str(sender_id),
+                            conversation_id=conversation_id,
+                            payload={
+                                "agent_id": str(sender_id),
+                                "previous_agent_id": None,
+                                "claim_method": "auto"
+                            },
+                            correlation_id=None
+                        )
+                        
+                        logger.info(f"✅ [AUTO_ASSIGN] Conversation {conversation_id} auto-assigned to agent {sender_id}")
+                        
+                        # Broadcast assignment update to all dashboard subscribers
+                        try:
+                            from app.services.websocket.websocket_service import manager
+                            
+                            # Get agent name for the broadcast
+                            agent_doc = await db.users.find_one({"_id": sender_id}, {"name": 1, "email": 1})
+                            agent_name = agent_doc.get("name") or agent_doc.get("email") if agent_doc else "Unknown Agent"
+                            
+                            await manager.broadcast_conversation_assignment_update(
+                                conversation_id=conversation_id,
+                                assigned_agent_id=str(sender_id),
+                                agent_name=agent_name
+                            )
+                        except Exception as ws_error:
+                            logger.error(f"❌ [AUTO_ASSIGN] Error broadcasting assignment update: {str(ws_error)}")
+                except Exception as e:
+                    logger.error(f"❌ [AUTO_ASSIGN] Error auto-assigning conversation {conversation_id}: {str(e)}")
+        
         # Return created message
         return await db.messages.find_one({"_id": message_id})
     

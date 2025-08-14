@@ -62,6 +62,7 @@ class ErrorCode(str, Enum):
     CONVERSATION_ALREADY_ACTIVE = "CONV_2105"
     CONVERSATION_ACCESS_DENIED = "CONV_2106"
     INVALID_CONVERSATION_ID = "CONV_2107"
+    CONVERSATION_ALREADY_ASSIGNED = "CONV_2108"
     MESSAGE_NOT_FOUND = "MSG_2105"
     MESSAGE_SEND_FAILED = "MSG_2106"
     MESSAGE_INVALID_TYPE = "MSG_2107"
@@ -234,6 +235,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Invalid conversation ID",
         "status_code": 400,
         "detail": "The provided conversation ID is not valid"
+    },
+    ErrorCode.CONVERSATION_ALREADY_ASSIGNED: {
+        "message": "Conversation already assigned",
+        "status_code": 400,
+        "detail": "This conversation is already assigned to another agent"
     },
     ErrorCode.MESSAGE_TOO_LARGE: {
         "message": "Message content exceeds size limit",

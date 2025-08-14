@@ -151,6 +151,19 @@ class ConnectionManager:
         for user_id in list(self.dashboard_subscribers):
             if user_id in self.active_connections:
                 await self.send_personal_message(message, user_id)
+
+    async def broadcast_conversation_assignment_update(self, conversation_id: str, assigned_agent_id: str, agent_name: str):
+        """Broadcast conversation assignment update to all dashboard subscribers."""
+        message = {
+            "type": "conversation_assignment_updated",
+            "conversation_id": conversation_id,
+            "assigned_agent_id": assigned_agent_id,
+            "agent_name": agent_name,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        logger.info(f"🔔 [WEBSOCKET] Broadcasting conversation assignment update for {conversation_id} to {len(self.dashboard_subscribers)} dashboard subscribers")
+        await self.broadcast_to_dashboard(message)
     
     def increment_unread_count(self, user_id: str, conversation_id: str):
         """Increment unread message count for a user and conversation."""

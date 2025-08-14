@@ -25,6 +25,9 @@ import { ConversationTagsBar } from '@/features/tags/components/ConversationTags
 import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
 import { useConversationTags } from '@/features/tags/hooks/useConversationTags';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
+import { useAuthStore } from '@/lib/store';
+import { toast } from '@/components/feedback/Toast';
+import { ConversationsApi } from '@/features/conversations/api/conversationsApi';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -46,6 +49,8 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
     onViewInfo,
     className = ''
   }, ref) => {
+    const { user } = useAuthStore();
+    const [isClaiming, setIsClaiming] = useState(false);
     const getStatusVariant = (status: string) => {
       switch (status) {
         case 'active':
@@ -62,6 +67,29 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
     const [showParticipants, setShowParticipants] = useState(false);
     const [showEditTags, setShowEditTags] = useState(false);
     const { isHistoryVisible, setHistoryVisible } = useHistoryPanel();
+    
+    const handleClaimConversation = async () => {
+      if (!user) {
+        toast.error('You must be logged in to claim conversations');
+        return;
+      }
+
+      if (isClaiming) return;
+
+      try {
+        setIsClaiming(true);
+        await ConversationsApi.claimConversation(String(conversation._id));
+        toast.success('Conversation claimed successfully! You have been assigned to this chat.');
+        
+        // Refresh the page to show updated assignment
+        window.location.reload();
+      } catch (error) {
+        console.error('Error claiming conversation:', error);
+        toast.error('Failed to claim conversation. Please try again.');
+      } finally {
+        setIsClaiming(false);
+      }
+    };
     
     // Get conversation tags
     const { data: conversationTags } = useConversationTags(String(conversation._id));
@@ -136,6 +164,20 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
 
         {/* Action buttons */}
         <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+          {/* Claim button for unassigned conversations */}
+          {!conversation.assigned_agent_id && user && (
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={handleClaimConversation}
+              disabled={isClaiming}
+              className="text-xs md:text-sm px-2 md:px-3 bg-primary hover:bg-primary/90"
+              title="Claim this conversation"
+            >
+              {isClaiming ? 'Claiming...' : 'Claim Chat'}
+            </Button>
+          )}
+          
           {/* Show History button when hidden */}
           {!isHistoryVisible && (
             <Button 

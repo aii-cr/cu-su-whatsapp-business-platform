@@ -74,6 +74,19 @@ export function useDashboardWebSocket() {
         unreadCounts: data.unread_counts,
       }));
     });
+
+    // Add handler for conversation assignment updates
+    clientRef.current.addMessageHandler('conversation_assignment_updated', (data) => {
+      console.log('🏷️ [DASHBOARD_HOOK] Conversation assignment updated:', data);
+      
+      // Invalidate conversations query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      
+      // Show toast notification
+      if (typeof window !== 'undefined' && window.toast) {
+        window.toast.success(`Conversation assigned to ${data.agent_name}`);
+      }
+    });
   }, []);
 
   const connect = useCallback(async () => {

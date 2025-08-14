@@ -603,6 +603,151 @@ class ConversationService(BaseService):
             )
         return result.deleted_count > 0
 
+    # ----------------- Conversation Assignment Management -----------------
+    async def claim_conversation(
+        self, 
+        conversation_id: str, 
+        agent_id: str, 
+        actor_id: Optional[str] = None, 
+        correlation_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Claim a conversation by an agent.
+        
+        Args:
+            conversation_id: Conversation ID to claim
+            agent_id: ID of the agent claiming the conversation
+            actor_id: ID of the user performing the action
+            correlation_id: Request correlation ID for tracing
+            
+        Returns:
+            Updated conversation document or None if failed
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current conversation
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found for claiming")
+                return None
+            
+            # Check if conversation is already assigned
+            if conversation.get("assigned_agent_id"):
+                logger.warning(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
+                return None
+            
+            # Update conversation with assigned agent
+            update_data = {
+                "assigned_agent_id": ObjectId(agent_id),
+                "updated_at": datetime.now(timezone.utc),
+                "status": "active"  # Activate the conversation when claimed
+            }
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"Failed to update conversation {conversation_id} for claiming")
+                return None
+            
+            # Get updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log audit event
+            await audit_service.log_event(
+                action="conversation_claimed",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                payload={
+                    "agent_id": agent_id,
+                    "previous_agent_id": None,
+                    "claim_method": "manual"
+                },
+                correlation_id=correlation_id,
+            )
+            
+            logger.info(f"Conversation {conversation_id} claimed by agent {agent_id}")
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error claiming conversation {conversation_id}: {str(e)}")
+            return None
+
+    async def auto_assign_conversation(
+        self, 
+        conversation_id: str, 
+        agent_id: str, 
+        actor_id: Optional[str] = None, 
+        correlation_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Automatically assign a conversation to an agent (e.g., when they send first message).
+        
+        Args:
+            conversation_id: Conversation ID to assign
+            agent_id: ID of the agent being assigned
+            actor_id: ID of the user performing the action
+            correlation_id: Request correlation ID for tracing
+            
+        Returns:
+            Updated conversation document or None if failed
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current conversation
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found for auto-assignment")
+                return None
+            
+            # Check if conversation is already assigned
+            if conversation.get("assigned_agent_id"):
+                logger.info(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
+                return conversation
+            
+            # Update conversation with assigned agent
+            update_data = {
+                "assigned_agent_id": ObjectId(agent_id),
+                "updated_at": datetime.now(timezone.utc),
+                "status": "active"  # Activate the conversation when assigned
+            }
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"Failed to update conversation {conversation_id} for auto-assignment")
+                return None
+            
+            # Get updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log audit event
+            await audit_service.log_event(
+                action="conversation_auto_assigned",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                payload={
+                    "agent_id": agent_id,
+                    "previous_agent_id": None,
+                    "claim_method": "auto"
+                },
+                correlation_id=correlation_id,
+            )
+            
+            logger.info(f"Conversation {conversation_id} auto-assigned to agent {agent_id}")
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error auto-assigning conversation {conversation_id}: {str(e)}")
+            return None
+
 
 # Global conversation service instance
 conversation_service = ConversationService() 

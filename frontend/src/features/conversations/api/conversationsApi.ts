@@ -155,4 +155,16 @@ export class ConversationsApi {
       throw error;
     }
   }
+
+  /**
+   * Claim an unassigned conversation
+   */
+  static async claimConversation(conversationId: string): Promise<Conversation> {
+    try {
+      const response = await httpClient.post<Conversation>(`/conversations/${conversationId}/claim`);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
