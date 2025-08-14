@@ -47,7 +47,12 @@ def create_session_token(
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.SESSION_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire, "type": "session"})
+    to_encode.update({
+        "exp": expire, 
+        "type": "session",
+        "iat": datetime.now(timezone.utc),  # Issued at time for inactivity tracking
+        "last_activity": datetime.now(timezone.utc).isoformat()  # Last activity timestamp
+    })
     
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -70,11 +75,51 @@ def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
         if payload.get("type") != "session":
             logger.warning(f"Token type mismatch: expected session, got {payload.get('type')}")
             return None
+        
+        # Check inactivity timeout
+        last_activity_str = payload.get("last_activity")
+        if last_activity_str:
+            try:
+                last_activity = datetime.fromisoformat(last_activity_str.replace('Z', '+00:00'))
+                inactivity_timeout = datetime.now(timezone.utc) - timedelta(minutes=settings.SESSION_INACTIVITY_MINUTES)
+                
+                if last_activity < inactivity_timeout:
+                    logger.warning(f"Session expired due to inactivity. Last activity: {last_activity}")
+                    return None
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid last_activity timestamp: {e}")
+                return None
             
         return payload
         
     except JWTError as e:
         logger.warning(f"Session token verification failed: {str(e)}")
+        return None
+
+
+def update_session_activity(token: str) -> Optional[str]:
+    """
+    Update the last activity timestamp in a session token.
+    
+    Args:
+        token: Current session token
+        
+    Returns:
+        Updated session token or None if invalid
+    """
+    try:
+        payload = verify_session_token(token)
+        if not payload:
+            return None
+        
+        # Update last activity
+        payload["last_activity"] = datetime.now(timezone.utc).isoformat()
+        
+        # Re-encode the token
+        return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        
+    except Exception as e:
+        logger.error(f"Failed to update session activity: {str(e)}")
         return None
 
 
@@ -180,13 +225,7 @@ async def get_current_user(session_data: SessionData = Depends(get_current_sessi
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """
-    Get the current active user (alias for get_current_user for clarity).
-    
-    Args:
-        current_user: Current user from dependency
-        
-    Returns:
-        Active user object
+    Get the current active user (alias for get_current_user).
     """
     return current_user
 

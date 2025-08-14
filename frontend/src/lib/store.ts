@@ -74,11 +74,19 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
+          // Always clear local state regardless of API call success
           set({
             user: null,
             isAuthenticated: false,
             isLoading: false,
           });
+          
+          // Clear any session expired flags
+          try {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('sessionExpired');
+            }
+          } catch {}
         }
       },
 
@@ -95,10 +103,29 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           isLoading: false,
         });
+        
+        // Clear any session expired flags
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('sessionExpired');
+          }
+        } catch {}
       },
 
       checkAuth: async () => {
         const state = get();
+        
+        // Check if session was marked as expired
+        try {
+          if (typeof window !== 'undefined' && sessionStorage.getItem('sessionExpired') === '1') {
+            set({
+              user: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+            return;
+          }
+        } catch {}
         
         // Always check auth on app startup if we don't have user data
         // This handles page reloads and session restoration
@@ -111,7 +138,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
-          } catch {
+          } catch (error) {
             // Only log in development to avoid console spam
             if (process.env.NODE_ENV === 'development') {
               console.log('Auth check failed - user not authenticated');
@@ -123,7 +150,7 @@ export const useAuthStore = create<AuthState>()(
             });
           }
         }
-      },
+      }
     }),
     {
       name: 'auth-storage',

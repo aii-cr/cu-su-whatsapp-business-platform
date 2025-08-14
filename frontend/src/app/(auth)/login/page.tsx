@@ -44,7 +44,7 @@ export default function LoginPage() {
     // Check for session expired from URL parameter
     const isExpired = searchParams.get('expired') === 'true';
     if (isExpired) {
-      toast.info('Your session has expired. Please log in again.');
+      toast.info('Your session has expired due to inactivity. Please log in again.');
       // Clean up the URL
       router.replace('/login');
       return;

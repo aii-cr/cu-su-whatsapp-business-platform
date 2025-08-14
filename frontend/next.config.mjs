@@ -27,7 +27,7 @@ const nextConfig = {
               script-src 'self' 'unsafe-eval' 'unsafe-inline';
               style-src 'self' 'unsafe-inline';
               img-src 'self' data: https:;
-              connect-src 'self' ws: wss: ${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8010'};
+              connect-src 'self' ws: wss: http://localhost:8010 https://localhost:8010;
               font-src 'self';
             `.replace(/\s+/g, ' ').trim()
           }

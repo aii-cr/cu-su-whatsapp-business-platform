@@ -11,7 +11,7 @@ This package provides modular authentication utilities including:
 from .session_auth import (
     get_current_user, get_current_active_user, get_current_session_token,
     set_session_cookie, clear_session_cookie, SessionData,
-    create_session_token, verify_session_token
+    create_session_token, verify_session_token, update_session_activity
 )
 from .permissions import (
     get_user_permissions, get_user_roles, check_user_permission, 
@@ -34,6 +34,7 @@ __all__ = [
     "SessionData",
     "create_session_token",
     "verify_session_token",
+    "update_session_activity",
     
     # Permissions and roles
     "get_user_permissions",

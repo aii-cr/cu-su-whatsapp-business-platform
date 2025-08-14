@@ -30,9 +30,11 @@ export class ApiError extends Error {
 
 export class HttpClient {
   private baseUrl: string;
+  private isRedirecting = false;
 
   constructor() {
-    this.baseUrl = getApiUrl(''); // This will return: http://localhost:8010/api/v1
+    // This will return: http://localhost:8010/api/v1
+    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010/api/v1';
   }
 
   /**
@@ -78,16 +80,27 @@ export class HttpClient {
       if (!response.ok) {
         // Handle authentication/authorization failures
         if (response.status === 401 || response.status === 403) {
-          // Mark session expired and redirect to login
-          try {
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('sessionExpired', '1');
-              // Redirect to login page with session expired message
-              window.location.href = '/login?expired=true';
-              // Return a default value to satisfy TypeScript
-              return {} as T;
+          // Prevent multiple redirects
+          if (!this.isRedirecting) {
+            this.isRedirecting = true;
+            try {
+              if (typeof window !== 'undefined') {
+                // Clear any existing auth state
+                sessionStorage.setItem('sessionExpired', '1');
+                localStorage.removeItem('auth-storage');
+                
+                // Redirect to login page with session expired message
+                window.location.href = '/login?expired=true';
+                
+                // Return a default value to satisfy TypeScript
+                return {} as T;
+              }
+            } catch (error) {
+              console.error('Error during session expiration redirect:', error);
             }
-          } catch {}
+          }
+          // Return empty object to prevent further processing
+          return {} as T;
         }
 
         throw new ApiError(
@@ -136,7 +149,7 @@ export class HttpClient {
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data?: unknown, options?: RequestInit): Promise<T> {
+  async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -147,21 +160,10 @@ export class HttpClient {
   /**
    * PUT request
    */
-  async put<T>(endpoint: string, data?: unknown, options?: RequestInit): Promise<T> {
+  async put<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  /**
-   * PATCH request
-   */
-  async patch<T>(endpoint: string, data?: unknown, options?: RequestInit): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -171,6 +173,17 @@ export class HttpClient {
    */
   async delete<T>(endpoint: string, options?: RequestInit): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  /**
+   * PATCH request
+   */
+  async patch<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
   }
 }
 
