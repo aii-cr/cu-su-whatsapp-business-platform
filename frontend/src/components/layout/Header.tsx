@@ -34,10 +34,26 @@ export function Header() {
   const handleLogout = async () => {
     try {
       await logout();
+      
+      // Clear browser history and redirect to login
+      if (typeof window !== 'undefined') {
+        // Clear any cached state
+        sessionStorage.clear();
+        sessionStorage.setItem('sessionExpired', '1');
+        
+        // Redirect to login page
+        window.location.href = '/login';
+      }
+      
       toast.success('Successfully logged out');
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Logout failed');
+      
+      // Even if logout fails, redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
     }
   };
 

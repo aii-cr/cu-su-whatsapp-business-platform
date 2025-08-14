@@ -1,17 +1,24 @@
 """User logout endpoint."""
 
-from fastapi import APIRouter, Response, Depends
-from app.services.auth.utils.session_auth import clear_session_cookie, get_current_user
+from fastapi import APIRouter, Response, Depends, Request
+from app.services.auth.utils.session_auth import clear_session_cookie, get_current_user, invalidate_session_token
 from app.core.logger import logger
 
 router = APIRouter()
 
 @router.post("/logout")
-async def logout_user(response: Response, current_user = Depends(get_current_user)):
+async def logout_user(request: Request, response: Response, current_user = Depends(get_current_user)):
     """
     Logout user and clear session cookie.
     """
     try:
+        # Get the session token from cookies
+        session_token = request.cookies.get("session_token")
+        
+        # Invalidate the session token if it exists
+        if session_token:
+            invalidate_session_token(session_token)
+        
         # Clear the session cookie
         clear_session_cookie(response)
         

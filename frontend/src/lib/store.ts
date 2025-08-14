@@ -81,12 +81,33 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
           
-          // Clear any session expired flags
+          // Clear all cached state to prevent back button issues
           try {
             if (typeof window !== 'undefined') {
-              sessionStorage.removeItem('sessionExpired');
+              // Clear session storage
+              sessionStorage.clear();
+              sessionStorage.setItem('sessionExpired', '1');
+              
+              // Clear local storage
+              localStorage.removeItem('auth-storage');
+              localStorage.removeItem('ui-storage');
+              
+              // Clear any other auth-related storage
+              localStorage.removeItem('user');
+              localStorage.removeItem('token');
+              localStorage.removeItem('session');
+              
+              // Force clear Zustand persisted state
+              const keys = Object.keys(localStorage);
+              keys.forEach(key => {
+                if (key.includes('auth') || key.includes('user') || key.includes('session')) {
+                  localStorage.removeItem(key);
+                }
+              });
             }
-          } catch {}
+          } catch (storageError) {
+            console.error('Error clearing storage:', storageError);
+          }
         }
       },
 
@@ -127,27 +148,34 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch {}
         
-        // Always check auth on app startup if we don't have user data
-        // This handles page reloads and session restoration
-        if (!state.user && !state.isLoading) {
-          set({ isLoading: true });
+        // Always validate session with backend, even if we have cached state
+        // This prevents back button issues where cached state exists but session is invalid
+        set({ isLoading: true });
+        try {
+          const user = await AuthApi.getCurrentUser();
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          // Session is invalid, clear all cached state
+          console.log('Auth check failed - user not authenticated');
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          
+          // Clear cached state since session is invalid
           try {
-            const user = await AuthApi.getCurrentUser();
-            set({
-              user,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } catch (error) {
-            // Only log in development to avoid console spam
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Auth check failed - user not authenticated');
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('sessionExpired', '1');
+              localStorage.removeItem('auth-storage');
+              localStorage.removeItem('ui-storage');
             }
-            set({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-            });
+          } catch (storageError) {
+            console.error('Error clearing storage on auth failure:', storageError);
           }
         }
       }

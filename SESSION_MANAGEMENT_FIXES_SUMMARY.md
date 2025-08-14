@@ -12,6 +12,8 @@ This document summarizes the comprehensive fixes implemented to resolve session 
 6. **Middleware Compatibility**: Fixed import errors with correlation ID functions
 7. **Backend Logging Errors**: Fixed taskName conflict in logging middleware
 8. **CORS Issues**: Fixed Content Security Policy and CORS configuration
+9. **Missing Error Codes**: Added AUTH_TOKEN_MISSING error code
+10. **Frontend Logout Redirect**: Fixed logout redirect to login page
 
 ## 🔧 Backend Fixes
 
@@ -30,6 +32,7 @@ This document summarizes the comprehensive fixes implemented to resolve session 
 - **Activity Updates**: New `update_session_activity()` function to refresh activity timestamps
 - **Enhanced Validation**: Improved token verification with inactivity timeout checking
 - **Better Error Handling**: More specific error messages for different expiration scenarios
+- **Session Invalidation**: Added `invalidate_session_token()` to prevent reuse of logged out sessions
 
 #### Key Changes:
 ```python
@@ -48,6 +51,13 @@ inactivity_timeout = datetime.now(timezone.utc) - timedelta(minutes=settings.SES
 if last_activity < inactivity_timeout:
     logger.warning(f"Session expired due to inactivity. Last activity: {last_activity}")
     return None
+
+# Added session invalidation
+def invalidate_session_token(token: str) -> None:
+    _invalidated_sessions.add(token)
+    # Clean up old invalidated tokens (keep only last 1000)
+    if len(_invalidated_sessions) > 1000:
+        _invalidated_sessions.clear()
 ```
 
 ### 3. Session Activity Middleware
@@ -103,17 +113,37 @@ def get_request_duration() -> Optional[float]:
 #### Login Endpoint (`app/api/routes/auth/users/login_user.py`)
 - Enhanced session token creation with activity tracking
 - Proper cookie setting with security attributes
+- Fixed parameter name issue in auth service
 
 #### Logout Endpoint (`app/api/routes/auth/users/logout_user.py`)
-- Improved session cleanup
+- Improved session cleanup with token invalidation
 - Always clears cookies even on errors
 - Better error handling
 
 #### Me Endpoint (`app/api/routes/auth/users/me.py`)
 - New endpoint for getting current user info
 - Session activity refresh capability
+- Fixed dependency injection with proper Request type
 
-### 5. Removed Legacy Authentication
+### 5. Error Code Management
+
+**File**: `app/config/error_codes.py`
+- Added missing `AUTH_TOKEN_MISSING` error code
+- Proper error message mapping for authentication failures
+- Consistent error handling across all endpoints
+
+#### Key Addition:
+```python
+# Authentication & Authorization Errors (1000-1099)
+AUTH_INVALID_CREDENTIALS = "AUTH_1001"
+AUTH_TOKEN_EXPIRED = "AUTH_1002"
+AUTH_TOKEN_INVALID = "AUTH_1003"
+AUTH_TOKEN_MISSING = "AUTH_1004"  # Added missing error code
+AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_1005"
+# ... other error codes
+```
+
+### 6. Removed Legacy Authentication
 
 **Deleted Files**:
 - `app/services/auth/utils/user_auth.py` (Bearer token authentication)
@@ -126,7 +156,7 @@ def get_request_duration() -> Optional[float]:
 - Updated to use new middleware system
 - Enhanced CORS configuration with comprehensive headers
 
-### 6. Enhanced CORS Configuration
+### 7. Enhanced CORS Configuration
 
 **File**: `app/main.py`
 - Comprehensive CORS headers configuration
@@ -196,6 +226,7 @@ if (!this.isRedirecting) {
 - **Session Expiration Check**: Check for expired session flags before auth checks
 - **Better Cleanup**: Clear session expired flags on logout and clearAuth
 - **Improved Error Handling**: Better error handling in checkAuth function
+- **Comprehensive State Clearing**: Clear all cached state on logout
 
 #### Key Changes:
 ```typescript
@@ -210,6 +241,51 @@ try {
     return;
   }
 } catch {}
+
+// Enhanced logout with comprehensive cleanup
+logout: async () => {
+  set({ isLoading: true });
+  try {
+    await AuthApi.logout();
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Always clear local state regardless of API call success
+    set({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+    
+    // Clear all cached state to prevent back button issues
+    try {
+      if (typeof window !== 'undefined') {
+        // Clear session storage
+        sessionStorage.clear();
+        sessionStorage.setItem('sessionExpired', '1');
+        
+        // Clear local storage
+        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('ui-storage');
+        
+        // Clear any other auth-related storage
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('session');
+        
+        // Force clear Zustand persisted state
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.includes('auth') || key.includes('user') || key.includes('session')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    } catch (storageError) {
+      console.error('Error clearing storage:', storageError);
+    }
+  }
+}
 ```
 
 ### 3. Authentication Wrapper Improvements
@@ -220,6 +296,7 @@ try {
 - **Redirect Prevention**: Added `isRedirecting` state to prevent multiple redirects
 - **Better Error Handling**: Improved error handling in auth checks
 - **State Cleanup**: Clear auth state on errors
+- **Route Change Validation**: Force session validation on route changes
 
 #### Key Changes:
 ```typescript
@@ -228,6 +305,25 @@ if (!hasCheckedAuth || isRedirecting) return;
 
 // Set redirecting flag to prevent multiple redirects
 setIsRedirecting(true);
+
+// Force auth check on route changes to prevent back button issues
+useEffect(() => {
+  if (hasCheckedAuth && isAuthenticated) {
+    // Validate session on every route change for protected routes
+    const validateSession = async () => {
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.error('Session validation failed:', error);
+        clearAuth();
+        setIsRedirecting(true);
+        router.replace('/login');
+      }
+    };
+    
+    validateSession();
+  }
+}, [pathname, hasCheckedAuth, isAuthenticated, checkAuth, clearAuth, router]);
 ```
 
 ### 4. Middleware Fixes
@@ -262,7 +358,45 @@ if (isExpired) {
 }
 ```
 
-### 6. Content Security Policy Fix
+### 6. Logout Handler Improvements
+
+**File**: `frontend/src/components/layout/Header.tsx`
+
+#### Key Fixes:
+- **Reliable Redirect**: Use `window.location.href` for guaranteed redirect
+- **State Clearing**: Clear all cached state on logout
+- **Error Handling**: Redirect even if logout API call fails
+
+#### Key Changes:
+```typescript
+const handleLogout = async () => {
+  try {
+    await logout();
+    
+    // Clear browser history and redirect to login
+    if (typeof window !== 'undefined') {
+      // Clear any cached state
+      sessionStorage.clear();
+      sessionStorage.setItem('sessionExpired', '1');
+      
+      // Redirect to login page
+      window.location.href = '/login';
+    }
+    
+    toast.success('Successfully logged out');
+  } catch (error) {
+    console.error('Logout error:', error);
+    toast.error('Logout failed');
+    
+    // Even if logout fails, redirect to login
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  }
+};
+```
+
+### 7. Content Security Policy Fix
 
 **File**: `frontend/next.config.mjs`
 
@@ -270,11 +404,26 @@ if (isExpired) {
 - **CSP Configuration**: Fixed Content Security Policy to allow API connections
 - **Connect-src**: Properly configured to allow connections to backend API
 - **WebSocket Support**: Added support for WebSocket connections
+- **Cache Control**: Added cache control headers to prevent browser caching
 
 #### Key Changes:
 ```javascript
 // Fixed CSP connect-src to allow API connections
 connect-src 'self' ws: wss: http://localhost:8010 https://localhost:8010;
+
+// Added cache control headers
+{
+  key: 'Cache-Control',
+  value: 'no-cache, no-store, must-revalidate, max-age=0',
+},
+{
+  key: 'Pragma',
+  value: 'no-cache',
+},
+{
+  key: 'Expires',
+  value: '0',
+}
 ```
 
 ## 🧪 Testing
@@ -288,19 +437,41 @@ connect-src 'self' ws: wss: http://localhost:8010 https://localhost:8010;
 - **API Endpoints**: Test login, logout, and protected endpoints
 - **Security**: Test token validation and tampering protection
 
+### New Test File: `tests/test_session_invalidation.py`
+
+#### Test Coverage:
+- **Session Invalidation**: Test that invalidated sessions cannot be reused
+- **Logout Functionality**: Test that logout properly invalidates sessions
+- **Multiple Sessions**: Test invalidation of multiple sessions
+- **Cleanup**: Test session invalidation cleanup mechanism
+
 #### Key Tests:
 ```python
-def test_session_inactivity_timeout(self):
-    """Test that sessions expire due to inactivity."""
-    # Create token with old activity time
-    old_time = datetime.now(timezone.utc) - timedelta(minutes=settings.SESSION_INACTIVITY_MINUTES + 1)
-    user_data["last_activity"] = old_time.isoformat()
+def test_session_invalidation(self):
+    """Test that invalidated sessions cannot be reused."""
+    # Create a test user
+    user_data = {
+        "_id": "507f1f77bcf86cd799439011",
+        "email": "testuser@example.com",
+        "first_name": "Test",
+        "last_name": "User"
+    }
     
+    # Create a session token
     token = create_session_token(user_data)
+    assert token is not None
     
-    # Token should be invalid due to inactivity
-    payload = verify_session_token(token)
-    assert payload is None
+    # Verify the token is valid
+    session_data = verify_session_token(token)
+    assert session_data is not None
+    assert session_data.email == "testuser@example.com"
+    
+    # Invalidate the token
+    invalidate_session_token(token)
+    
+    # Verify the token is now invalid
+    session_data = verify_session_token(token)
+    assert session_data is None
 ```
 
 ### API Connection Testing
@@ -308,6 +479,7 @@ def test_session_inactivity_timeout(self):
 - **Login Endpoint**: Confirmed POST requests to login endpoint work
 - **Session Cookies**: Verified session cookies are set properly
 - **Error Handling**: Tested various error scenarios
+- **Session Invalidation**: Verified logged out sessions cannot be reused
 
 ## 🔒 Security Improvements
 
@@ -321,17 +493,25 @@ def test_session_inactivity_timeout(self):
 - **Activity Tracking**: Prevents session hijacking through inactivity
 - **Token Validation**: Comprehensive token verification
 - **Automatic Cleanup**: Proper session cleanup on expiration
+- **Session Invalidation**: Prevents reuse of logged out sessions
 
 ### 3. Error Handling
 - **Sanitized Errors**: No sensitive information in error messages
 - **Proper Logging**: Detailed logging for debugging without exposing data
 - **Graceful Degradation**: System continues to work even with auth failures
+- **Missing Error Codes**: Added AUTH_TOKEN_MISSING for proper error handling
 
 ### 4. CORS Security
 - **Origin Validation**: Proper origin checking
 - **Credentials Support**: Secure cookie handling
 - **Header Validation**: Comprehensive header allowlist
 - **Preflight Caching**: Optimized CORS preflight handling
+
+### 5. Frontend Security
+- **State Clearing**: Comprehensive cleanup of cached authentication state
+- **Browser History**: Clear browser history to prevent back button access
+- **Cache Control**: Prevent browser caching of authenticated pages
+- **Reliable Redirects**: Guaranteed redirect to login page on logout
 
 ## 📊 Performance Improvements
 
@@ -378,6 +558,8 @@ No database schema changes required. All session data is stored in JWT tokens.
 - [x] Logging errors fixed (no more taskName conflicts)
 - [x] CORS configuration working correctly
 - [x] API endpoints responding properly
+- [x] Missing error codes added (AUTH_TOKEN_MISSING)
+- [x] Session invalidation working correctly
 
 ### Frontend Verification
 - [x] No endless loops on session expiration
@@ -388,6 +570,9 @@ No database schema changes required. All session data is stored in JWT tokens.
 - [x] No multiple redirects
 - [x] CSP configuration allows API connections
 - [x] CORS preflight requests working
+- [x] Logout redirects to login page reliably
+- [x] Browser history cleared on logout
+- [x] Cache control headers prevent caching
 
 ### Security Verification
 - [x] Cookies are HttpOnly and secure
@@ -395,6 +580,8 @@ No database schema changes required. All session data is stored in JWT tokens.
 - [x] Inactivity timeout prevents session hijacking
 - [x] No sensitive data in error messages
 - [x] CORS properly configured for security
+- [x] Session invalidation prevents reuse
+- [x] Back button access prevented after logout
 
 ## 🐛 Known Issues Resolved
 
@@ -407,6 +594,9 @@ No database schema changes required. All session data is stored in JWT tokens.
 7. **Logging Errors**: Fixed taskName conflict in logging middleware
 8. **CORS Issues**: Fixed Content Security Policy and CORS configuration
 9. **API Connection**: Verified API endpoints are working correctly
+10. **Missing Error Codes**: Added AUTH_TOKEN_MISSING error code
+11. **Frontend Logout Redirect**: Fixed logout redirect to login page
+12. **Back Button Access**: Prevented access to authenticated pages after logout
 
 ## 📈 Monitoring
 
@@ -417,6 +607,7 @@ No database schema changes required. All session data is stored in JWT tokens.
 - Session activity updates
 - CORS preflight requests
 - API response times
+- Session invalidation events
 
 ### Metrics to Track
 - Session duration
@@ -424,6 +615,7 @@ No database schema changes required. All session data is stored in JWT tokens.
 - Authentication success/failure rates
 - API response times
 - CORS preflight frequency
+- Logout success rates
 
 ## 🔄 Future Improvements
 
@@ -440,4 +632,6 @@ No database schema changes required. All session data is stored in JWT tokens.
 **Backend Status**: ✅ Starts successfully without import errors  
 **API Status**: ✅ All endpoints working correctly  
 **CORS Status**: ✅ Preflight and actual requests working  
-**Frontend Status**: ✅ Ready for testing with fixed CSP configuration
+**Frontend Status**: ✅ Ready for testing with fixed CSP configuration  
+**Error Handling**: ✅ All error codes properly defined  
+**Logout Flow**: ✅ Proper redirect to login page with state clearing

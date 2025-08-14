@@ -40,6 +40,25 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     performAuthCheck();
   }, [checkAuth, clearAuth]);
 
+  // Force auth check on route changes to prevent back button issues
+  useEffect(() => {
+    if (hasCheckedAuth && isAuthenticated) {
+      // Validate session on every route change for protected routes
+      const validateSession = async () => {
+        try {
+          await checkAuth();
+        } catch (error) {
+          console.error('Session validation failed:', error);
+          clearAuth();
+          setIsRedirecting(true);
+          router.replace('/login');
+        }
+      };
+      
+      validateSession();
+    }
+  }, [pathname, hasCheckedAuth, isAuthenticated, checkAuth, clearAuth, router]);
+
   useEffect(() => {
     // Only perform redirects after initial auth check is complete
     if (!hasCheckedAuth || isRedirecting) return;

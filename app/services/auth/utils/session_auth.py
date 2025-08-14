@@ -1,79 +1,106 @@
-"""Session-based authentication utilities using cookies."""
+"""Session authentication utilities for cookie-based authentication."""
 
-from datetime import datetime, timedelta, timezone
+import jwt
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
-from fastapi import Depends, HTTPException, status, Request, Response
-from fastapi.security import APIKeyCookie
+from fastapi import HTTPException, status, Response, Depends, Request
+from pydantic import BaseModel
 from bson import ObjectId
-from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode, get_error_response
 
-# Cookie-based security scheme
-session_cookie = APIKeyCookie(
-    name="session_token",
-    scheme_name="CookieAuth",
-    description=(
-        "Cookie-based auth. endpoint upon successful login and must be present on subsequent requests."
-    ),
-    auto_error=True
-)
+# In-memory storage for invalidated session tokens (in production, use Redis)
+_invalidated_sessions: set = set()
 
+class SessionData(BaseModel):
+    """Session data model."""
+    user_id: str
+    email: str
+    exp: datetime
+    type: str
+    iat: datetime
+    last_activity: str
 
-class SessionData:
-    """Session data structure for cookie-based sessions."""
-    
-    def __init__(self, user_id: str = None, email: str = None, scopes: list = None):
-        self.user_id = user_id
-        self.email = email
-        self.scopes = scopes or []
-
-
-def create_session_token(
-    data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None
-) -> str:
+def create_session_token(user_data: Dict[str, Any]) -> str:
     """
-    Create a session token for cookies.
+    Create a session token for the user.
     
     Args:
-        data: Data to encode in the token
-        expires_delta: Optional custom expiration time
+        user_data: User data to encode in token
         
     Returns:
-        Encoded session token string
-    """
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.SESSION_EXPIRE_MINUTES))
-    to_encode.update({
-        "exp": expire, 
-        "type": "session",
-        "iat": datetime.now(timezone.utc),  # Issued at time for inactivity tracking
-        "last_activity": datetime.now(timezone.utc).isoformat()  # Last activity timestamp
-    })
-    
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-
-
-def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
-    """
-    Verify and decode a session token.
-    
-    Args:
-        token: Session token string
-        
-    Returns:
-        Decoded token payload or None if invalid
+        JWT session token
     """
     try:
-        # The JWT library automatically validates the 'exp' claim
+        # Set expiration time
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
+        
+        # Prepare token payload
+        to_encode = {
+            "sub": str(user_data["_id"]),
+            "email": user_data["email"],
+        }
+        
+        # Add session-specific fields
+        to_encode.update({
+            "exp": expire,
+            "type": "session",
+            "iat": datetime.now(timezone.utc),  # Issued at time for inactivity tracking
+            "last_activity": datetime.now(timezone.utc).isoformat()  # Last activity timestamp
+        })
+        
+        # Create JWT token
+        token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        
+        logger.info(f"Session token created for user {user_data['email']}")
+        return token
+        
+    except Exception as e:
+        logger.error(f"Failed to create session token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=get_error_response(ErrorCode.INTERNAL_SERVER_ERROR)["message"],
+        )
+
+def verify_session_token(token: str) -> Optional[SessionData]:
+    """
+    Verify and decode session token.
+    
+    Args:
+        token: JWT session token
+        
+    Returns:
+        SessionData if valid, None if invalid
+    """
+    try:
+        # Check if token is in invalidated sessions
+        if token in _invalidated_sessions:
+            logger.warning("Attempted to use invalidated session token")
+            return None
+        
+        # Decode token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         
-        # Check token type
-        if payload.get("type") != "session":
-            logger.warning(f"Token type mismatch: expected session, got {payload.get('type')}")
+        # Validate token type
+        token_type = payload.get("type")
+        if token_type != "session":
+            logger.warning(f"Invalid token type: {token_type}")
+            return None
+        
+        # Check if token is expired
+        exp = payload.get("exp")
+        if not exp:
+            logger.warning("Token missing expiration")
+            return None
+        
+        # Convert exp to datetime if it's a timestamp
+        if isinstance(exp, (int, float)):
+            exp = datetime.fromtimestamp(exp, tz=timezone.utc)
+        
+        if exp < datetime.now(timezone.utc):
+            logger.warning("Session token expired")
             return None
         
         # Check inactivity timeout
@@ -82,24 +109,38 @@ def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
             try:
                 last_activity = datetime.fromisoformat(last_activity_str.replace('Z', '+00:00'))
                 inactivity_timeout = datetime.now(timezone.utc) - timedelta(minutes=settings.SESSION_INACTIVITY_MINUTES)
-                
                 if last_activity < inactivity_timeout:
                     logger.warning(f"Session expired due to inactivity. Last activity: {last_activity}")
                     return None
             except (ValueError, TypeError) as e:
                 logger.warning(f"Invalid last_activity timestamp: {e}")
                 return None
-            
-        return payload
         
-    except JWTError as e:
-        logger.warning(f"Session token verification failed: {str(e)}")
+        # Create session data
+        session_data = SessionData(
+            user_id=payload.get("sub"),
+            email=payload.get("email"),
+            exp=exp,
+            type=token_type,
+            iat=datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc),
+            last_activity=last_activity_str or datetime.now(timezone.utc).isoformat()
+        )
+        
+        return session_data
+        
+    except jwt.ExpiredSignatureError:
+        logger.warning("Session token expired")
         return None
-
+    except jwt.JWTError as e:
+        logger.warning(f"Invalid session token: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Session token verification failed: {str(e)}")
+        return None
 
 def update_session_activity(token: str) -> Optional[str]:
     """
-    Update the last activity timestamp in a session token.
+    Update the last_activity timestamp in a session token.
     
     Args:
         token: Current session token
@@ -108,76 +149,83 @@ def update_session_activity(token: str) -> Optional[str]:
         Updated session token or None if invalid
     """
     try:
-        payload = verify_session_token(token)
-        if not payload:
+        # Verify current token
+        session_data = verify_session_token(token)
+        if not session_data:
             return None
         
-        # Update last activity
-        payload["last_activity"] = datetime.now(timezone.utc).isoformat()
+        # Create new token with updated activity
+        to_encode = {
+            "sub": session_data.user_id,
+            "email": session_data.email,
+            "exp": session_data.exp,
+            "type": session_data.type,
+            "iat": session_data.iat,
+            "last_activity": datetime.now(timezone.utc).isoformat()
+        }
         
-        # Re-encode the token
-        return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        # Create new JWT token
+        new_token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        
+        return new_token
         
     except Exception as e:
         logger.error(f"Failed to update session activity: {str(e)}")
         return None
 
-
-async def get_current_session_token(
-    session_token: str = Depends(session_cookie)
-) -> SessionData:
+def invalidate_session_token(token: str) -> None:
     """
-    Extract and validate the current user from session token.
+    Invalidate a session token to prevent reuse.
     
     Args:
-        session_token: Session token from cookie
-        
-    Returns:
-        SessionData object with user information
-        
-    Raises:
-        HTTPException: If token is invalid or expired
+        token: Session token to invalidate
     """
     try:
-        payload = verify_session_token(session_token)
-        if not payload:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=get_error_response(ErrorCode.AUTH_TOKEN_EXPIRED)["message"],
-            )
+        # Add token to invalidated sessions set
+        _invalidated_sessions.add(token)
         
-        user_id: str = payload.get("sub")
-        email: str = payload.get("email")
-        scopes: list[str] = payload.get("scopes", [])
+        # Clean up old invalidated tokens (keep only last 1000)
+        if len(_invalidated_sessions) > 1000:
+            # Remove oldest tokens (simple cleanup)
+            _invalidated_sessions.clear()
         
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
-            )
-            
-        return SessionData(user_id=user_id, email=email, scopes=scopes)
+        logger.info("Session token invalidated")
         
-    except JWTError as e:
-        logger.error(f"Session token validation failed: {str(e)}")
-        # Check if it's an expiration error
-        if "expired" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=get_error_response(ErrorCode.AUTH_TOKEN_EXPIRED)["message"],
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
-            )
     except Exception as e:
-        logger.error(f"Session token validation failed: {str(e)}")
+        logger.error(f"Failed to invalidate session token: {str(e)}")
+
+async def get_current_session_token(request: Request) -> SessionData:
+    """
+    Get current session token from request cookies.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        SessionData from token
+        
+    Raises:
+        HTTPException: If no valid session token found
+    """
+    session_token = request.cookies.get("session_token")
+    
+    if not session_token:
+        logger.warning("No session token found in cookies")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
+            detail=get_error_response(ErrorCode.AUTH_TOKEN_MISSING)["message"],
         )
-
+    
+    session_data = verify_session_token(session_token)
+    
+    if not session_data:
+        logger.warning("Invalid session token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=get_error_response(ErrorCode.AUTH_TOKEN_EXPIRED)["message"],
+        )
+    
+    return session_data
 
 async def get_current_user(session_data: SessionData = Depends(get_current_session_token)):
     """
@@ -222,13 +270,11 @@ async def get_current_user(session_data: SessionData = Depends(get_current_sessi
             detail=get_error_response(ErrorCode.AUTH_TOKEN_INVALID)["message"],
         )
 
-
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """
     Get the current active user (alias for get_current_user).
     """
     return current_user
-
 
 def set_session_cookie(response: Response, session_token: str, max_age: int = None):
     """
@@ -251,7 +297,6 @@ def set_session_cookie(response: Response, session_token: str, max_age: int = No
         samesite="lax",
         path="/"
     )
-
 
 def clear_session_cookie(response: Response):
     """

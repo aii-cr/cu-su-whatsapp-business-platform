@@ -126,11 +126,11 @@ class AuthService(BaseService):
         Returns:
             Session token string
         """
-        token_data = {"sub": str(user_id)}
+        user_data = {"_id": user_id}
         if email:
-            token_data["email"] = email
+            user_data["email"] = email
             
-        return create_session_token(data=token_data)
+        return create_session_token(user_data)
     
     async def get_user_by_id(self, user_id: ObjectId) -> Optional[Dict[str, Any]]:
         """

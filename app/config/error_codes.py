@@ -14,12 +14,13 @@ class ErrorCode(str, Enum):
     AUTH_INVALID_CREDENTIALS = "AUTH_1001"
     AUTH_TOKEN_EXPIRED = "AUTH_1002"
     AUTH_TOKEN_INVALID = "AUTH_1003"
-    AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_1004"
-    AUTH_USER_NOT_FOUND = "AUTH_1005"
-    AUTH_USER_INACTIVE = "AUTH_1006"
-    AUTH_PASSWORD_WEAK = "AUTH_1007"
-    AUTH_EMAIL_ALREADY_EXISTS = "AUTH_1008"
-    AUTH_LOGIN_REQUIRED = "AUTH_1009"
+    AUTH_TOKEN_MISSING = "AUTH_1004"
+    AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_1005"
+    AUTH_USER_NOT_FOUND = "AUTH_1006"
+    AUTH_USER_INACTIVE = "AUTH_1007"
+    AUTH_PASSWORD_WEAK = "AUTH_1008"
+    AUTH_EMAIL_ALREADY_EXISTS = "AUTH_1009"
+    AUTH_LOGIN_REQUIRED = "AUTH_1010"
     
     # User Management Errors (1100-1199)
     USER_NOT_FOUND = "USER_1101"
@@ -137,6 +138,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Invalid authentication token",
         "status_code": 401,
         "detail": "The provided token is malformed or invalid"
+    },
+    ErrorCode.AUTH_TOKEN_MISSING: {
+        "message": "Authentication token is missing",
+        "status_code": 401,
+        "detail": "Please provide an authentication token"
     },
     ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS: {
         "message": "Insufficient permissions to perform this action",
