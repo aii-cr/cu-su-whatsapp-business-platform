@@ -18,6 +18,7 @@ export interface TagTypeaheadProps {
   selectedTags: TagSummary[];
   onTagsChange: (tags: TagSummary[]) => void;
   excludeTagIds?: string[];
+  assignedTagNames?: string[]; // Add this prop to check against assigned tag names
   maxTags?: number;
   placeholder?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -30,6 +31,7 @@ export function TagTypeahead({
   selectedTags,
   onTagsChange,
   excludeTagIds = [],
+  assignedTagNames = [], // Add this parameter
   maxTags = 10,
   placeholder = "Search or create tags...",
   size = 'md',
@@ -101,8 +103,33 @@ export function TagTypeahead({
     );
   }, [query, suggestions]);
 
-  // Check if tag is already assigned to conversation
+  // Check if tag is already assigned to conversation (in excludeTagIds)
   const tagAlreadyAssigned = React.useMemo(() => {
+    if (!query.trim()) return false;
+    const normalizedQuery = query.trim().toLowerCase();
+    
+    // First check if any tag in suggestions matches and is excluded
+    const matchingExcludedTag = suggestions.find(tag => 
+      excludeTagIds.includes(tag.id) && (
+        tag.name.toLowerCase() === normalizedQuery ||
+        (tag.display_name && tag.display_name.toLowerCase() === normalizedQuery)
+      )
+    );
+    
+    if (matchingExcludedTag) {
+      return true;
+    }
+    
+    // Check if the query matches any assigned tag name
+    const isAssignedTagName = assignedTagNames.some(tagName => 
+      tagName.toLowerCase() === normalizedQuery
+    );
+    
+    return isAssignedTagName;
+  }, [query, suggestions, excludeTagIds, assignedTagNames]);
+
+  // Check if tag is already selected for adding
+  const tagAlreadySelected = React.useMemo(() => {
     if (!query.trim()) return false;
     const normalizedQuery = query.trim().toLowerCase();
     return selectedTags.some(tag => 
@@ -111,14 +138,35 @@ export function TagTypeahead({
     );
   }, [query, selectedTags]);
 
+  // Find the existing tag that matches the query
+  const existingTag = React.useMemo(() => {
+    if (!query.trim()) return null;
+    const normalizedQuery = query.trim().toLowerCase();
+    return suggestions.find(tag => 
+      tag.name.toLowerCase() === normalizedQuery ||
+      (tag.display_name && tag.display_name.toLowerCase() === normalizedQuery)
+    );
+  }, [query, suggestions]);
+
   // Determine if we can create the tag
-  const canCreateTag = queryLength >= 2 && !tagAlreadyExists && !tagAlreadyAssigned && !showCreateForm;
+  const canCreateTag = queryLength >= 2 && !tagAlreadyExists && !tagAlreadyAssigned && !tagAlreadySelected && !showCreateForm;
 
   // Handle input focus/blur
   const handleInputFocus = React.useCallback(() => {
     if (!disabled) {
       setIsOpen(true);
       setShowAllSuggestions(false);
+      
+      // Auto-scroll to show suggestions after a short delay
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest',
+            inline: 'nearest'
+          });
+        }
+      }, 100);
     }
   }, [disabled]);
 
@@ -172,10 +220,17 @@ export function TagTypeahead({
       );
 
       if (existingTag) {
-        // If tag exists, just select it instead of creating
+        // Check if the existing tag is already assigned to this conversation
+        if (excludeTagIds.includes(existingTag.id)) {
+          setCreateError('This tag already exists and is assigned to this conversation.');
+          return;
+        }
+        
+        // If tag exists but not assigned, just select it instead of creating
         handleTagSelect(existingTag);
         setShowCreateForm(false);
         setCreateFormData({ name: '', color: '#2563eb' });
+        setCreateError(null);
         setQuery('');
         setIsOpen(false);
         setShowAllSuggestions(false);
@@ -208,7 +263,7 @@ export function TagTypeahead({
         if (errorMessage.toLowerCase().includes('already exists') || 
             errorMessage.toLowerCase().includes('duplicate') ||
             errorMessage.toLowerCase().includes('unique')) {
-          setCreateError('This tag already exists. Please try a different name.');
+          setCreateError('This tag already exists. Please try a different name or select it from the list above.');
         } else {
           setCreateError('Failed to create tag. Please try again.');
         }
@@ -216,7 +271,7 @@ export function TagTypeahead({
         setCreateError('Failed to create tag. Please try again.');
       }
     }
-  }, [createFormData, createTagMutation, onNewTagCreated, suggestions, handleTagSelect]);
+  }, [createFormData, createTagMutation, onNewTagCreated, suggestions, handleTagSelect, excludeTagIds]);
 
   // Handle input change
   const handleInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,6 +282,17 @@ export function TagTypeahead({
       setIsOpen(true);
       setShowCreateForm(false);
       setShowAllSuggestions(false);
+      
+      // Auto-scroll to show suggestions when typing
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest',
+            inline: 'nearest'
+          });
+        }
+      }, 150);
     } else {
       setIsOpen(true);
       setShowCreateForm(false);
@@ -446,14 +512,24 @@ export function TagTypeahead({
                 {query.trim() && queryLength >= 2 && !showCreateForm && (
                   <div className="border-t border-border">
                     {tagAlreadyExists ? (
-                      <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
-                        <AlertTriangle className="h-4 w-4 text-warning" />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">Tag "{query.trim()}" already exists</div>
-                          <div className="text-xs">Try selecting it from the list above</div>
+                      existingTag && excludeTagIds.includes(existingTag.id) ? (
+                        <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
+                          <Check className="h-4 w-4 text-success" />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">Tag "{query.trim()}" already assigned</div>
+                            <div className="text-xs">This tag is already assigned to this conversation</div>
+                          </div>
                         </div>
-                      </div>
-                    ) : tagAlreadyAssigned ? (
+                      ) : (
+                        <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
+                          <AlertTriangle className="h-4 w-4 text-warning" />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">Tag "{query.trim()}" already exists</div>
+                            <div className="text-xs">Try selecting it from the list above</div>
+                          </div>
+                        </div>
+                      )
+                    ) : tagAlreadySelected ? (
                       <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
                         <Check className="h-4 w-4 text-success" />
                         <div className="flex-1">
@@ -580,9 +656,21 @@ export function TagTypeahead({
                 {/* No results */}
                 {!isPopular && suggestions.length === 0 && query.trim() && (
                   <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    <TagIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>No tags found for "{query.trim()}"</p>
-                    <p className="text-xs mt-1">Try a different search term or create a new tag</p>
+                    {assignedTagNames.some(tagName => 
+                      tagName.toLowerCase() === query.trim().toLowerCase()
+                    ) ? (
+                      <>
+                        <TagIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Tag "{query.trim()}" already assigned</p>
+                        <p className="text-xs mt-1">This tag is already assigned to this conversation</p>
+                      </>
+                    ) : (
+                      <>
+                        <TagIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No tags found for "{query.trim()}"</p>
+                        <p className="text-xs mt-1">Try a different search term or create a new tag</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -100,7 +100,30 @@ class ConversationService(BaseService):
         """
         try:
             db = await self._get_db()
-            return await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            if conversation:
+                # Get tags for this conversation
+                conversation_tags = await db.conversation_tags.find({
+                    "conversation_id": ObjectId(conversation_id)
+                }).sort("assigned_at", 1).to_list(length=None)
+                
+                # Convert to tag objects for frontend
+                tags = []
+                for conv_tag in conversation_tags:
+                    tags.append({
+                        "id": str(conv_tag["tag_id"]),
+                        "name": conv_tag["tag_name"],
+                        "slug": conv_tag.get("tag_slug", conv_tag["tag_name"].lower().replace(" ", "-")),
+                        "display_name": conv_tag["tag_name"],
+                        "category": conv_tag.get("tag_category", "general"),
+                        "color": conv_tag["tag_color"],
+                        "usage_count": 0  # Not relevant for conversation detail
+                    })
+                
+                conversation["tags"] = tags
+            
+            return conversation
         except Exception as e:
             logger.error(f"Error getting conversation {conversation_id}: {str(e)}")
             return None
@@ -189,6 +212,29 @@ class ConversationService(BaseService):
         conversations = await db.conversations.find(query).sort(
             sort_by, sort_direction
         ).skip(skip).limit(per_page).to_list(per_page)
+        
+        # Populate tags for each conversation
+        for conversation in conversations:
+            conversation_id = conversation["_id"]
+            # Get tags for this conversation
+            conversation_tags = await db.conversation_tags.find({
+                "conversation_id": conversation_id
+            }).sort("assigned_at", 1).to_list(length=None)
+            
+            # Convert to tag objects for frontend
+            tags = []
+            for conv_tag in conversation_tags:
+                tags.append({
+                    "id": str(conv_tag["tag_id"]),
+                    "name": conv_tag["tag_name"],
+                    "slug": conv_tag.get("tag_slug", conv_tag["tag_name"].lower().replace(" ", "-")),
+                    "display_name": conv_tag["tag_name"],
+                    "category": conv_tag.get("tag_category", "general"),
+                    "color": conv_tag["tag_color"],
+                    "usage_count": 0  # Not relevant for conversation list
+                })
+            
+            conversation["tags"] = tags
         
         return {
             "conversations": conversations,

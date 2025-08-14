@@ -18,10 +18,14 @@ import {
   PhoneIcon,
   ChatBubbleLeftRightIcon,
   ClockIcon,
-  ExclamationCircleIcon
+  ExclamationCircleIcon,
+  EllipsisVerticalIcon,
+  TagIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { TagList } from '@/features/tags';
+import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
+import { useState, useEffect, useRef } from 'react';
 
 interface ConversationListItemProps {
   conversation: Conversation;
@@ -39,6 +43,33 @@ export function ConversationListItem({
   agentsLoading = false
 }: ConversationListItemProps) {
   const router = useRouter();
+  const [showEditTags, setShowEditTags] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [showDropdown]);
 
   const handleClick = () => {
     if (onClick) {
@@ -111,7 +142,7 @@ export function ConversationListItem({
         flex items-center p-4 border border-border rounded-lg 
         hover:bg-accent hover:text-accent-foreground 
         cursor-pointer transition-all duration-150 
-        group relative
+        group relative overflow-visible
         ${className}
       `}
     >
@@ -167,15 +198,19 @@ export function ConversationListItem({
         )}
         
         {/* Tags */}
-        {conversation.tags && conversation.tags.length > 0 && (
+        {conversation.tags && conversation.tags.length > 0 ? (
           <div className="mb-2">
             <TagList 
               tags={conversation.tags}
               variant="compact"
               size="sm"
-              maxDisplay={3}
+              maxDisplay={4}
               className="gap-1"
             />
+          </div>
+        ) : (
+          <div className="mb-2 text-xs text-muted-foreground">
+            No tags assigned
           </div>
         )}
         
@@ -257,10 +292,47 @@ export function ConversationListItem({
         </div>
       </div>
 
-      {/* Hover indicator */}
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-2 flex items-center gap-2">
-        <Button size="xs" variant="outline" onClick={(e) => { e.stopPropagation(); window.location.href = `/conversations/${conversation._id}`; }}>Open</Button>
+      {/* Three dots menu - always visible */}
+      <div className="ml-2 flex items-center relative" ref={dropdownRef}>
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDropdown(!showDropdown);
+          }}
+          className="h-10 w-10 p-0 bg-muted hover:bg-accent text-foreground border border-border rounded-md flex items-center justify-center cursor-pointer transition-colors"
+          aria-label="More actions"
+        >
+          <EllipsisVerticalIcon className="w-5 h-5" />
+        </div>
+        
+        {/* Dropdown menu */}
+        {showDropdown && (
+          <div className="absolute right-0 top-full mt-1 z-[9999] min-w-[160px] bg-popover border border-border rounded-md shadow-lg">
+            <div className="py-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDropdown(false);
+                  setShowEditTags(true);
+                }}
+                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus:bg-accent focus:outline-none flex items-center gap-2"
+                role="menuitem"
+              >
+                <TagIcon className="h-4 w-4" />
+                Edit Tags
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+      
+      {/* Edit Tags Modal */}
+      <EditTagsModal
+        open={showEditTags}
+        onOpenChange={setShowEditTags}
+        conversationId={conversation._id}
+      />
     </div>
   );
 }

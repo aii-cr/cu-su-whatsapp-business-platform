@@ -55,8 +55,11 @@ export function TagList({
   }, [disabled, loading, onTagRemove]);
 
   // Handle tag click
-  const handleTagClick = React.useCallback((tag: TagDenormalized | TagSummary) => {
+  const handleTagClick = React.useCallback((tag: TagDenormalized | TagSummary, event?: React.MouseEvent) => {
     if (disabled || loading) return;
+    if (event) {
+      event.stopPropagation();
+    }
     onTagClick?.(tag);
   }, [disabled, loading, onTagClick]);
 
@@ -116,7 +119,10 @@ export function TagList({
       {hasMore && showMore && (
         <button
           type="button"
-          onClick={() => setShowAll(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAll(true);
+          }}
           disabled={disabled || loading}
           className={cn(
             'inline-flex items-center justify-center rounded-lg border border-dashed border-border bg-transparent transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
@@ -133,7 +139,10 @@ export function TagList({
       {maxDisplay && showAll && tags.length > maxDisplay && (
         <button
           type="button"
-          onClick={() => setShowAll(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowAll(false);
+          }}
           disabled={disabled || loading}
           className={cn(
             'inline-flex items-center justify-center rounded-lg border border-dashed border-border bg-transparent transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',

@@ -14,7 +14,7 @@ export interface TagUnassignConfirmModalProps {
   tag: TagSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
   onCancel: () => void;
   className?: string;
   loading?: boolean;
@@ -31,16 +31,26 @@ export function TagUnassignConfirmModal({
 }: TagUnassignConfirmModalProps) {
   const [isProcessing, setIsProcessing] = React.useState(false);
 
-  const handleConfirm = React.useCallback(async () => {
+  const handleConfirm = React.useCallback(() => {
     if (isProcessing || loading) return;
     
+    // Immediately disable the button and show loading
     setIsProcessing(true);
-    try {
-      await onConfirm();
-      onOpenChange(false);
-    } finally {
-      setIsProcessing(false);
-    }
+    
+    // Call the async function and handle the result
+    onConfirm()
+      .then(() => {
+        // Success: close the modal
+        onOpenChange(false);
+      })
+      .catch((error: unknown) => {
+        // Error: keep modal open, let parent handle error display
+        console.error('Error during tag unassignment:', error);
+      })
+      .finally(() => {
+        // Always reset processing state
+        setIsProcessing(false);
+      });
   }, [onConfirm, onOpenChange, isProcessing, loading]);
 
   const handleCancel = React.useCallback(() => {

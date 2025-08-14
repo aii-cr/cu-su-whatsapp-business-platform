@@ -40,9 +40,16 @@ export function AssignedTagChip({
     setShowConfirmModal(true);
   }, [disabled, loading]);
 
-  const handleConfirmRemove = React.useCallback(() => {
-    onRemove?.();
-    setShowConfirmModal(false);
+  const handleConfirmRemove = React.useCallback(async () => {
+    try {
+      if (onRemove) {
+        await onRemove();
+      }
+    } catch (error) {
+      console.error('Error removing tag:', error);
+    } finally {
+      setShowConfirmModal(false);
+    }
   }, [onRemove]);
 
   const handleCancelRemove = React.useCallback(() => {

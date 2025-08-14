@@ -123,7 +123,7 @@ export function EditTagsModal({
   }, [assignTags]);
 
   // Handle unassigning a tag with custom confirmation
-  const handleUnassignTag = React.useCallback(async (tag: TagSummary) => {
+  const handleUnassignTag = React.useCallback((tag: TagSummary) => {
     setUnassignModal({ open: true, tag });
   }, []);
 
@@ -169,7 +169,7 @@ export function EditTagsModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent 
           className={cn(
-            'sm:max-w-3xl lg:max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col relative z-[1000]',
+            'sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] min-h-[600px] overflow-hidden flex flex-col relative z-[1000]',
             className
           )}
           aria-describedby="edit-tags-description"
@@ -181,7 +181,7 @@ export function EditTagsModal({
             </p>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto flex flex-col space-y-6 p-6">
+          <div className="flex-1 overflow-y-auto flex flex-col space-y-6 p-6 min-h-[400px]">
             {/* Error display */}
             {error && (
               <Alert variant="destructive">
@@ -215,7 +215,14 @@ export function EditTagsModal({
                     <AssignedTagChip
                       key={convTag.tag.id}
                       tag={convTag.tag}
-                      onRemove={() => handleUnassignTag(convTag.tag)}
+                      onRemove={async () => {
+                        try {
+                          await unassignTag(convTag.tag.id);
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : 'Failed to unassign tag');
+                          throw err; // Re-throw to let the chip handle the error
+                        }
+                      }}
                       disabled={isUnassigning}
                       size="md"
                     />
@@ -263,6 +270,7 @@ export function EditTagsModal({
                     selectedTags={selectedTags}
                     onTagsChange={setSelectedTags}
                     excludeTagIds={Array.from(assignedTagIds) as string[]}
+                    assignedTagNames={conversationTags?.map((ct: any) => ct.tag.display_name || ct.tag.name) || []}
                     maxTags={remainingSlots}
                     placeholder="Search tags or type to create new..."
                     size="md"

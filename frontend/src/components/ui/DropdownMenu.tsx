@@ -60,7 +60,7 @@ export function DropdownMenu({
     <div className={cn('relative', className)}>
       {/* Trigger */}
       <div 
-        ref={triggerRef as any}
+        ref={triggerRef as React.RefObject<HTMLDivElement>}
         onClick={() => setIsOpen(!isOpen)}
         role="button"
         tabIndex={0}
@@ -77,22 +77,23 @@ export function DropdownMenu({
       {/* Menu */}
       {isOpen && (
         <div
-          ref={menuRef}
-          className={cn(
-            'absolute z-50 mt-1 min-w-[160px] bg-popover border border-border rounded-md shadow-lg',
-            align === 'right' ? 'right-0' : 'left-0'
-          )}
-          role="menu"
-          aria-orientation="vertical"
-        >
-          <div 
-            className="py-1"
-            onClick={() => setIsOpen(false)}
+            ref={menuRef}
+            className={cn(
+              'absolute z-[9999] mt-1 min-w-[160px] bg-popover border border-border rounded-md shadow-lg',
+              align === 'right' ? 'right-0' : 'left-0'
+            )}
+            role="menu"
+            aria-orientation="vertical"
+            style={{ position: 'absolute', zIndex: 9999 }}
           >
-            {children}
+            <div 
+              className="py-1"
+              onClick={() => setIsOpen(false)}
+            >
+              {children}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

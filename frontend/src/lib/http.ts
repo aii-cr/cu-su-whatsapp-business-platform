@@ -78,11 +78,14 @@ export class HttpClient {
       if (!response.ok) {
         // Handle authentication/authorization failures
         if (response.status === 401 || response.status === 403) {
-          // Mark session expired so the login page can show a toast, but do not hard-redirect here.
-          // Global redirects from the HTTP layer can cause reload loops if already on /login.
+          // Mark session expired and redirect to login
           try {
             if (typeof window !== 'undefined') {
               sessionStorage.setItem('sessionExpired', '1');
+              // Redirect to login page with session expired message
+              window.location.href = '/login?expired=true';
+              // Return a default value to satisfy TypeScript
+              return {} as T;
             }
           } catch {}
         }

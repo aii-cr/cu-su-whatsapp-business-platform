@@ -45,6 +45,16 @@ class ConversationClose(BaseModel):
     send_survey: bool = Field(True, description="Whether to send survey to customer")
     notes: Optional[str] = Field(None, max_length=1000, description="Closing notes")
 
+# Tag Summary for conversations
+class ConversationTagSummary(BaseModel):
+    id: str
+    name: str
+    slug: str
+    display_name: Optional[str] = None
+    category: str
+    color: str
+    usage_count: int = 0
+
 # Conversation Response
 class ConversationResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
@@ -62,7 +72,7 @@ class ConversationResponse(BaseModel):
     archived_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
-    tags: List[str] = []
+    tags: List[ConversationTagSummary] = []
     message_count: int = 0
     unread_count: int = 0
     response_time_minutes: Optional[int] = None

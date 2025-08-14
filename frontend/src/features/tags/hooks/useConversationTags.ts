@@ -13,6 +13,7 @@ import {
 } from '../models/tag';
 import { conversationTagsApi, handleTagApiError, tagsApi } from '../api/tagsApi';
 import { tagQueryKeys } from './useTags';
+import { conversationQueryKeys } from '@/features/conversations/hooks/useConversations';
 
 // Query keys for conversation tags
 export const conversationTagQueryKeys = {
@@ -90,6 +91,10 @@ export function useAssignConversationTags() {
       // Invalidate tag lists to refresh usage counts
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.suggestions() });
+      
+      // Invalidate conversation queries to refresh conversation list and details
+      queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: conversationQueryKeys.detail(conversationId) });
 
       const tagNames = newConversationTags.map(t => t.tag.name).join(', ');
       const message = newConversationTags.length === 1 
@@ -164,6 +169,10 @@ export function useUnassignConversationTags() {
       // Invalidate tag lists to refresh usage counts
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: tagQueryKeys.suggestions() });
+      
+      // Invalidate conversation queries to refresh conversation list and details
+      queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: conversationQueryKeys.detail(conversationId) });
 
       const count = result.unassigned_count;
       const message = count === 1 
@@ -251,7 +260,10 @@ export function useConversationTagOperations(conversationId: string) {
   };
 
   const getAssignedTags = (): TagSummary[] => {
-    return conversationTags?.map(ct => ct.tag) || [];
+    return conversationTags?.map(ct => ({ 
+      ...ct.tag, 
+      usage_count: (ct.tag as any).usage_count || 0 
+    })) || [];
   };
 
   const isTagAssigned = (tagId: string): boolean => {

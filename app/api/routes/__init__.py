@@ -57,8 +57,7 @@ async def health_check():
 
     # Check database connectivity
     try:
-        db = database.db
-        await db.admin.command("ping")
+        await database.client.admin.command("ping")
         database_status = "healthy"
     except Exception as e:
         database_status = f"unhealthy: {str(e)}"

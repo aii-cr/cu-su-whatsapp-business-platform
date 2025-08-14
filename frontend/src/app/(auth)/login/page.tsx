@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginCredentials, LoginSchema } from '@/lib/auth';
@@ -22,6 +22,7 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -39,13 +40,24 @@ export default function LoginPage() {
   useEffect(() => {
     // Prefetch dashboard to minimize transition flash
     router.prefetch('/conversations');
+    
+    // Check for session expired from URL parameter
+    const isExpired = searchParams.get('expired') === 'true';
+    if (isExpired) {
+      toast.info('Your session has expired. Please log in again.');
+      // Clean up the URL
+      router.replace('/login');
+      return;
+    }
+    
+    // Check for session expired from sessionStorage
     try {
       if (typeof window !== 'undefined' && sessionStorage.getItem('sessionExpired') === '1') {
         toast.info('Your session has expired. Please log in again.');
         sessionStorage.removeItem('sessionExpired');
       }
     } catch {}
-  }, [router]);
+  }, [router, searchParams]);
 
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);
