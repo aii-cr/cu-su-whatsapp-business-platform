@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { Search, Plus, X, Tag as TagIcon, Check } from 'lucide-react';
+import { Search, Plus, X, Tag as TagIcon, Check, ChevronDown, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TagSummary } from '../models/tag';
 import { TagChip } from './TagChip';
@@ -40,14 +40,17 @@ export function TagTypeahead({
   const [query, setQuery] = React.useState('');
   const [isOpen, setIsOpen] = React.useState(false);
   const [showCreateForm, setShowCreateForm] = React.useState(false);
+  const [showAllSuggestions, setShowAllSuggestions] = React.useState(false);
   const [createFormData, setCreateFormData] = React.useState({
     name: '',
     color: '#2563eb'
   });
+  const [createError, setCreateError] = React.useState<string | null>(null);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const suggestionsListRef = React.useRef<HTMLDivElement>(null);
 
   // Tag creation mutation
   const createTagMutation = useCreateTag();
@@ -76,6 +79,11 @@ export function TagTypeahead({
   const suggestions = suggestionsResponse?.suggestions || [];
   const isPopular = !debouncedQuery.trim();
 
+  // Show only 3 suggestions initially, rest require scrolling
+  const initialSuggestionsCount = 3;
+  const displayedSuggestions = showAllSuggestions ? suggestions : suggestions.slice(0, initialSuggestionsCount);
+  const hasMoreSuggestions = suggestions.length > initialSuggestionsCount && !showAllSuggestions;
+
   // Logic checks
   const queryLength = query.trim().length;
   const hasExactMatch = suggestions.some(tag => 
@@ -83,10 +91,34 @@ export function TagTypeahead({
   );
   const canCreateNew = queryLength >= 2 && !hasExactMatch && !showCreateForm;
 
+  // Check if tag already exists (case insensitive)
+  const tagAlreadyExists = React.useMemo(() => {
+    if (!query.trim()) return false;
+    const normalizedQuery = query.trim().toLowerCase();
+    return suggestions.some(tag => 
+      tag.name.toLowerCase() === normalizedQuery ||
+      (tag.display_name && tag.display_name.toLowerCase() === normalizedQuery)
+    );
+  }, [query, suggestions]);
+
+  // Check if tag is already assigned to conversation
+  const tagAlreadyAssigned = React.useMemo(() => {
+    if (!query.trim()) return false;
+    const normalizedQuery = query.trim().toLowerCase();
+    return selectedTags.some(tag => 
+      tag.name.toLowerCase() === normalizedQuery ||
+      (tag.display_name && tag.display_name.toLowerCase() === normalizedQuery)
+    );
+  }, [query, selectedTags]);
+
+  // Determine if we can create the tag
+  const canCreateTag = queryLength >= 2 && !tagAlreadyExists && !tagAlreadyAssigned && !showCreateForm;
+
   // Handle input focus/blur
   const handleInputFocus = React.useCallback(() => {
     if (!disabled) {
       setIsOpen(true);
+      setShowAllSuggestions(false);
     }
   }, [disabled]);
 
@@ -99,6 +131,7 @@ export function TagTypeahead({
     setTimeout(() => {
       setIsOpen(false);
       setShowCreateForm(false);
+      setShowAllSuggestions(false);
     }, 150);
   }, []);
 
@@ -115,6 +148,7 @@ export function TagTypeahead({
     setQuery('');
     setIsOpen(false);
     setShowCreateForm(false);
+    setShowAllSuggestions(false);
     inputRef.current?.focus();
   }, [selectedTags, maxTags, onTagsChange]);
 
@@ -127,7 +161,27 @@ export function TagTypeahead({
   const handleCreateTag = React.useCallback(async () => {
     if (!createFormData.name.trim()) return;
 
+    setCreateError(null); // Clear any previous errors
+
     try {
+      // Check if tag already exists before creating
+      const normalizedName = createFormData.name.trim().toLowerCase();
+      const existingTag = suggestions.find(tag => 
+        tag.name.toLowerCase() === normalizedName ||
+        (tag.display_name && tag.display_name.toLowerCase() === normalizedName)
+      );
+
+      if (existingTag) {
+        // If tag exists, just select it instead of creating
+        handleTagSelect(existingTag);
+        setShowCreateForm(false);
+        setCreateFormData({ name: '', color: '#2563eb' });
+        setQuery('');
+        setIsOpen(false);
+        setShowAllSuggestions(false);
+        return;
+      }
+
       // Create the tag via API
       const newTag = await createTagMutation.mutateAsync({
         name: createFormData.name.trim(),
@@ -139,12 +193,30 @@ export function TagTypeahead({
       onNewTagCreated?.(newTag);
       setShowCreateForm(false);
       setCreateFormData({ name: '', color: '#2563eb' });
+      setCreateError(null);
       setQuery('');
       setIsOpen(false);
-    } catch (error) {
+      setShowAllSuggestions(false);
+    } catch (error: any) {
       console.error('Failed to create tag:', error);
+      
+      // Handle specific error cases
+      if (error?.response?.status === 400) {
+        const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to create tag';
+        
+        // Check if it's a duplicate tag error
+        if (errorMessage.toLowerCase().includes('already exists') || 
+            errorMessage.toLowerCase().includes('duplicate') ||
+            errorMessage.toLowerCase().includes('unique')) {
+          setCreateError('This tag already exists. Please try a different name.');
+        } else {
+          setCreateError('Failed to create tag. Please try again.');
+        }
+      } else {
+        setCreateError('Failed to create tag. Please try again.');
+      }
     }
-  }, [createFormData, createTagMutation, onNewTagCreated]);
+  }, [createFormData, createTagMutation, onNewTagCreated, suggestions, handleTagSelect]);
 
   // Handle input change
   const handleInputChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,9 +226,11 @@ export function TagTypeahead({
     if (value.trim()) {
       setIsOpen(true);
       setShowCreateForm(false);
+      setShowAllSuggestions(false);
     } else {
       setIsOpen(true);
       setShowCreateForm(false);
+      setShowAllSuggestions(false);
     }
   }, []);
 
@@ -165,7 +239,22 @@ export function TagTypeahead({
     setQuery('');
     setIsOpen(true);
     setShowCreateForm(false);
+    setShowAllSuggestions(false);
     inputRef.current?.focus();
+  }, []);
+
+  // Handle show all suggestions
+  const handleShowAllSuggestions = React.useCallback(() => {
+    setShowAllSuggestions(true);
+    // Smooth scroll to show more suggestions
+    setTimeout(() => {
+      if (suggestionsListRef.current) {
+        suggestionsListRef.current.scrollTo({
+          top: suggestionsListRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
   }, []);
 
   // Handle keyboard navigation
@@ -173,6 +262,7 @@ export function TagTypeahead({
     if (e.key === 'Escape') {
       setIsOpen(false);
       setShowCreateForm(false);
+      setShowAllSuggestions(false);
       inputRef.current?.blur();
     } else if (e.key === 'Enter' && !showCreateForm) {
       e.preventDefault();
@@ -300,7 +390,7 @@ export function TagTypeahead({
 
             {/* Content */}
             {!isSuggestionsLoading && !suggestionsError && (
-              <div className="max-h-80 overflow-y-auto">
+              <div ref={suggestionsListRef} className="max-h-80 overflow-y-auto">
                 {/* Header */}
                 {suggestions.length > 0 && (
                   <div className="px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border bg-muted/30">
@@ -309,7 +399,7 @@ export function TagTypeahead({
                 )}
                 
                 {/* Tag suggestions */}
-                {suggestions.map((tag) => {
+                {displayedSuggestions.map((tag) => {
                   const isSelected = selectedTags.some(t => t.id === tag.id);
                   return (
                     <button
@@ -337,22 +427,57 @@ export function TagTypeahead({
                   );
                 })}
                 
-                {/* Create new tag option */}
-                {canCreateNew && (
+                {/* Show more suggestions button */}
+                {hasMoreSuggestions && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setCreateFormData(prev => ({ ...prev, name: query.trim() }));
-                      setShowCreateForm(true);
-                    }}
-                    className="w-full px-4 py-3 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none flex items-center gap-3 border-t border-border transition-colors"
+                    onClick={handleShowAllSuggestions}
+                    className="w-full px-4 py-2 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none flex items-center gap-3 border-b border-border/50 transition-colors"
                   >
-                    <Plus className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     <div className="flex-1">
-                      <div className="font-medium">Create "{query.trim()}"</div>
-                      <div className="text-xs text-muted-foreground">New tag</div>
+                      <div className="font-medium text-sm">Show {suggestions.length - initialSuggestionsCount} more</div>
+                      <div className="text-xs text-muted-foreground">Scroll to see all suggestions</div>
                     </div>
                   </button>
+                )}
+                
+                {/* Create new tag option */}
+                {query.trim() && queryLength >= 2 && !showCreateForm && (
+                  <div className="border-t border-border">
+                    {tagAlreadyExists ? (
+                      <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
+                        <AlertTriangle className="h-4 w-4 text-warning" />
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">Tag "{query.trim()}" already exists</div>
+                          <div className="text-xs">Try selecting it from the list above</div>
+                        </div>
+                      </div>
+                    ) : tagAlreadyAssigned ? (
+                      <div className="px-4 py-3 text-left flex items-center gap-3 text-muted-foreground">
+                        <Check className="h-4 w-4 text-success" />
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">Tag "{query.trim()}" already selected</div>
+                          <div className="text-xs">This tag is already in your selection</div>
+                        </div>
+                      </div>
+                    ) : canCreateTag ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateFormData(prev => ({ ...prev, name: query.trim() }));
+                          setShowCreateForm(true);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none flex items-center gap-3 transition-colors"
+                      >
+                        <Plus className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex-1">
+                          <div className="font-medium">Create "{query.trim()}"</div>
+                          <div className="text-xs text-muted-foreground">New tag</div>
+                        </div>
+                      </button>
+                    ) : null}
+                  </div>
                 )}
                 
                 {/* Create tag form */}
@@ -363,6 +488,13 @@ export function TagTypeahead({
                         <Plus className="h-4 w-4 text-primary" />
                         <span className="font-medium text-sm">Create new tag</span>
                       </div>
+                      
+                      {/* Error display */}
+                      {createError && (
+                        <div className="px-3 py-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                          {createError}
+                        </div>
+                      )}
                       
                       <div className="space-y-3">
                         <div>
@@ -428,6 +560,7 @@ export function TagTypeahead({
                           onClick={() => {
                             setShowCreateForm(false);
                             setCreateFormData({ name: '', color: '#2563eb' });
+                            setCreateError(null);
                           }}
                         >
                           Cancel
