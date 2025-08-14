@@ -32,11 +32,11 @@ export function useMessages(conversationId: string, limit: number = 50) {
   const query = useInfiniteQuery<MessageListResponse>({
     queryKey: messageQueryKeys.conversationMessages(conversationId, { limit }),
     queryFn: async ({ pageParam = 0 }) => {
-      return MessagesApi.getMessages({
-        conversation_id: conversationId,
-        limit,
-        offset: pageParam as number,
-      });
+      return MessagesApi.getMessages(
+        conversationId,
+        pageParam as number, // offset
+        limit
+      );
     },
     getNextPageParam: (lastPage, allPages) => {
       const nextOffset = allPages.length * limit;

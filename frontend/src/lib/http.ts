@@ -85,12 +85,16 @@ export class HttpClient {
             this.isRedirecting = true;
             try {
               if (typeof window !== 'undefined') {
-                // Clear any existing auth state
-                sessionStorage.setItem('sessionExpired', '1');
-                localStorage.removeItem('auth-storage');
-                
-                // Redirect to login page with session expired message
-                window.location.href = '/login?expired=true';
+                // Don't set sessionExpired for logout requests
+                const isLogoutRequest = endpoint.includes('/logout');
+                if (!isLogoutRequest) {
+                  // Clear any existing auth state
+                  sessionStorage.setItem('sessionExpired', '1');
+                  localStorage.removeItem('auth-storage');
+                  
+                  // Redirect to login page with session expired message
+                  window.location.href = '/login?expired=true';
+                }
                 
                 // Return a default value to satisfy TypeScript
                 return {} as T;

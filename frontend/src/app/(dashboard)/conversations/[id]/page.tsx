@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,11 +14,13 @@ import { MessageBubble } from '@/features/conversations/components/MessageBubble
 import { MessageComposer } from '@/features/conversations/components/MessageComposer';
 import { ConversationHeader } from '@/features/conversations/components/ConversationHeader';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
+import { UnreadMessagesBanner } from '@/features/conversations/components/UnreadMessagesBanner';
 import { hasPermission } from '@/lib/auth';
 import { useAuthStore } from '@/lib/store';
 import { useMessages, useSendMessage } from '@/features/messages/hooks/useMessages';
 import { useConversation } from '@/features/conversations/hooks/useConversations';
 import { useConversationWebSocket } from '@/hooks/useWebSocket';
+import { useUnreadMessages } from '@/features/conversations/hooks/useUnreadMessages';
 import { SenderType } from '@/features/messages/models/message';
 import { isSameDay } from '@/lib/utils';
 import { 
@@ -35,6 +37,24 @@ export default function ConversationDetailsPage() {
   // Refs for auto-scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const unreadMessagesRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket connection for real-time messaging
+  const webSocket = useConversationWebSocket(conversationId);
+  const { isConnected, sendTypingStart, sendTypingStop } = webSocket;
+
+  // Unread messages management
+  const {
+    unreadCount,
+    isVisible: isUnreadBannerVisible,
+    hasMarkedAsRead,
+    markMessagesAsRead
+  } = useUnreadMessages({
+    conversationId,
+    autoMarkAsRead: true,
+    enabled: !!conversationId,
+    wsClient: webSocket.client
+  });
 
   // Fetch conversation and messages
   const { 
@@ -54,22 +74,54 @@ export default function ConversationDetailsPage() {
 
   const sendMessageMutation = useSendMessage();
 
-  // WebSocket connection for real-time messaging
-  const { isConnected, sendTypingStart, sendTypingStop } = useConversationWebSocket(conversationId);
-
   // Scroll to bottom when new messages arrive
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
+  // Scroll to unread messages
+  const scrollToUnread = useCallback(() => {
+    if (unreadMessagesRef.current) {
+      unreadMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // If no unread marker, scroll to bottom
+      scrollToBottom();
+    }
+  }, []);
+
+  // Mark messages as read when agent enters conversation view
+  const handleMarkMessagesAsRead = useCallback(async () => {
+    if (!hasMarkedAsRead && conversationId && isConnected) {
+      try {
+        // Use the unread messages hook to mark messages as read
+        await markMessagesAsRead();
+        console.log('✅ Marked messages as read via WebSocket');
+      } catch (error) {
+        console.error('Failed to mark messages as read:', error);
+      }
+    }
+  }, [conversationId, hasMarkedAsRead, isConnected, markMessagesAsRead]);
+
+  // Auto-scroll when messages load
   useEffect(() => {
-    scrollToBottom();
+    if (messagesData?.pages && messagesData.pages.length > 0) {
+      const timer = setTimeout(() => {
+        if (isNearBottom() || messagesData.pages[0].messages.length === 1) {
+          scrollToBottom();
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
   }, [messagesData?.pages]);
 
-  // Flatten messages from all pages
-  const allMessages = messagesData?.pages.flatMap((page) => 
-    (page as { messages: unknown[] }).messages
-  ) || [];
+  // Check if user is near bottom of messages
+  const isNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const threshold = 100; // pixels from bottom
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  };
 
   // Handle sending a message
   const handleSendMessage = (text: string) => {
@@ -141,19 +193,65 @@ export default function ConversationDetailsPage() {
     );
   }
 
-      return (
-      <div className="h-full flex flex-col bg-background">
-        {/* Header */}
-        {conversation && (
-          <ConversationHeader
-            conversation={conversation}
-            onBack={() => router.back()}
-            onCall={() => console.log('Call customer')}
-            onVideoCall={() => console.log('Video call customer')}
-            onViewInfo={() => console.log('View customer info')}
-            onMoreActions={() => console.log('More actions')}
-          />
-        )}
+  // Flatten messages from all pages
+  const allMessages = messagesData?.pages.flatMap((page) => 
+    (page as { messages: any[] }).messages
+  ) || [];
+
+  return (
+    <div className="h-full flex flex-col bg-background">
+      {/* Header */}
+      {conversation && (
+        <ConversationHeader
+          conversation={conversation}
+          onBack={() => router.back()}
+          onCall={() => console.log('Call customer')}
+          onVideoCall={() => console.log('Video call customer')}
+          onViewInfo={() => console.log('View customer info')}
+          onMoreActions={() => console.log('More actions')}
+        />
+      )}
+
+      {/* Unread Messages Banner */}
+      <UnreadMessagesBanner
+        unreadCount={unreadCount}
+        onScrollToUnread={scrollToUnread}
+        isVisible={isUnreadBannerVisible}
+      />
+
+      {/* Debug button - remove this after testing */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="p-2 bg-yellow-100 dark:bg-yellow-900 border-b">
+          <button
+            onClick={() => {
+              console.log('🔧 [DEBUG] Manual mark as read triggered');
+              markMessagesAsRead();
+            }}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+          >
+            🔧 Debug: Mark as Read
+          </button>
+          <button
+            onClick={() => {
+              console.log('🔧 [DEBUG] Direct WebSocket test');
+              console.log('WebSocket client:', webSocket.client);
+              console.log('WebSocket connected:', webSocket.client?.isConnected);
+              if (webSocket.client?.isConnected) {
+                webSocket.client.markMessagesAsRead(conversationId);
+                console.log('✅ Direct WebSocket message sent');
+              } else {
+                console.log('❌ WebSocket not connected');
+              }
+            }}
+            className="px-3 py-1 bg-green-500 text-white rounded text-sm ml-2"
+          >
+            🔧 Direct WS Test
+          </button>
+          <span className="ml-2 text-sm">
+            Unread: {unreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'}
+          </span>
+        </div>
+      )}
 
       {/* Messages area */}
       <div 
@@ -199,12 +297,31 @@ export default function ConversationDetailsPage() {
             {allMessages.map((message, index) => {
               const previousMessage = index > 0 ? allMessages[index - 1] : null;
               const showDayBanner = !previousMessage || !isSameDay(message.timestamp, previousMessage.timestamp);
+              
+              // Check if this is the first unread message
+              const isFirstUnread = message.direction === 'inbound' && 
+                                   message.status !== 'read' && 
+                                   !allMessages.slice(0, index).some(m => 
+                                     m.direction === 'inbound' && m.status !== 'read'
+                                   );
 
               return (
                 <React.Fragment key={message._id}>
                   {/* Day banner */}
                   {showDayBanner && (
                     <DayBanner date={message.timestamp} />
+                  )}
+                  
+                  {/* Unread messages marker - only show if banner is not visible */}
+                  {isFirstUnread && !isUnreadBannerVisible && (
+                    <div 
+                      ref={unreadMessagesRef}
+                      className="flex justify-center my-2"
+                    >
+                      <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
+                        {unreadCount} unread message{unreadCount !== 1 ? 's' : ''}
+                      </div>
+                    </div>
                   )}
                   
                   {/* Message bubble */}
@@ -223,8 +340,6 @@ export default function ConversationDetailsPage() {
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
-
-
 
       {/* Message composer */}
       <MessageComposer

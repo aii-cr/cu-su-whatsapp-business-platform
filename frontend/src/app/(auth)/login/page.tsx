@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasShownToast, setHasShownToast] = useState(false);
 
   const {
     register,
@@ -43,21 +44,36 @@ export default function LoginPage() {
     
     // Check for session expired from URL parameter
     const isExpired = searchParams.get('expired') === 'true';
-    if (isExpired) {
+    if (isExpired && !hasShownToast) {
       toast.info('Your session has expired due to inactivity. Please log in again.');
+      setHasShownToast(true);
       // Clean up the URL
       router.replace('/login');
       return;
     }
     
-    // Check for session expired from sessionStorage
+    // Check for session expired or voluntary logout from sessionStorage
     try {
-      if (typeof window !== 'undefined' && sessionStorage.getItem('sessionExpired') === '1') {
-        toast.info('Your session has expired. Please log in again.');
-        sessionStorage.removeItem('sessionExpired');
+      if (typeof window !== 'undefined' && !hasShownToast) {
+        const sessionExpired = sessionStorage.getItem('sessionExpired') === '1';
+        const voluntaryLogout = sessionStorage.getItem('voluntaryLogout') === '1';
+        
+        console.log('Login page - Session flags:', { sessionExpired, voluntaryLogout });
+        
+        if (sessionExpired) {
+          toast.info('Your session has expired. Please log in again.');
+          sessionStorage.removeItem('sessionExpired');
+          setHasShownToast(true);
+        } else if (voluntaryLogout) {
+          toast.success('You have been successfully logged out.');
+          sessionStorage.removeItem('voluntaryLogout');
+          setHasShownToast(true);
+        }
       }
-    } catch {}
-  }, [router, searchParams]);
+    } catch (error) {
+      console.error('Error checking session flags:', error);
+    }
+  }, [searchParams, router, hasShownToast]); // Include hasShownToast in dependencies
 
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);

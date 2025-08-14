@@ -100,7 +100,7 @@ def verify_session_token(token: str) -> Optional[SessionData]:
             exp = datetime.fromtimestamp(exp, tz=timezone.utc)
         
         if exp < datetime.now(timezone.utc):
-            logger.warning("Session token expired")
+            logger.warning("Session token expired due to time limit")
             return None
         
         # Check inactivity timeout
@@ -131,7 +131,7 @@ def verify_session_token(token: str) -> Optional[SessionData]:
     except jwt.ExpiredSignatureError:
         logger.warning("Session token expired")
         return None
-    except jwt.JWTError as e:
+    except jwt.PyJWTError as e:
         logger.warning(f"Invalid session token: {str(e)}")
         return None
     except Exception as e:

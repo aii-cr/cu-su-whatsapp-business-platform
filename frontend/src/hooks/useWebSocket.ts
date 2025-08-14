@@ -275,9 +275,16 @@ export function useConversationWebSocket(conversationId: string) {
     }
   };
 
+  const markMessagesAsRead = () => {
+    if (conversationId && webSocket.client) {
+      webSocket.client.markMessagesAsRead(conversationId);
+    }
+  };
+
   return {
     ...webSocket,
     sendTypingStart,
     sendTypingStop,
+    markMessagesAsRead,
   };
 }

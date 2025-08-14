@@ -5,9 +5,10 @@ Handles WebSocket connections and broadcasts message updates to connected client
 
 import json
 import asyncio
-from typing import Dict, Set, Optional, Any
+from typing import Dict, Set, Optional, Any, List
 from datetime import datetime, timezone
 from fastapi import WebSocket, WebSocketDisconnect
+from bson import ObjectId
 from app.core.logger import logger
 from app.db.models.base import PyObjectId
 
@@ -266,6 +267,26 @@ class WebSocketService:
         logger.info(f"Broadcasted status update for message {message_id} in conversation {conversation_id}")
     
     @staticmethod
+    async def notify_message_read_status(
+        conversation_id: str, 
+        message_ids: List[str], 
+        read_by_user_id: str, 
+        read_by_user_name: str
+    ):
+        """Notify about message read status updates when inbound messages are marked as read."""
+        notification = {
+            "type": "messages_read",
+            "conversation_id": str(conversation_id),
+            "message_ids": message_ids,
+            "read_by_user_id": read_by_user_id,
+            "read_by_user_name": read_by_user_name,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"Broadcasted read status update for {len(message_ids)} messages in conversation {conversation_id} by {read_by_user_name}")
+    
+    @staticmethod
     async def notify_conversation_update(conversation_id: str, update_data: dict):
         """Notify about conversation updates (status, assignment, etc.)."""
         notification = {
@@ -386,16 +407,30 @@ class WebSocketService:
             # 1. Always notify about the new message to conversation subscribers
             await WebSocketService.notify_new_message(conversation_id, message)
             
-            # 2. Update unread counts for dashboard subscribers
-            active_viewers = manager.conversation_subscribers.get(conversation_id, set())
-            
-            for subscriber_id in manager.dashboard_subscribers:
-                # Only increment if they're not currently viewing this conversation
-                if subscriber_id not in active_viewers:
-                    manager.increment_unread_count(subscriber_id, conversation_id)
-                    # Notify about unread count update
-                    unread_count = manager.unread_counts.get(subscriber_id, {}).get(conversation_id, 0)
-                    await WebSocketService.notify_unread_count_update(subscriber_id, conversation_id, unread_count)
+            # 2. Update unread counts for the assigned agent only
+            try:
+                from app.db.client import database
+                db = await database._get_db()
+                
+                # Get conversation to find assigned agent
+                conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+                if conversation and conversation.get("assigned_agent_id"):
+                    assigned_agent_id = str(conversation["assigned_agent_id"])
+                    active_viewers = manager.conversation_subscribers.get(conversation_id, set())
+                    
+                    # Only increment unread count for assigned agent if they're not currently viewing
+                    if assigned_agent_id not in active_viewers:
+                        manager.increment_unread_count(assigned_agent_id, conversation_id)
+                        # Notify about unread count update
+                        unread_count = manager.unread_counts.get(assigned_agent_id, {}).get(conversation_id, 0)
+                        await WebSocketService.notify_unread_count_update(assigned_agent_id, conversation_id, unread_count)
+                        logger.info(f"📊 [UNREAD] Incremented unread count for assigned agent {assigned_agent_id}: {unread_count}")
+                    else:
+                        logger.info(f"📊 [UNREAD] Assigned agent {assigned_agent_id} is currently viewing conversation, not incrementing unread count")
+                else:
+                    logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
+            except Exception as e:
+                logger.error(f"❌ [UNREAD] Error updating unread count: {str(e)}")
             
             # 3. If this is a new conversation, notify dashboard subscribers
             if is_new_conversation and conversation:

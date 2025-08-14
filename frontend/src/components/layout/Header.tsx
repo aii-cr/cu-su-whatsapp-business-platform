@@ -33,19 +33,36 @@ export function Header() {
 
   const handleLogout = async () => {
     try {
+      // Set voluntary logout flag first
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('voluntaryLogout', '1');
+        console.log('Header logout - Set voluntaryLogout flag');
+      }
+      
       await logout();
       
       // Clear browser history and redirect to login
       if (typeof window !== 'undefined') {
-        // Clear any cached state
-        sessionStorage.clear();
-        sessionStorage.setItem('sessionExpired', '1');
+        // Clear other cached state but keep the voluntaryLogout flag
+        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('ui-storage');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        localStorage.removeItem('session');
+        
+        // Force clear Zustand persisted state
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.includes('auth') || key.includes('user') || key.includes('session')) {
+            localStorage.removeItem(key);
+          }
+        });
         
         // Redirect to login page
         window.location.href = '/login';
       }
       
-      toast.success('Successfully logged out');
+      // Don't show toast here - it will be shown on the login page
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Logout failed');

@@ -44,6 +44,12 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
+          // Clear any existing session flags before login
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('sessionExpired');
+            sessionStorage.removeItem('voluntaryLogout');
+          }
+
           // Perform login request (sets session cookie on success)
           const userFromLogin = await AuthApi.login({ email, password });
 
@@ -84,9 +90,9 @@ export const useAuthStore = create<AuthState>()(
           // Clear all cached state to prevent back button issues
           try {
             if (typeof window !== 'undefined') {
-              // Clear session storage
-              sessionStorage.clear();
-              sessionStorage.setItem('sessionExpired', '1');
+              // Set voluntary logout flag instead of session expired
+              sessionStorage.setItem('voluntaryLogout', '1');
+              console.log('Store logout - Set voluntaryLogout flag');
               
               // Clear local storage
               localStorage.removeItem('auth-storage');
@@ -129,6 +135,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           if (typeof window !== 'undefined') {
             sessionStorage.removeItem('sessionExpired');
+            sessionStorage.removeItem('voluntaryLogout');
           }
         } catch {}
       },
@@ -136,15 +143,22 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         const state = get();
         
-        // Check if session was marked as expired
+        // Check if session was marked as expired or voluntary logout
         try {
-          if (typeof window !== 'undefined' && sessionStorage.getItem('sessionExpired') === '1') {
-            set({
-              user: null,
-              isAuthenticated: false,
-              isLoading: false,
-            });
-            return;
+          if (typeof window !== 'undefined') {
+            const sessionExpired = sessionStorage.getItem('sessionExpired') === '1';
+            const voluntaryLogout = sessionStorage.getItem('voluntaryLogout') === '1';
+            
+            console.log('Store checkAuth - Session flags:', { sessionExpired, voluntaryLogout });
+            
+            if (sessionExpired || voluntaryLogout) {
+              set({
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+              });
+              return;
+            }
           }
         } catch {}
         

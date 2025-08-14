@@ -9,13 +9,8 @@ from .conversation import (
 )
 
 from .message import (
-    MessageCreate, TextMessageCreate, MediaMessageCreate, TemplateMessageCreate,
-    LocationMessageCreate, ContactMessageCreate, InteractiveMessageCreate,
-    MessageUpdate, MessageResponse, MessageDetailResponse, MessageListResponse,
-    MessageQueryParams, MessageStatusUpdate, BulkMessageStatusUpdate,
-    MessageReadReceipt, MessageStatsResponse, MessageContentValidation,
-    MessageSearchParams, MessageExportRequest, QuickReply, MessageReaction,
-    WhatsAppWebhookMessage
+    MessageCreate, MessageUpdate, MessageSend, MessageReadRequest, MessageReadResponse,
+    MessageResponse, MessageListResponse, MessageStatusUpdate
 )
 from .message_in import *
 from .message_out import *
@@ -47,13 +42,8 @@ __all__ = [
     "ConversationSLAStatus",
     
     # Message schemas
-    "MessageCreate", "TextMessageCreate", "MediaMessageCreate", "TemplateMessageCreate",
-    "LocationMessageCreate", "ContactMessageCreate", "InteractiveMessageCreate",
-    "MessageUpdate", "MessageResponse", "MessageDetailResponse", "MessageListResponse",
-    "MessageQueryParams", "MessageStatusUpdate", "BulkMessageStatusUpdate",
-    "MessageReadReceipt", "MessageStatsResponse", "MessageContentValidation",
-    "MessageSearchParams", "MessageExportRequest", "QuickReply", "MessageReaction",
-    "WhatsAppWebhookMessage",
+    "MessageCreate", "MessageUpdate", "MessageSend", "MessageReadRequest", "MessageReadResponse",
+    "MessageResponse", "MessageListResponse", "MessageStatusUpdate",
     
     # Media schemas
     "MediaUpload", "MediaUpdate", "MediaResponse", "MediaListResponse",

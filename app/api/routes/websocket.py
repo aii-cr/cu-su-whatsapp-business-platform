@@ -154,6 +154,11 @@ async def handle_websocket_message(user_id: str, message: dict):
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }, user_id)
         
+        elif message_type == "mark_messages_read":
+            conversation_id = message.get("conversation_id")
+            if conversation_id:
+                await handle_mark_messages_read(user_id, conversation_id)
+        
         elif message_type == "typing_start":
             conversation_id = message.get("conversation_id")
             if conversation_id:
@@ -211,6 +216,91 @@ async def handle_websocket_message(user_id: str, message: dict):
             }, user_id)
         except Exception:
             pass  # Ignore errors when sending error messages
+
+
+async def handle_mark_messages_read(user_id: str, conversation_id: str):
+    """
+    Handle marking messages as read via WebSocket.
+    
+    Args:
+        user_id: User ID marking messages as read
+        conversation_id: Conversation ID to mark messages as read
+    """
+    try:
+        from app.db.client import database
+        from app.db.models.whatsapp.chat.message import MessageStatus
+        from bson import ObjectId
+        
+        # Get database connection
+        db = await database.get_database()
+        
+        # Verify the user is the assigned agent for this conversation
+        conversation = await db.conversations.find_one({
+            "_id": ObjectId(conversation_id),
+            "assigned_agent_id": ObjectId(user_id)
+        })
+        
+        if not conversation:
+            logger.warning(f"❌ [WEBSOCKET] User {user_id} attempted to mark messages as read but is not the assigned agent for conversation {conversation_id}")
+            return
+        
+        # Find all inbound messages in the conversation that are not yet read
+        unread_messages = await db.messages.find({
+            "conversation_id": ObjectId(conversation_id),
+            "direction": "inbound",
+            "status": {"$in": ["received", "delivered"]}
+        }).to_list(length=None)
+        
+        if not unread_messages:
+            logger.info(f"📋 [WEBSOCKET] No unread messages found for conversation {conversation_id}")
+            return
+        
+        # Update all unread inbound messages to read status
+        now = datetime.now(timezone.utc)
+        message_ids = [msg["_id"] for msg in unread_messages]
+        
+        result = await db.messages.update_many(
+            {
+                "_id": {"$in": message_ids},
+                "conversation_id": ObjectId(conversation_id),
+                "direction": "inbound",
+                "status": {"$in": ["received", "delivered"]}
+            },
+            {
+                "$set": {
+                    "status": MessageStatus.READ,
+                    "read_at": now,
+                    "updated_at": now
+                }
+            }
+        )
+        
+        messages_marked_read = result.modified_count
+        
+        if messages_marked_read > 0:
+            logger.info(f"✅ [WEBSOCKET] Marked {messages_marked_read} messages as read in conversation {conversation_id} by user {user_id}")
+            
+            # Notify other users in the conversation about the read status updates
+            await websocket_service.notify_message_read_status(
+                conversation_id,
+                message_ids=[str(msg_id) for msg_id in message_ids],
+                read_by_user_id=user_id,
+                read_by_user_name="Agent"  # We could get this from user data if needed
+            )
+            
+            # Reset unread count for this user and conversation
+            await websocket_service.reset_unread_count_for_user(user_id, conversation_id)
+            
+            # Send confirmation to the user
+            await manager.send_personal_message({
+                "type": "messages_read_confirmed",
+                "conversation_id": conversation_id,
+                "messages_marked_read": messages_marked_read,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        
+    except Exception as e:
+        logger.error(f"❌ [WEBSOCKET] Error marking messages as read for user {user_id} in conversation {conversation_id}: {str(e)}")
 
 
 async def handle_dashboard_websocket_message(user_id: str, message: dict):

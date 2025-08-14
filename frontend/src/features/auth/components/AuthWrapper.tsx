@@ -5,7 +5,7 @@
  * Handles session validation and redirects on app startup.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
@@ -20,47 +20,41 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const [shouldShowLoading, setShouldShowLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const isPublicRoute = publicRoutes.includes(pathname);
+  const authCheckRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    // Check authentication status on app startup
+    // Check authentication status on app startup - only once
     const performAuthCheck = async () => {
-      try {
-        await checkAuth();
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        // Clear auth state on error
-        clearAuth();
-      } finally {
-        setHasCheckedAuth(true);
-        // Add a small delay to prevent flash of content
-        setTimeout(() => setShouldShowLoading(false), 150);
+      // Prevent multiple simultaneous auth checks
+      if (authCheckRef.current) {
+        await authCheckRef.current;
+        return;
       }
+
+      authCheckRef.current = (async () => {
+        try {
+          await checkAuth();
+        } catch (error) {
+          console.error('Auth check failed:', error);
+          // Clear auth state on error
+          clearAuth();
+        } finally {
+          setHasCheckedAuth(true);
+          // Add a small delay to prevent flash of content
+          setTimeout(() => setShouldShowLoading(false), 150);
+          authCheckRef.current = null;
+        }
+      })();
+
+      await authCheckRef.current;
     };
     
     performAuthCheck();
   }, [checkAuth, clearAuth]);
 
-  // Force auth check on route changes to prevent back button issues
+  // Handle redirects after initial auth check
   useEffect(() => {
-    if (hasCheckedAuth && isAuthenticated) {
-      // Validate session on every route change for protected routes
-      const validateSession = async () => {
-        try {
-          await checkAuth();
-        } catch (error) {
-          console.error('Session validation failed:', error);
-          clearAuth();
-          setIsRedirecting(true);
-          router.replace('/login');
-        }
-      };
-      
-      validateSession();
-    }
-  }, [pathname, hasCheckedAuth, isAuthenticated, checkAuth, clearAuth, router]);
-
-  useEffect(() => {
-    // Only perform redirects after initial auth check is complete
+    // Only perform redirects after initial auth check is complete and not already redirecting
     if (!hasCheckedAuth || isRedirecting) return;
     
     // If user is authenticated and on public route, redirect to dashboard

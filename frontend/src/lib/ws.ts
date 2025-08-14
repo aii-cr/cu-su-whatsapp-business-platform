@@ -6,7 +6,7 @@
 import { getWsUrl } from './config';
 
 export interface WebSocketMessage {
-  type: 'new_message' | 'message_status' | 'conversation_update' | 'user_activity' | 'typing_start' | 'typing_stop';
+  type: 'new_message' | 'message_status' | 'conversation_update' | 'user_activity' | 'typing_start' | 'typing_stop' | 'messages_read' | 'unread_count_update' | 'messages_read_confirmed';
   data: unknown;
   timestamp: string;
   user_id?: string;
@@ -179,10 +179,14 @@ export class WebSocketClient {
    * Send a message to the server
    */
   send(data: unknown): void {
+    console.log('📤 [WS] Attempting to send message:', data);
+    console.log('📤 [WS] WebSocket state:', this.ws?.readyState);
+    
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
+      console.log('✅ [WS] Message sent successfully');
     } else {
-      console.warn('WebSocket is not connected. Cannot send message.');
+      console.warn('❌ [WS] WebSocket is not connected. Cannot send message.');
     }
   }
 
@@ -209,22 +213,49 @@ export class WebSocketClient {
   }
 
   /**
-   * Join a conversation room for real-time updates
+   * Subscribe to a conversation for real-time updates
    */
-  joinConversation(conversationId: string): void {
+  subscribeToConversation(conversationId: string): void {
     this.send({
-      type: 'join_conversation',
-      conversation_id: conversationId
+      type: 'subscribe_conversation',
+      conversation_id: conversationId,
+      timestamp: new Date().toISOString()
     });
   }
 
   /**
-   * Leave a conversation room
+   * Unsubscribe from a conversation
    */
-  leaveConversation(conversationId: string): void {
+  unsubscribeFromConversation(conversationId: string): void {
     this.send({
-      type: 'leave_conversation',
-      conversation_id: conversationId
+      type: 'unsubscribe_conversation',
+      conversation_id: conversationId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Mark messages as read via WebSocket
+   */
+  markMessagesAsRead(conversationId: string): void {
+    console.log('📤 [WS] Sending mark_messages_read for conversation:', conversationId);
+    console.log('📤 [WS] WebSocket connected:', this.isConnected);
+    
+    this.send({
+      type: 'mark_messages_read',
+      conversation_id: conversationId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Mark conversation as read
+   */
+  markConversationAsRead(conversationId: string): void {
+    this.send({
+      type: 'mark_conversation_read',
+      conversation_id: conversationId,
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -268,6 +299,13 @@ export class WebSocketClient {
    */
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Get WebSocket instance for debugging
+   */
+  get wsInstance(): WebSocket | null {
+    return this.ws;
   }
 }
 

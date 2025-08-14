@@ -50,8 +50,13 @@ class SessionActivityMiddleware(BaseHTTPMiddleware):
         # Process the request
         response = await call_next(request)
         
-        # Update session activity if token exists and request was successful
-        if session_token and response.status_code < 400:
+        # Only update session activity for successful authenticated requests
+        # Skip for login, logout, and other auth endpoints to prevent conflicts
+        if (session_token and 
+            response.status_code < 400 and 
+            not request.url.path.endswith('/login') and
+            not request.url.path.endswith('/logout') and
+            not request.url.path.endswith('/me')):
             try:
                 updated_token = update_session_activity(session_token)
                 if updated_token:

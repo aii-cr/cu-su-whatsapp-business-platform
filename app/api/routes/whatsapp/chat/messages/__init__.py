@@ -8,6 +8,7 @@ from .send_media import router as send_media_router
 from .get_messages import router as get_messages_router
 from .get_templates import router as get_templates_router
 from .send_bulk import router as send_bulk_router
+from .mark_messages_read import router as mark_messages_read_router
 
 # Create main messages router
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -18,4 +19,5 @@ router.include_router(send_template_router)
 router.include_router(send_media_router)
 router.include_router(get_messages_router)
 router.include_router(get_templates_router)
-router.include_router(send_bulk_router) 
+router.include_router(send_bulk_router)
+router.include_router(mark_messages_read_router) 
