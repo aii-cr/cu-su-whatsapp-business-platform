@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/Alert';
 import { TagSummary } from '../models/tag';
 import { TagTypeahead } from './TagTypeahead';
 import { AssignedTagChip } from './AssignedTagChip';
+import { QuickAddTags } from './QuickAddTags';
 import { useConversationTagOperations } from '../hooks/useConversationTags';
 
 export interface EditTagsModalProps {
@@ -50,6 +51,26 @@ export function EditTagsModal({
     }
   }, [open]);
 
+  // Check if we can add more tags using backend-provided limit
+  const limit = tagSettings?.max_tags_per_conversation ?? 10;
+  const currentTagCount = conversationTags?.length || 0;
+  const canAddTags = currentTagCount < limit;
+  const remainingSlots = Math.max(0, limit - currentTagCount);
+
+  // Debug logging for suggestions
+  React.useEffect(() => {
+    console.log('🔍 [EditTagsModal] Modal state:', {
+      conversationId,
+      open,
+      conversationTags: conversationTags?.length || 0,
+      tagSettings,
+      limit,
+      currentTagCount,
+      canAddTags,
+      remainingSlots,
+    });
+  }, [conversationId, open, conversationTags, tagSettings, limit, currentTagCount, canAddTags, remainingSlots]);
+
   // Handle assigning selected tags
   const handleAssignTags = React.useCallback(async () => {
     if (selectedTags.length === 0) return;
@@ -86,6 +107,15 @@ export function EditTagsModal({
     }
   }, [selectedTags, assignTags]);
 
+  // Handle quick add tag selection
+  const handleQuickAddTag = React.useCallback(async (tag: TagSummary) => {
+    try {
+      await assignTags([tag.id]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to assign quick add tag');
+    }
+  }, [assignTags]);
+
   // Handle unassigning a tag with confirmation
   const handleUnassignTag = React.useCallback(async (tag: TagSummary) => {
     const confirmed = window.confirm(
@@ -115,12 +145,6 @@ export function EditTagsModal({
     }
   }, [unassignTag]);
 
-  // Check if we can add more tags using backend-provided limit
-  const limit = tagSettings?.max_tags_per_conversation ?? 5;
-  const currentTagCount = conversationTags?.length || 0;
-  const canAddTags = currentTagCount < limit;
-  const remainingSlots = Math.max(0, limit - currentTagCount);
-
   // Filter out already assigned tags from selection
   const assignedTagIds = new Set(conversationTags?.map((ct: any) => ct.tag.id) || []);
   const availableSelectedTags = selectedTags.filter(tag => !assignedTagIds.has(tag.id));
@@ -132,7 +156,7 @@ export function EditTagsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         className={cn(
-          'sm:max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col',
+          'sm:max-w-3xl lg:max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col relative z-[1000]',
           className
         )}
         aria-describedby="edit-tags-description"
@@ -144,7 +168,7 @@ export function EditTagsModal({
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+        <div className="flex-1 overflow-y-auto flex flex-col space-y-6 p-6">
           {/* Error display */}
           {error && (
             <Alert variant="destructive">
@@ -195,7 +219,7 @@ export function EditTagsModal({
 
           {/* Add tags section */}
           {canAddTags && (
-            <div className="space-y-3 border-t pt-4">
+            <div className="space-y-4 border-t pt-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">
                   Add Tags
@@ -207,23 +231,38 @@ export function EditTagsModal({
                 </h3>
               </div>
 
-              {/* Tag search and selection */}
-              <TagTypeahead
-                selectedTags={selectedTags}
-                onTagsChange={setSelectedTags}
+              {/* Quick add tags section */}
+              <QuickAddTags
+                onTagSelect={handleQuickAddTag}
                 excludeTagIds={Array.from(assignedTagIds) as string[]}
-                maxTags={remainingSlots}
-                placeholder="Search tags or type to create new..."
+                limit={tagSettings?.quick_add_tags_limit ?? 7}
                 size="md"
-                className="w-full"
-                onNewTagCreated={async (tag) => {
-                  try {
-                    await assignTags([tag.id]);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Failed to assign created tag');
-                  }
-                }}
+                showTitle={true}
+                disabled={isAssigning}
               />
+
+              {/* Tag search and selection */}
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Search or Create Tags
+                </div>
+                <TagTypeahead
+                  selectedTags={selectedTags}
+                  onTagsChange={setSelectedTags}
+                  excludeTagIds={Array.from(assignedTagIds) as string[]}
+                  maxTags={remainingSlots}
+                  placeholder="Search tags or type to create new..."
+                  size="md"
+                  className="w-full"
+                  onNewTagCreated={async (tag) => {
+                    try {
+                      await assignTags([tag.id]);
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to assign created tag');
+                    }
+                  }}
+                />
+              </div>
 
               {/* Selected tags preview */}
               {availableSelectedTags.length > 0 && (
@@ -273,7 +312,7 @@ export function EditTagsModal({
         </div>
 
         {/* Footer actions */}
-        <div className="flex-shrink-0 flex items-center justify-end gap-3 pt-4 border-t">
+        <div className="flex-shrink-0 flex items-center justify-end gap-3 pt-4 border-t p-6">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

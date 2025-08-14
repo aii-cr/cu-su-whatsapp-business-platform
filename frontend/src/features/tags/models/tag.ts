@@ -140,6 +140,7 @@ export const TagSuggestRequestSchema = z.object({
   query: z.string().max(100).default(""),
   limit: z.number().int().min(1).max(50).default(10),
   exclude_ids: z.array(z.string()).default([]),
+  category: z.string().optional(),
 });
 
 export type TagSuggestRequest = z.infer<typeof TagSuggestRequestSchema>;

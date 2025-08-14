@@ -250,6 +250,28 @@ class TagService(BaseService):
         except Exception as e:
             logger.error(f"Error getting tag suggestions: {str(e)}")
             raise
+
+    async def get_quick_add_tags(self, limit: int = 7) -> List[Dict[str, Any]]:
+        """Get most frequently used tags for quick selection."""
+        db = await self._get_db()
+        
+        try:
+            filter_query = {
+                "status": TagStatus.ACTIVE,
+                "is_auto_assignable": True,
+            }
+            
+            cursor = (db.tags.find(filter_query)
+                     .sort([("usage_count", DESCENDING), ("name", ASCENDING)])
+                     .limit(limit))
+            
+            tags = await cursor.to_list(length=limit)
+            
+            return tags
+            
+        except Exception as e:
+            logger.error(f"Error getting quick add tags: {str(e)}")
+            raise
     
     async def assign_tags(self, conversation_id: ObjectId, tag_ids: List[ObjectId], assigned_by: ObjectId, auto_assigned: bool = False) -> List[Dict[str, Any]]:
         """Assign tags to conversation."""
@@ -358,8 +380,10 @@ class TagService(BaseService):
     
     async def get_tag_settings(self) -> Dict[str, Any]:
         """Get tag-related settings."""
+        from app.core.config import settings
         return {
-            "max_tags_per_conversation": 10
+            "max_tags_per_conversation": settings.MAX_TAGS_PER_CONVERSATION,
+            "quick_add_tags_limit": settings.QUICK_ADD_TAGS_LIMIT
         }
 
 

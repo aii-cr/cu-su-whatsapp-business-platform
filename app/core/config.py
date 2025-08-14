@@ -61,7 +61,8 @@ class Settings(BaseSettings):
     SURVEY_ON_CLOSE_ENABLED: bool = True
     MAX_AGENT_TRANSFERS: int = 10
     # Tagging
-    MAX_TAGS_PER_CONVERSATION: int = 5
+    MAX_TAGS_PER_CONVERSATION: int = 10
+    QUICK_ADD_TAGS_LIMIT: int = 7
     
     # Notification Settings
     ENABLE_PUSH_NOTIFICATIONS: bool = True

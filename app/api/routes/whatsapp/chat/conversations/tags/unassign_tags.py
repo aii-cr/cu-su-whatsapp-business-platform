@@ -61,7 +61,11 @@ async def unassign_tags_from_conversation(
             action="tags_unassigned",
             actor_id=str(current_user.id),
             actor_name=current_user.name or current_user.email,
-            details=f"Unassigned {unassigned_count} tags from conversation {conversation_id}",
+            conversation_id=conversation_id,
+            payload={
+                "unassigned_count": unassigned_count,
+                "tag_ids": unassign_data.tag_ids
+            },
             correlation_id=correlation_id
         )
         

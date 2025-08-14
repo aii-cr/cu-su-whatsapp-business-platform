@@ -159,3 +159,4 @@ class TagUnassignResponse(BaseModel):
 class TagSettingsResponse(BaseModel):
     """Schema for tag settings response."""
     max_tags_per_conversation: int = Field(default=10, description="Max tags per conversation")
+    quick_add_tags_limit: int = Field(default=7, description="Number of quick add tags to show")

@@ -8,7 +8,7 @@ from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.tag import TagCreate, TagResponse
-from app.services import audit_service
+from app.services.audit.audit_service import audit_service
 from app.services.auth import require_permissions
 from app.services.whatsapp.tag_service import tag_service
 from app.core.error_handling import handle_database_error
@@ -39,7 +39,7 @@ async def create_tag(
             action="tag_created",
             actor_id=str(current_user.id),
             actor_name=current_user.name or current_user.email,
-            details=f"Created tag: {tag_data.name}",
+            payload={"tag_name": tag_data.name, "tag_color": tag_data.color, "tag_category": tag_data.category},
             correlation_id=correlation_id
         )
         

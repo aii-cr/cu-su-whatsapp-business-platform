@@ -84,7 +84,11 @@ async def assign_tags_to_conversation(
             action="tags_assigned",
             actor_id=str(current_user.id),
             actor_name=current_user.name or current_user.email,
-            details=f"Assigned {len(assignments)} tags to conversation {conversation_id}",
+            conversation_id=conversation_id,
+            payload={
+                "assigned_count": len(assignments),
+                "tag_ids": assign_data.tag_ids
+            },
             correlation_id=correlation_id
         )
         

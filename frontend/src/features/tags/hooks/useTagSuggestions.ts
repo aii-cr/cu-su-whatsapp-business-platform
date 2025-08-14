@@ -22,14 +22,20 @@ export function useTagSuggestions({
   return useQuery({
     queryKey: ['tags', 'suggestions', { query, excludeIds, limit }],
     queryFn: async (): Promise<TagSuggestResponse> => {
+      console.log('🔍 [useTagSuggestions] Fetching suggestions:', { query, excludeIds, limit, enabled });
+      
       const response = await tagApi.suggestTags({
         query: query.trim(), // Empty query returns popular tags
         limit,
         exclude_ids: excludeIds,
       });
       
+      console.log('📡 [useTagSuggestions] Raw backend response:', response);
+      
       // Backend returns 'suggestions' field, normalize to match frontend expectations
       const suggestions = response.suggestions || [];
+      
+      console.log('📋 [useTagSuggestions] Extracted suggestions:', suggestions);
       
       // Normalize id field in case backend returns _id
       const normalizedTags = suggestions.map((t: any) => ({
@@ -42,12 +48,18 @@ export function useTagSuggestions({
         usage_count: t.usage_count ?? 0,
       }));
       
-      return {
+      console.log('✅ [useTagSuggestions] Normalized tags:', normalizedTags);
+      
+      const result = {
         suggestions: normalizedTags,
         total: response.total,
         query: response.query,
         is_popular: response.is_popular,
       };
+      
+      console.log('🎯 [useTagSuggestions] Final result:', result);
+      
+      return result;
     },
     enabled,
     staleTime: 30 * 1000, // 30 seconds

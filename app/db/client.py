@@ -259,9 +259,9 @@ class DatabaseClient:
         conv_tags_indexes = [
             # Primary lookup indexes
             IndexModel([("conversation_id", ASCENDING)], name="idx_conv_tags_conversation"),
-            IndexModel([("tag.id", ASCENDING)], name="idx_conv_tags_tag_id"),
+            IndexModel([("tag_id", ASCENDING)], name="idx_conv_tags_tag_id"),
             # Compound for conversation tag queries
-            IndexModel([("conversation_id", ASCENDING), ("tag.id", ASCENDING)], 
+            IndexModel([("conversation_id", ASCENDING), ("tag_id", ASCENDING)], 
                       unique=True, name="idx_conv_tags_conversation_tag"),
             # Assignment metadata
             IndexModel([("assigned_by", ASCENDING)], name="idx_conv_tags_assigned_by"),
@@ -271,8 +271,8 @@ class DatabaseClient:
             IndexModel([("assigned_at", DESCENDING)], name="idx_conv_tags_assigned_at"),
             IndexModel([("created_at", DESCENDING)], name="idx_conv_tags_created"),
             # Tag metadata searches
-            IndexModel([("tag.category", ASCENDING)], name="idx_conv_tags_tag_category"),
-            IndexModel([("tag.name", TEXT)], name="idx_conv_tags_tag_search")
+            IndexModel([("tag_category", ASCENDING)], name="idx_conv_tags_tag_category"),
+            IndexModel([("tag_name", TEXT)], name="idx_conv_tags_tag_search")
         ]
         await conv_tags_collection.create_indexes(conv_tags_indexes)
         logger.info("Created indexes for conversation_tags collection")

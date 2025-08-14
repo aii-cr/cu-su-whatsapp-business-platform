@@ -159,8 +159,19 @@ export const tagsApi = {
   /**
    * Fetch tag-related settings from backend (e.g., max tags per conversation)
    */
-  async getSettings(): Promise<{ max_tags_per_conversation: number }> {
-    return apiClient.get<{ max_tags_per_conversation: number }>(`${TAGS_BASE}/settings`);
+  async getSettings(): Promise<{ max_tags_per_conversation: number; quick_add_tags_limit: number }> {
+    return apiClient.get<{ max_tags_per_conversation: number; quick_add_tags_limit: number }>(`${TAGS_BASE}/settings`);
+  },
+
+  /**
+   * Get quick add tags (most frequently used)
+   */
+  async getQuickAddTags(limit?: number): Promise<TagSuggestResponse> {
+    const params: Record<string, string | number> = {};
+    if (limit) {
+      params.limit = limit;
+    }
+    return apiClient.get<TagSuggestResponse>(`${TAGS_BASE}/quick-add`, params);
   },
 };
 

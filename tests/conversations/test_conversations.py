@@ -7,7 +7,7 @@ from app.core.logger import logger
 @pytest_asyncio.fixture(scope="module")
 async def login_token():
     async with AsyncClient(base_url=settings.DOMAIN) as ac:
-        login_payload = {"email": "pytestuser@example.com", "password": "pytestpassword123"}
+        login_payload = {"email": "testuser@example.com", "password": "testpassword123"}
         resp = await ac.post(f"{settings.API_PREFIX}/auth/users/login", json=login_payload)
         assert resp.status_code == 200
         data = resp.json()
