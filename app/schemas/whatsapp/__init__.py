@@ -26,9 +26,8 @@ from .chat import (
     WhatsAppWebhookMessage, MediaUpload, MediaUpdate, MediaResponse, MediaListResponse,
     MediaQueryParams, MediaDownloadRequest, MediaUploadProgress,
     BulkMediaDelete, BulkMediaTagUpdate, MediaStatsResponse,
-    MediaValidationResponse, MediaProcessingJob, TagCreate, TagUpdate, TagResponse, 
-    TagListResponse, TagSummaryResponse, TagSuggestRequest, TagSuggestResponse, TagListRequest,
-    ConversationTagAssignRequest, ConversationTagUnassignRequest, ConversationTagResponse, NoteCreate, NoteUpdate, NoteResponse, NoteDetailResponse, 
+    MediaValidationResponse, MediaProcessingJob, TagCreate, TagAssign, TagUnassign, TagResponse, 
+    TagSearchResponse, ConversationTagResponse, TagOperationResponse, NoteCreate, NoteUpdate, NoteResponse, NoteDetailResponse, 
     NoteListResponse, NoteQueryParams, NotePinToggle, BulkNoteDelete, BulkNoteTagUpdate,
     NoteTemplate, NoteStatsResponse, NoteReminder, NoteActivity, NoteExportRequest
 )
@@ -59,9 +58,8 @@ __all__ = [
     "WhatsAppWebhookMessage", "MediaUpload", "MediaUpdate", "MediaResponse", "MediaListResponse",
     "MediaQueryParams", "MediaDownloadRequest", "MediaUploadProgress",
     "BulkMediaDelete", "BulkMediaTagUpdate", "MediaStatsResponse",
-    "MediaValidationResponse", "MediaProcessingJob", "TagCreate", "TagUpdate", "TagResponse", 
-    "TagListResponse", "TagSummaryResponse", "TagSuggestRequest", "TagSuggestResponse", "TagListRequest",
-    "ConversationTagAssignRequest", "ConversationTagUnassignRequest", "ConversationTagResponse", "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", 
+    "MediaValidationResponse", "MediaProcessingJob", "TagCreate", "TagAssign", "TagUnassign", "TagResponse", 
+    "TagSearchResponse", "ConversationTagResponse", "TagOperationResponse", "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", 
     "NoteListResponse", "NoteQueryParams", "NotePinToggle", "BulkNoteDelete", "BulkNoteTagUpdate",
     "NoteTemplate", "NoteStatsResponse", "NoteReminder", "NoteActivity", "NoteExportRequest"
 ] 

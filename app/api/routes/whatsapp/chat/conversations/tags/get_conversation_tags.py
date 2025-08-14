@@ -1,98 +1,73 @@
-"""Get conversation tags endpoint."""
+"""Get conversation tags endpoint following send_message.py pattern."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from typing import List
-
-from app.config.error_codes import ErrorCode, get_error_response
-from app.core.logger import logger
-from app.services.auth import require_permissions
-from app.db.models.auth import User
-from app.schemas.whatsapp.chat.tag import ConversationTagResponse
-from app.services import tag_service, conversation_service
-from app.core.error_handling import handle_database_error
-from app.core.middleware import get_correlation_id
 from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.config.error_codes import ErrorCode
+from app.core.logger import logger
+from app.db.models.auth import User
+from app.schemas.whatsapp.chat.tag import ConversationTag, TagSummary
+from app.services import conversation_service
+from app.services.auth import require_permissions
+from app.services.whatsapp.tag_service import tag_service
+from app.core.error_handling import handle_database_error
 
 router = APIRouter()
 
-@router.get("/{conversation_id}/tags", response_model=List[ConversationTagResponse])
+
+@router.get("/{conversation_id}/tags", response_model=List[ConversationTag])
 async def get_conversation_tags(
     conversation_id: str,
-    current_user: User = Depends(require_permissions(["conversations:read"]))
+    current_user: User = Depends(require_permissions(["messages:send"]))
 ):
     """
     Get all tags assigned to a conversation.
     
-    Args:
-        conversation_id: ID of the conversation
-        current_user: Current authenticated user
-        
-    Returns:
-        List of conversation tag assignments
+    Requires 'messages:send' permission (same as sending messages).
     """
-    correlation_id = get_correlation_id()
+    logger.info(f"🏷️ [GET_CONVERSATION_TAGS] Getting tags for conversation {conversation_id}")
+    logger.info(f"👤 [GET_CONVERSATION_TAGS] User: {current_user.email} (ID: {current_user.id})")
     
     try:
-        # Validate conversation_id
-        try:
-            conversation_object_id = ObjectId(conversation_id)
-        except Exception:
-            return get_error_response(ErrorCode.INVALID_ID, "Invalid conversation ID format")
-        
-        logger.info(
-            f"🔍 [GET_CONVERSATION_TAGS] Getting tags for conversation {conversation_id}",
-            extra={
-                "user_id": str(current_user.id),
-                "conversation_id": conversation_id,
-                "correlation_id": correlation_id
-            }
-        )
-        
-        # Check if conversation exists
-        conversation = await conversation_service.get_conversation(conversation_object_id)
+        # Validate conversation exists
+        conversation = await conversation_service.get_conversation(conversation_id)
         if not conversation:
-            return get_error_response(ErrorCode.CONVERSATION_NOT_FOUND, "Conversation not found")
+            logger.error(f"❌ [GET_CONVERSATION_TAGS] Conversation not found: {conversation_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorCode.CONVERSATION_NOT_FOUND
+            )
         
-        # Get conversation tags using service
-        conversation_tags = await tag_service.get_conversation_tags(conversation_object_id)
+        # Get tags using service
+        conversation_tags = await tag_service.get_conversation_tags(ObjectId(conversation_id))
         
-        # Convert to response format
+        # Convert to response format matching frontend expectations
         tag_responses = []
         for conv_tag in conversation_tags:
-            tag_response = ConversationTagResponse(
-                conversation_id=str(conv_tag["conversation_id"]),
-                tag=conv_tag["tag"],
-                assigned_at=conv_tag["assigned_at"],
-                assigned_by=str(conv_tag["assigned_by"]) if conv_tag.get("assigned_by") else None,
-                auto_assigned=conv_tag.get("auto_assigned", False),
-                confidence_score=conv_tag.get("confidence_score")
+            tag_summary = TagSummary(
+                id=str(conv_tag["tag_id"]),
+                name=conv_tag["tag_name"],
+                slug=conv_tag.get("tag_slug", conv_tag["tag_name"].lower().replace(" ", "-")),
+                display_name=conv_tag["tag_name"],
+                category=conv_tag.get("tag_category", "general"),
+                color=conv_tag["tag_color"],
+                usage_count=0  # Not relevant for conversation tags
             )
-            tag_responses.append(tag_response)
+            
+            tag_responses.append(ConversationTag(
+                tag=tag_summary,
+                assigned_at=conv_tag["assigned_at"].isoformat(),
+                assigned_by=str(conv_tag["assigned_by"]) if conv_tag.get("assigned_by") else None,
+                auto_assigned=conv_tag.get("auto_assigned", False)
+            ))
         
-        logger.info(
-            f"✅ [GET_CONVERSATION_TAGS] Found {len(tag_responses)} tags for conversation {conversation_id}",
-            extra={
-                "user_id": str(current_user.id),
-                "conversation_id": conversation_id,
-                "tags_count": len(tag_responses),
-                "correlation_id": correlation_id
-            }
-        )
+        logger.info(f"✅ [GET_CONVERSATION_TAGS] Found {len(tag_responses)} tags")
         
         return tag_responses
         
     except HTTPException:
         raise
-        
     except Exception as e:
-        logger.error(
-            f"❌ [GET_CONVERSATION_TAGS] Unexpected error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "conversation_id": conversation_id,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
-        )
+        logger.error(f"❌ [GET_CONVERSATION_TAGS] Unexpected error: {str(e)}")
         raise handle_database_error(e, "get_conversation_tags", "conversation_tag")

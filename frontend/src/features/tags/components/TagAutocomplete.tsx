@@ -7,7 +7,7 @@ import * as React from 'react';
 import { Search, Plus, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
-import { TagSummary, TagCreate, TagCategory, TagColor } from '../models/tag';
+import { TagSummary, TagCreate, TagCategory, TagCategoryType, DEFAULT_TAG_COLORS } from '../models/tag';
 import { useTagSuggestions, useCreateTag } from '../hooks/useTags';
 import { TagChip } from './TagChip';
 
@@ -19,7 +19,7 @@ export interface TagAutocompleteProps {
   disabled?: boolean;
   maxTags?: number;
   allowCreate?: boolean;
-  categoryFilter?: TagCategory;
+  categoryFilter?: TagCategoryType;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -63,11 +63,12 @@ export function TagAutocomplete({
     debouncedQuery.length > 0 && isOpen
   );
 
-  const availableSuggestions = suggestions?.tags || [];
+  const availableSuggestions = suggestions?.suggestions || [];
   const canCreateNew = allowCreate && 
     debouncedQuery.length > 0 && 
     !availableSuggestions.some(tag => tag.name.toLowerCase() === debouncedQuery.toLowerCase()) &&
-    !selectedTags.some(tag => tag.name.toLowerCase() === debouncedQuery.toLowerCase());
+    !selectedTags.some(tag => tag.name.toLowerCase() === debouncedQuery.toLowerCase()) &&
+    !isLoadingSuggestions;
 
   const allOptions = [
     ...availableSuggestions,
@@ -76,7 +77,7 @@ export function TagAutocomplete({
       name: `Create "${debouncedQuery}"`,
       slug: '',
       category: categoryFilter || TagCategory.GENERAL,
-      color: TagColor.BLUE,
+      color: DEFAULT_TAG_COLORS[0],
       usage_count: 0,
       isCreateOption: true 
     } as TagSummary & { isCreateOption: boolean }] : [])
@@ -95,7 +96,10 @@ export function TagAutocomplete({
         const newTagData: TagCreate = {
           name: debouncedQuery,
           category: categoryFilter || TagCategory.GENERAL,
-          color: TagColor.BLUE,
+          color: DEFAULT_TAG_COLORS[0],
+          department_ids: [],
+          user_ids: [],
+          is_auto_assignable: true,
         };
 
         let newTag: TagSummary;
@@ -301,13 +305,18 @@ export function TagAutocomplete({
       </div>
 
       {/* Dropdown with suggestions */}
-      {isOpen && (
+      {isOpen && (debouncedQuery.length > 0 || isLoadingSuggestions) && (
         <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-popover shadow-lg">
           {suggestionsError ? (
             <div className="px-4 py-3 text-sm text-destructive">
               Failed to load suggestions
             </div>
-          ) : allOptions.length === 0 && !isLoadingSuggestions ? (
+          ) : isLoadingSuggestions ? (
+            <div className="px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Searching tags...
+            </div>
+          ) : allOptions.length === 0 ? (
             <div className="px-4 py-3 text-sm text-muted-foreground">
               {debouncedQuery ? 'No tags found' : 'Start typing to search tags'}
             </div>
@@ -358,6 +367,7 @@ export function TagAutocomplete({
     </div>
   );
 }
+
 
 
 

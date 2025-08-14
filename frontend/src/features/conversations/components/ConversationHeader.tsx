@@ -17,10 +17,14 @@ import {
   InformationCircleIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
+import { TagIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { ParticipantsModal } from './ParticipantsModal';
 import { useHistoryPanel } from '@/hooks/useHistoryPanel';
-import { ConversationTagManager } from '@/features/tags';
+import { ConversationTagsBar } from '@/features/tags/components/ConversationTagsBar';
+import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
+import { useConversationTags } from '@/features/tags/hooks/useConversationTags';
+import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -56,7 +60,11 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
     };
 
     const [showParticipants, setShowParticipants] = useState(false);
+    const [showEditTags, setShowEditTags] = useState(false);
     const { isHistoryVisible, setHistoryVisible } = useHistoryPanel();
+    
+    // Get conversation tags
+    const { data: conversationTags } = useConversationTags(String(conversation._id));
     
     return (
       <div 
@@ -112,11 +120,15 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
             
             {/* Tags */}
             <div className="mt-2">
-              <ConversationTagManager 
+              <ConversationTagsBar
                 conversationId={String(conversation._id)}
-                variant="compact"
+                tags={conversationTags?.map(ct => ({
+                  ...ct.tag,
+                  usage_count: 0, // Default value since ConversationTag doesn't include usage_count
+                })) || []}
+                maxDisplay={5}
+                onEdit={() => setShowEditTags(true)}
                 size="sm"
-                maxTags={5}
               />
             </div>
           </div>
@@ -180,18 +192,44 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
             </Button>
           )}
           
-          {onMoreActions && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={onMoreActions}
-              aria-label="More actions"
-            >
-              <EllipsisVerticalIcon className="w-5 h-5" />
-            </Button>
-          )}
+          <DropdownMenu
+            trigger={
+              <Button 
+                variant="ghost" 
+                size="icon"
+                aria-label="More actions"
+              >
+                <EllipsisVerticalIcon className="w-5 h-5" />
+              </Button>
+            }
+            align="right"
+          >
+            <DropdownMenuItem onClick={() => setShowEditTags(true)}>
+              <div className="flex items-center gap-2">
+                <TagIcon className="h-4 w-4" />
+                Edit Tags
+              </div>
+            </DropdownMenuItem>
+            {onMoreActions && (
+              <DropdownMenuItem onClick={onMoreActions}>
+                More Options
+              </DropdownMenuItem>
+            )}
+          </DropdownMenu>
         </div>
-        <ParticipantsModal open={showParticipants} onOpenChange={setShowParticipants} conversationId={String(conversation._id)} canWrite={true} />
+        
+        {/* Modals */}
+        <ParticipantsModal 
+          open={showParticipants} 
+          onOpenChange={setShowParticipants} 
+          conversationId={String(conversation._id)} 
+          canWrite={true} 
+        />
+        <EditTagsModal
+          open={showEditTags}
+          onOpenChange={setShowEditTags}
+          conversationId={String(conversation._id)}
+        />
       </div>
     );
   }

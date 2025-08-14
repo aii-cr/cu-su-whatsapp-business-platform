@@ -1,62 +1,54 @@
-"""Get tag endpoint."""
+"""Get tag by ID endpoint following project patterns."""
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 
-from app.config.error_codes import ErrorCode, get_error_response
+from app.config.error_codes import ErrorCode
 from app.core.logger import logger
-from app.services.auth import require_permissions
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.tag import TagResponse
-from app.services import tag_service
+from app.services.auth import require_permissions
+from app.services.whatsapp.tag_service import tag_service
 from app.core.error_handling import handle_database_error
-from app.core.middleware import get_correlation_id
-from bson import ObjectId
 
 router = APIRouter()
+
 
 @router.get("/{tag_id}", response_model=TagResponse)
 async def get_tag(
     tag_id: str,
-    current_user: User = Depends(require_permissions(["tags:read"]))
+    current_user: User = Depends(require_permissions(["messages:send"]))
 ):
     """
     Get a specific tag by ID.
     
-    Args:
-        tag_id: ID of the tag to retrieve
-        current_user: Current authenticated user
-        
-    Returns:
-        Tag details
+    Requires 'messages:send' permission.
     """
-    correlation_id = get_correlation_id()
+    logger.info(f"🏷️ [GET_TAG] Getting tag: {tag_id}")
+    logger.info(f"👤 [GET_TAG] User: {current_user.email} (ID: {current_user.id})")
     
     try:
-        # Validate tag_id
+        # Validate ObjectId
         try:
             tag_object_id = ObjectId(tag_id)
         except Exception:
-            return get_error_response(ErrorCode.INVALID_ID, "Invalid tag ID format")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tag ID format"
+            )
         
-        logger.info(
-            f"🔍 [GET_TAG] Getting tag: {tag_id}",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_id": tag_id,
-                "correlation_id": correlation_id
-            }
-        )
-        
-        # Get tag using service
+        # Get tag
         tag = await tag_service.get_tag(tag_object_id)
-        
         if not tag:
-            return get_error_response(ErrorCode.TAG_NOT_FOUND, "Tag not found")
+            logger.error(f"❌ [GET_TAG] Tag not found: {tag_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tag not found"
+            )
         
         # Convert to response format
         tag_response = TagResponse(
-            _id=str(tag["_id"]),
+            id=str(tag["_id"]),
             name=tag["name"],
             slug=tag["slug"],
             display_name=tag.get("display_name"),
@@ -64,45 +56,26 @@ async def get_tag(
             category=tag["category"],
             color=tag["color"],
             parent_tag_id=str(tag["parent_tag_id"]) if tag.get("parent_tag_id") else None,
-            child_tags=[str(cid) for cid in tag.get("child_tags", [])],
+            child_tags=[str(child_id) for child_id in tag.get("child_tags", [])],
             status=tag["status"],
-            is_system_tag=tag.get("is_system_tag", False),
-            is_auto_assignable=tag.get("is_auto_assignable", True),
-            usage_count=tag.get("usage_count", 0),
-            department_ids=[str(did) for did in tag.get("department_ids", [])],
-            user_ids=[str(uid) for uid in tag.get("user_ids", [])],
-            created_at=tag["created_at"],
-            updated_at=tag["updated_at"],
+            is_system_tag=tag["is_system_tag"],
+            is_auto_assignable=tag["is_auto_assignable"],
+            usage_count=tag["usage_count"],
+            department_ids=[str(dept_id) for dept_id in tag.get("department_ids", [])],
+            user_ids=[str(user_id) for user_id in tag.get("user_ids", [])],
+            created_at=tag["created_at"].isoformat(),
+            updated_at=tag["updated_at"].isoformat(),
             created_by=str(tag["created_by"]) if tag.get("created_by") else None,
             updated_by=str(tag["updated_by"]) if tag.get("updated_by") else None
         )
         
-        logger.info(
-            f"✅ [GET_TAG] Found tag: {tag['name']} (ID: {tag_id})",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_id": tag_id,
-                "tag_name": tag["name"],
-                "correlation_id": correlation_id
-            }
-        )
+        logger.info(f"✅ [GET_TAG] Found tag: {tag['name']}")
         
         return tag_response
         
     except HTTPException:
         raise
-        
     except Exception as e:
-        logger.error(
-            f"❌ [GET_TAG] Unexpected error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_id": tag_id,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
-        )
+        logger.error(f"❌ [GET_TAG] Unexpected error: {str(e)}")
         raise handle_database_error(e, "get_tag", "tag")
-
-
 

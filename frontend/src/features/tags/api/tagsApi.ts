@@ -17,9 +17,10 @@ import {
 } from '../models/tag';
 
 // API base configuration
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-const TAGS_BASE = `${API_BASE}/whatsapp/chat/tags`;
-const CONVERSATIONS_BASE = `${API_BASE}/whatsapp/chat/conversations`;
+import { getApiUrl } from '@/lib/config';
+
+const TAGS_BASE = getApiUrl('tags');
+const CONVERSATIONS_BASE = getApiUrl('conversations');
 
 // HTTP client with error handling
 class ApiClient {
@@ -140,14 +141,26 @@ export const tagsApi = {
    * Suggest tags for autocomplete
    */
   async suggestTags(params: TagSuggestRequest): Promise<TagSuggestResponse> {
-    const queryParams = {
+    const queryParams: Record<string, string | number> = {
       q: params.query,
-      ...(params.category && { category: params.category }),
       limit: params.limit,
-      ...(params.exclude_ids.length > 0 && { exclude_ids: params.exclude_ids.join(',') }),
     };
     
+    if (params.category) {
+      queryParams.category = params.category;
+    }
+    
+    if (params.exclude_ids && params.exclude_ids.length > 0) {
+      queryParams.exclude_ids = params.exclude_ids.join(',');
+    }
+    
     return apiClient.get<TagSuggestResponse>(`${TAGS_BASE}/suggest`, queryParams);
+  },
+  /**
+   * Fetch tag-related settings from backend (e.g., max tags per conversation)
+   */
+  async getSettings(): Promise<{ max_tags_per_conversation: number }> {
+    return apiClient.get<{ max_tags_per_conversation: number }>(`${TAGS_BASE}/settings`);
   },
 };
 

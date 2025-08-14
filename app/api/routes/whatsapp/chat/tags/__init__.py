@@ -1,21 +1,26 @@
-"""WhatsApp chat tags routes package."""
+"""Enhanced tags routes package."""
 
 from fastapi import APIRouter
 
-from .list_tags import router as list_tags_router
 from .create_tag import router as create_tag_router
+from .list_tags import router as list_tags_router
 from .get_tag import router as get_tag_router
 from .update_tag import router as update_tag_router
 from .delete_tag import router as delete_tag_router
+from .search_tags import router as search_tags_router
 from .suggest_tags import router as suggest_tags_router
+from .get_settings import router as get_settings_router
 
 # Create main tags router
 router = APIRouter(prefix="/tags", tags=["Tags"])
 
-# Include all tag endpoint routers
-router.include_router(list_tags_router)
-router.include_router(create_tag_router)
-router.include_router(get_tag_router)
-router.include_router(update_tag_router)
-router.include_router(delete_tag_router)
-router.include_router(suggest_tags_router)
+# Include tag endpoint routers - ORDER MATTERS!
+# Specific paths MUST come before parameterized paths
+router.include_router(search_tags_router)      # /search
+router.include_router(suggest_tags_router)     # /suggest  
+router.include_router(get_settings_router)     # /settings
+router.include_router(list_tags_router)        # /
+router.include_router(create_tag_router)       # /
+router.include_router(get_tag_router)          # /{tag_id} - MUST be after specific paths
+router.include_router(update_tag_router)       # /{tag_id}
+router.include_router(delete_tag_router)       # /{tag_id}

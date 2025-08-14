@@ -27,75 +27,24 @@ export const TagCategory = {
 
 export type TagCategoryType = typeof TagCategory[keyof typeof TagCategory];
 
-// Tag color enum
-export const TagColor = {
-  BLUE: 'blue',
-  GREEN: 'green',
-  YELLOW: 'yellow',
-  RED: 'red',
-  PURPLE: 'purple',
-  PINK: 'pink',
-  ORANGE: 'orange',
-  GRAY: 'gray',
-  INDIGO: 'indigo',
-  TEAL: 'teal',
-} as const;
+// Hex color type
+export type TagColorType = string; // Hex color like "#FF5733"
 
-export type TagColorType = typeof TagColor[keyof typeof TagColor];
-
-// Color palette mapping for UI
-export const TagColorPalette: Record<TagColorType, { bg: string; text: string; border: string }> = {
-  [TagColor.BLUE]: {
-    bg: 'bg-blue-100 dark:bg-blue-900/20',
-    text: 'text-blue-800 dark:text-blue-200',
-    border: 'border-blue-200 dark:border-blue-700',
-  },
-  [TagColor.GREEN]: {
-    bg: 'bg-emerald-100 dark:bg-emerald-900/20',
-    text: 'text-emerald-800 dark:text-emerald-200',
-    border: 'border-emerald-200 dark:border-emerald-700',
-  },
-  [TagColor.YELLOW]: {
-    bg: 'bg-amber-100 dark:bg-amber-900/20',
-    text: 'text-amber-800 dark:text-amber-200',
-    border: 'border-amber-200 dark:border-amber-700',
-  },
-  [TagColor.RED]: {
-    bg: 'bg-red-100 dark:bg-red-900/20',
-    text: 'text-red-800 dark:text-red-200',
-    border: 'border-red-200 dark:border-red-700',
-  },
-  [TagColor.PURPLE]: {
-    bg: 'bg-purple-100 dark:bg-purple-900/20',
-    text: 'text-purple-800 dark:text-purple-200',
-    border: 'border-purple-200 dark:border-purple-700',
-  },
-  [TagColor.PINK]: {
-    bg: 'bg-pink-100 dark:bg-pink-900/20',
-    text: 'text-pink-800 dark:text-pink-200',
-    border: 'border-pink-200 dark:border-pink-700',
-  },
-  [TagColor.ORANGE]: {
-    bg: 'bg-orange-100 dark:bg-orange-900/20',
-    text: 'text-orange-800 dark:text-orange-200',
-    border: 'border-orange-200 dark:border-orange-700',
-  },
-  [TagColor.GRAY]: {
-    bg: 'bg-gray-100 dark:bg-gray-900/20',
-    text: 'text-gray-800 dark:text-gray-200',
-    border: 'border-gray-200 dark:border-gray-700',
-  },
-  [TagColor.INDIGO]: {
-    bg: 'bg-indigo-100 dark:bg-indigo-900/20',
-    text: 'text-indigo-800 dark:text-indigo-200',
-    border: 'border-indigo-200 dark:border-indigo-700',
-  },
-  [TagColor.TEAL]: {
-    bg: 'bg-teal-100 dark:bg-teal-900/20',
-    text: 'text-teal-800 dark:text-teal-200',
-    border: 'border-teal-200 dark:border-teal-700',
-  },
-};
+// Default color palette for quick selection
+export const DEFAULT_TAG_COLORS = [
+  '#2563eb', // blue-600
+  '#059669', // emerald-600  
+  '#d97706', // amber-600
+  '#dc2626', // red-600
+  '#7c3aed', // violet-600
+  '#db2777', // pink-600
+  '#ea580c', // orange-600
+  '#6b7280', // gray-500
+  '#4f46e5', // indigo-600
+  '#0d9488', // teal-600
+  '#9333ea', // purple-600
+  '#16a34a', // green-600
+] as const;
 
 // Base tag schema
 export const TagSchema = z.object({
@@ -105,7 +54,7 @@ export const TagSchema = z.object({
   display_name: z.string().optional(),
   description: z.string().optional(),
   category: z.nativeEnum(TagCategory),
-  color: z.nativeEnum(TagColor),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color"),
   parent_tag_id: z.string().optional(),
   child_tags: z.array(z.string()).default([]),
   status: z.nativeEnum(TagStatus),
@@ -129,7 +78,7 @@ export const TagSummarySchema = z.object({
   slug: z.string(),
   display_name: z.string().optional(),
   category: z.nativeEnum(TagCategory),
-  color: z.nativeEnum(TagColor),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color"),
   usage_count: z.number().int().min(0),
 });
 
@@ -141,7 +90,7 @@ export const TagDenormalizedSchema = z.object({
   name: z.string(),
   slug: z.string(),
   category: z.nativeEnum(TagCategory),
-  color: z.nativeEnum(TagColor),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color"),
   display_name: z.string().optional(),
 });
 
@@ -159,17 +108,13 @@ export const ConversationTagSchema = z.object({
 
 export type ConversationTag = z.infer<typeof ConversationTagSchema>;
 
-// Tag create schema
+// Tag create schema - simplified
 export const TagCreateSchema = z.object({
   name: z.string().min(1).max(40),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").default('#2563eb'),
+  category: z.nativeEnum(TagCategory).default(TagCategory.GENERAL),
   display_name: z.string().max(60).optional(),
   description: z.string().max(200).optional(),
-  category: z.nativeEnum(TagCategory).default(TagCategory.GENERAL),
-  color: z.nativeEnum(TagColor).default(TagColor.BLUE),
-  parent_tag_id: z.string().optional(),
-  department_ids: z.array(z.string()).default([]),
-  user_ids: z.array(z.string()).default([]),
-  is_auto_assignable: z.boolean().default(true),
 });
 
 export type TagCreate = z.infer<typeof TagCreateSchema>;
@@ -180,7 +125,7 @@ export const TagUpdateSchema = z.object({
   display_name: z.string().max(60).optional(),
   description: z.string().max(200).optional(),
   category: z.nativeEnum(TagCategory).optional(),
-  color: z.nativeEnum(TagColor).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a valid hex color").optional(),
   parent_tag_id: z.string().optional(),
   department_ids: z.array(z.string()).optional(),
   user_ids: z.array(z.string()).optional(),
@@ -190,21 +135,19 @@ export const TagUpdateSchema = z.object({
 
 export type TagUpdate = z.infer<typeof TagUpdateSchema>;
 
-// Tag suggestion request schema
+// Tag suggestion request schema - simplified
 export const TagSuggestRequestSchema = z.object({
-  query: z.string().min(1).max(100),
-  category: z.nativeEnum(TagCategory).optional(),
+  query: z.string().max(100).default(""),
   limit: z.number().int().min(1).max(50).default(10),
   exclude_ids: z.array(z.string()).default([]),
 });
 
 export type TagSuggestRequest = z.infer<typeof TagSuggestRequestSchema>;
 
-// Tag suggestion response schema
+// Tag suggestion response schema - matches backend structure
 export const TagSuggestResponseSchema = z.object({
-  tags: z.array(TagSummarySchema),
+  suggestions: z.array(TagSummarySchema),
   total: z.number().int().min(0),
-  query: z.string(),
 });
 
 export type TagSuggestResponse = z.infer<typeof TagSuggestResponseSchema>;
@@ -235,11 +178,10 @@ export const TagListResponseSchema = z.object({
 
 export type TagListResponse = z.infer<typeof TagListResponseSchema>;
 
-// Conversation tag assignment request schema
+// Conversation tag assignment request schema - simplified
 export const ConversationTagAssignRequestSchema = z.object({
   tag_ids: z.array(z.string()).min(1),
   auto_assigned: z.boolean().default(false),
-  confidence_scores: z.record(z.string(), z.number().min(0).max(1)).optional(),
 });
 
 export type ConversationTagAssignRequest = z.infer<typeof ConversationTagAssignRequestSchema>;
@@ -253,7 +195,28 @@ export type ConversationTagUnassignRequest = z.infer<typeof ConversationTagUnass
 
 // Utility functions for tag operations
 export function getTagColorClasses(color: TagColorType): { bg: string; text: string; border: string } {
-  return TagColorPalette[color] || TagColorPalette[TagColor.GRAY];
+  // Convert hex color to CSS custom properties for dynamic styling
+  return {
+    bg: `bg-[${color}]/10 dark:bg-[${color}]/20`,
+    text: getContrastTextColor(color),
+    border: `border-[${color}]/30`,
+  };
+}
+
+export function getContrastTextColor(hexColor: string): string {
+  // Calculate luminance to determine if text should be light or dark
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return appropriate text color class
+  return luminance > 0.5 
+    ? 'text-gray-900 dark:text-gray-100' 
+    : 'text-white dark:text-gray-100';
 }
 
 export function getTagDisplayName(tag: Tag | TagSummary | TagDenormalized): string {
@@ -284,6 +247,10 @@ export function sortTagsByName(tags: TagSummary[]): TagSummary[] {
 export function filterTagsByCategory(tags: TagSummary[], category?: TagCategoryType): TagSummary[] {
   if (!category) return tags;
   return tags.filter(tag => tag.category === category);
+}
+
+export function validateHexColor(color: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(color);
 }
 
 export function searchTags(tags: TagSummary[], query: string): TagSummary[] {

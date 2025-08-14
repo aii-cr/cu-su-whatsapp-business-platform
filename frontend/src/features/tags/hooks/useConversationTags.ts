@@ -9,9 +9,9 @@ import {
   ConversationTag,
   ConversationTagAssignRequest,
   ConversationTagUnassignRequest,
-  TagDenormalized,
+  TagSummary,
 } from '../models/tag';
-import { conversationTagsApi, handleTagApiError } from '../api/tagsApi';
+import { conversationTagsApi, handleTagApiError, tagsApi } from '../api/tagsApi';
 import { tagQueryKeys } from './useTags';
 
 // Query keys for conversation tags
@@ -27,6 +27,7 @@ export function useConversationTags(conversationId: string | undefined) {
     queryFn: () => conversationTagsApi.getConversationTags(conversationId!),
     enabled: !!conversationId,
     staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
+    gcTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
       // Don't retry on 4xx errors
       const errorMessage = error?.message || '';
@@ -191,6 +192,11 @@ export function useConversationTagOperations(conversationId: string) {
   const assignMutation = useAssignConversationTags();
   const unassignMutation = useUnassignConversationTags();
   const { data: conversationTags, isLoading, error } = useConversationTags(conversationId);
+  const { data: tagSettings } = useQuery({
+    queryKey: ['tags', 'settings'],
+    queryFn: () => tagsApi.getSettings(),
+    staleTime: 10 * 60 * 1000,
+  });
 
   const assignTag = async (tagId: string, autoAssigned: boolean = false) => {
     return assignMutation.mutateAsync({
@@ -244,7 +250,7 @@ export function useConversationTagOperations(conversationId: string) {
     return conversationTags?.map(ct => ct.tag.id) || [];
   };
 
-  const getAssignedTags = (): TagDenormalized[] => {
+  const getAssignedTags = (): TagSummary[] => {
     return conversationTags?.map(ct => ct.tag) || [];
   };
 
@@ -256,6 +262,7 @@ export function useConversationTagOperations(conversationId: string) {
     conversationTags,
     isLoading,
     error,
+    tagSettings,
     assignTag,
     assignTags,
     unassignTag,

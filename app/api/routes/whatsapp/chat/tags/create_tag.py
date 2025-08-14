@@ -1,125 +1,80 @@
-"""Create tag endpoint."""
+"""Create tag endpoint following send_message.py pattern."""
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 
-from app.config.error_codes import ErrorCode, get_error_response
+from app.config.error_codes import ErrorCode
 from app.core.logger import logger
-from app.services.auth import require_permissions
+from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.tag import TagCreate, TagResponse
-from app.services import tag_service, audit_service
+from app.services import audit_service
+from app.services.auth import require_permissions
+from app.services.whatsapp.tag_service import tag_service
 from app.core.error_handling import handle_database_error
-from app.core.middleware import get_correlation_id
-from bson import ObjectId
 
 router = APIRouter()
+
 
 @router.post("/", response_model=TagResponse, status_code=status.HTTP_201_CREATED)
 async def create_tag(
     tag_data: TagCreate,
-    current_user: User = Depends(require_permissions(["tags:write"]))
+    current_user: User = Depends(require_permissions(["messages:send"]))
 ):
     """
-    Create a new tag.
+    Create a new tag for conversation categorization.
     
-    Args:
-        tag_data: Tag creation data
-        current_user: Current authenticated user
-        
-    Returns:
-        Created tag details
+    Requires 'messages:send' permission (same as sending messages).
     """
-    correlation_id = get_correlation_id()
+    logger.info(f"🏷️ [CREATE_TAG] Creating tag: {tag_data.name}")
+    logger.info(f"👤 [CREATE_TAG] User: {current_user.email} (ID: {current_user.id})")
     
     try:
-        logger.info(
-            f"➕ [CREATE_TAG] Creating tag: {tag_data.name}",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_name": tag_data.name,
-                "category": tag_data.category,
-                "correlation_id": correlation_id
-            }
-        )
-        
         # Create tag using service
-        created_tag = await tag_service.create_tag(
-            tag_data=tag_data,
-            created_by=current_user.id
-        )
+        tag = await tag_service.create_tag(tag_data, current_user.id)
         
-        # Convert to response format
-        tag_response = TagResponse(
-            _id=str(created_tag["_id"]),
-            name=created_tag["name"],
-            slug=created_tag["slug"],
-            display_name=created_tag.get("display_name"),
-            description=created_tag.get("description"),
-            category=created_tag["category"],
-            color=created_tag["color"],
-            parent_tag_id=str(created_tag["parent_tag_id"]) if created_tag.get("parent_tag_id") else None,
-            child_tags=[str(cid) for cid in created_tag.get("child_tags", [])],
-            status=created_tag["status"],
-            is_system_tag=created_tag.get("is_system_tag", False),
-            is_auto_assignable=created_tag.get("is_auto_assignable", True),
-            usage_count=created_tag.get("usage_count", 0),
-            department_ids=[str(did) for did in created_tag.get("department_ids", [])],
-            user_ids=[str(uid) for uid in created_tag.get("user_ids", [])],
-            created_at=created_tag["created_at"],
-            updated_at=created_tag["updated_at"],
-            created_by=str(created_tag["created_by"]) if created_tag.get("created_by") else None,
-            updated_by=str(created_tag["updated_by"]) if created_tag.get("updated_by") else None
-        )
-        
-        # ===== AUDIT LOGGING =====
-        await audit_service.log_tag_created(
+        # Audit logging
+        correlation_id = get_correlation_id()
+        await audit_service.log_event(
+            action="tag_created",
             actor_id=str(current_user.id),
             actor_name=current_user.name or current_user.email,
-            tag_id=str(created_tag["_id"]),
-            tag_name=created_tag["name"],
-            tag_category=created_tag["category"],
+            details=f"Created tag: {tag_data.name}",
             correlation_id=correlation_id
         )
         
-        logger.info(
-            f"✅ [CREATE_TAG] Successfully created tag: {created_tag['name']} (ID: {created_tag['_id']})",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_id": str(created_tag["_id"]),
-                "tag_name": created_tag["name"],
-                "correlation_id": correlation_id
-            }
-        )
+        logger.info(f"✅ [CREATE_TAG] Successfully created tag: {tag['name']} (ID: {tag['_id']})")
         
-        return tag_response
+        return TagResponse(
+            id=str(tag["_id"]),
+            name=tag["name"],
+            slug=tag["slug"],
+            display_name=tag.get("display_name"),
+            description=tag.get("description"),
+            category=tag["category"],
+            color=tag["color"],
+            parent_tag_id=str(tag["parent_tag_id"]) if tag.get("parent_tag_id") else None,
+            child_tags=[str(child_id) for child_id in tag.get("child_tags", [])],
+            status=tag["status"],
+            is_system_tag=tag["is_system_tag"],
+            is_auto_assignable=tag["is_auto_assignable"],
+            usage_count=tag["usage_count"],
+            department_ids=[str(dept_id) for dept_id in tag.get("department_ids", [])],
+            user_ids=[str(user_id) for user_id in tag.get("user_ids", [])],
+            created_at=tag["created_at"].isoformat(),
+            updated_at=tag["updated_at"].isoformat(),
+            created_by=str(tag["created_by"]) if tag.get("created_by") else None,
+            updated_by=str(tag["updated_by"]) if tag.get("updated_by") else None
+        )
         
     except ValueError as e:
-        logger.warning(
-            f"⚠️ [CREATE_TAG] Validation error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_name": tag_data.name,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
+        logger.warning(f"⚠️ [CREATE_TAG] Validation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )
-        return get_error_response(ErrorCode.VALIDATION_ERROR, str(e))
-        
     except HTTPException:
         raise
-        
     except Exception as e:
-        logger.error(
-            f"❌ [CREATE_TAG] Unexpected error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "tag_name": tag_data.name,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
-        )
+        logger.error(f"❌ [CREATE_TAG] Unexpected error: {str(e)}")
         raise handle_database_error(e, "create_tag", "tag")
-
-
-

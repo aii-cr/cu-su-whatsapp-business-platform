@@ -28,10 +28,8 @@ from .media import (
 )
 
 from .tag import (
-    TagCreate, TagUpdate, TagResponse, TagListResponse, TagSummaryResponse,
-    TagSuggestRequest, TagSuggestResponse, TagListRequest,
-    ConversationTagAssignRequest, ConversationTagUnassignRequest,
-    ConversationTagResponse, generate_slug
+    TagCreate, TagAssign, TagUnassign, TagResponse, TagSearchResponse,
+    ConversationTagResponse, TagOperationResponse
 )
 
 from .note import (
@@ -64,10 +62,8 @@ __all__ = [
     "MediaValidationResponse", "MediaProcessingJob",
     
     # Tag schemas
-    "TagCreate", "TagUpdate", "TagResponse", "TagListResponse", "TagSummaryResponse",
-    "TagSuggestRequest", "TagSuggestResponse", "TagListRequest",
-    "ConversationTagAssignRequest", "ConversationTagUnassignRequest",
-    "ConversationTagResponse", "generate_slug",
+    "TagCreate", "TagAssign", "TagUnassign", "TagResponse", "TagSearchResponse",
+    "ConversationTagResponse", "TagOperationResponse",
     
     # Note schemas
     "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", "NoteListResponse",

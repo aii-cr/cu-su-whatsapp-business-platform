@@ -61,7 +61,6 @@ const TagChip = React.forwardRef<HTMLDivElement, TagChipProps>(
     disabled = false,
     ...props 
   }, ref) => {
-    const colorClasses = getTagColorClasses(tag.color);
     const displayName = getTagDisplayName(tag);
     const interactive = interactiveProp || !!onTagClick || removable;
 
@@ -79,20 +78,38 @@ const TagChip = React.forwardRef<HTMLDivElement, TagChipProps>(
       onRemove?.();
     }, [disabled, loading, onRemove]);
 
+    // Calculate luminance to determine text color
+    const getContrastTextColor = (hexColor: string): string => {
+      const hex = hexColor.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      return luminance > 0.5 ? '#1f2937' : '#ffffff'; // gray-800 or white
+    };
+
+    const backgroundColor = `${tag.color}15`; // 15 = ~8% opacity in hex
+    const borderColor = `${tag.color}40`; // 40 = ~25% opacity in hex
+    const textColor = getContrastTextColor(tag.color);
+
     const baseClasses = cn(
       tagChipVariants({ size, variant, interactive }),
-      colorClasses.bg,
-      colorClasses.text,
-      variant === 'outline' || variant === 'default' ? colorClasses.border : '',
       disabled && 'opacity-60 cursor-not-allowed',
       loading && 'animate-pulse',
       className
     );
 
+    const dynamicStyles: React.CSSProperties = {
+      backgroundColor: variant !== 'outline' ? backgroundColor : 'transparent',
+      borderColor: variant === 'outline' || variant === 'default' ? borderColor : 'transparent',
+      color: variant === 'solid' ? textColor : undefined,
+    };
+
     return (
       <div
         ref={ref}
         className={baseClasses}
+        style={dynamicStyles}
         onClick={onTagClick ? handleClick : undefined}
         role={onTagClick ? 'button' : undefined}
         tabIndex={onTagClick && !disabled ? 0 : undefined}
@@ -136,6 +153,7 @@ const TagChip = React.forwardRef<HTMLDivElement, TagChipProps>(
 TagChip.displayName = 'TagChip';
 
 export { TagChip, tagChipVariants };
+
 
 
 

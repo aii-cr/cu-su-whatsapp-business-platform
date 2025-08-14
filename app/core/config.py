@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     AUTO_CLOSE_ENABLED: bool = True
     SURVEY_ON_CLOSE_ENABLED: bool = True
     MAX_AGENT_TRANSFERS: int = 10
+    # Tagging
+    MAX_TAGS_PER_CONVERSATION: int = 5
     
     # Notification Settings
     ENABLE_PUSH_NOTIFICATIONS: bool = True

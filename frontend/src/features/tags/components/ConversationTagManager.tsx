@@ -177,6 +177,7 @@ export function ConversationTagManager({
                 size={size}
               />
               
+              {/* Always show action buttons when adding tags */}
               <div className="flex items-center gap-2">
                 <Button
                   size={size === 'lg' ? 'default' : 'sm'}
@@ -223,6 +224,7 @@ export function ConversationTagManager({
 }
 
 export default ConversationTagManager;
+
 
 
 

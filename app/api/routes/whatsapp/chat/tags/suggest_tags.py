@@ -1,130 +1,118 @@
-"""Suggest tags endpoint for autocomplete."""
+"""Tag suggestions endpoint following project patterns."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from typing import Optional, List
+from bson import ObjectId
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 
-from app.config.error_codes import ErrorCode, get_error_response
 from app.core.logger import logger
-from app.services.auth import require_permissions
 from app.db.models.auth import User
-from app.schemas.whatsapp.chat.tag import TagSuggestRequest, TagSuggestResponse, TagSummaryResponse
-from app.services import tag_service
+from app.schemas.whatsapp.chat.tag import TagSuggestResponse, TagSummary
+from app.services.auth import require_permissions
+from app.services.whatsapp.tag_service import tag_service
 from app.core.error_handling import handle_database_error
-from app.core.middleware import get_correlation_id
 
 router = APIRouter()
 
-@router.get("/suggest", response_model=TagSuggestResponse)
+
+@router.get(
+    "/suggest", 
+    response_model=TagSuggestResponse,
+    summary="Get tag suggestions",
+    description="Get tag suggestions for autocomplete with search and filtering capabilities",
+    responses={
+        200: {
+            "description": "Successful response with tag suggestions",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "suggestions": [
+                            {
+                                "id": "65a1b2c3d4e5f6789abcdef0",
+                                "name": "Customer Support",
+                                "slug": "customer-support",
+                                "display_name": "Customer Support",
+                                "category": "department",
+                                "color": "#2563eb",
+                                "usage_count": 25
+                            }
+                        ],
+                        "total": 1
+                    }
+                }
+            }
+        },
+        400: {"description": "Bad request - invalid parameters"},
+        401: {"description": "Authentication required"},
+        403: {"description": "Insufficient permissions"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def suggest_tags(
-    q: str,
-    category: str = None,
-    limit: int = 10,
-    exclude_ids: str = None,
-    current_user: User = Depends(require_permissions(["tags:read"]))
+    q: str = Query("", description="Search query (empty returns popular tags)", max_length=100),
+    limit: int = Query(default=10, ge=1, le=50, description="Maximum number of suggestions"),
+    category: Optional[str] = Query(default=None, description="Filter by tag category"),
+    exclude_ids: Optional[str] = Query(default=None, description="Comma-separated tag IDs to exclude"),
+    current_user: User = Depends(require_permissions(["messages:send"]))
 ):
     """
-    Suggest tags for autocomplete based on search query.
+    Get tag suggestions for autocomplete functionality.
     
-    Args:
-        q: Search query (minimum 1 character)
-        category: Filter by tag category (optional)
-        limit: Maximum results (1-50, default 10)
-        exclude_ids: Comma-separated list of tag IDs to exclude
-        current_user: Current authenticated user
-        
-    Returns:
-        List of suggested tags with usage counts
+    **Features:**
+    - Empty query returns most popular tags
+    - Non-empty query searches by name (case-insensitive)
+    - Excludes inactive tags automatically
+    - Supports category filtering
+    - Excludes specified tag IDs
+    
+    **Use Cases:**
+    - Autocomplete in tag input fields
+    - Popular tags display
+    - Tag recommendations
+    
+    **Authentication:**
+    Requires 'messages:send' permission.
     """
-    correlation_id = get_correlation_id()
+    logger.info(f"🔍 [SUGGEST_TAGS] Getting suggestions: query='{q}', limit={limit}")
+    logger.info(f"👤 [SUGGEST_TAGS] User: {current_user.email} (ID: {current_user.id})")
     
     try:
-        logger.info(
-            f"🔍 [SUGGEST_TAGS] Suggesting tags for query: {q}",
-            extra={
-                "user_id": str(current_user.id),
-                "query": q,
-                "category": category,
-                "limit": limit,
-                "correlation_id": correlation_id
-            }
-        )
-        
         # Parse exclude_ids
-        exclude_id_list = []
+        exclude_object_ids = []
         if exclude_ids:
-            exclude_id_list = [id.strip() for id in exclude_ids.split(",") if id.strip()]
+            try:
+                exclude_object_ids = [ObjectId(tag_id.strip()) for tag_id in exclude_ids.split(",") if tag_id.strip()]
+            except Exception:
+                # Ignore invalid IDs
+                pass
         
-        # Build suggestion request
-        suggest_request = TagSuggestRequest(
+        # Get suggestions using service
+        tags = await tag_service.suggest_tags(
             query=q,
-            category=category,
             limit=limit,
-            exclude_ids=exclude_id_list
+            category=category,
+            exclude_ids=exclude_object_ids
         )
-        
-        # Get suggestions from service
-        tags, total = await tag_service.suggest_tags(suggest_request)
         
         # Convert to response format
-        tag_summaries = []
+        suggestions = []
         for tag in tags:
-            tag_summary = TagSummaryResponse(
-                _id=str(tag["_id"]),
+            suggestions.append(TagSummary(
+                id=str(tag["_id"]),
                 name=tag["name"],
                 slug=tag["slug"],
                 display_name=tag.get("display_name"),
                 category=tag["category"],
                 color=tag["color"],
-                usage_count=tag.get("usage_count", 0)
-            )
-            tag_summaries.append(tag_summary)
+                usage_count=tag["usage_count"]
+            ))
         
-        # Build response
-        response = TagSuggestResponse(
-            tags=tag_summaries,
-            total=total,
-            query=q
+        logger.info(f"✅ [SUGGEST_TAGS] Found {len(suggestions)} suggestions")
+        
+        return TagSuggestResponse(
+            suggestions=suggestions,
+            total=len(suggestions)
         )
-        
-        logger.info(
-            f"✅ [SUGGEST_TAGS] Found {len(tag_summaries)} suggestions for '{q}' (total: {total})",
-            extra={
-                "user_id": str(current_user.id),
-                "query": q,
-                "suggestions_count": len(tag_summaries),
-                "total": total,
-                "correlation_id": correlation_id
-            }
-        )
-        
-        return response
-        
-    except ValueError as e:
-        logger.warning(
-            f"⚠️ [SUGGEST_TAGS] Validation error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "query": q,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
-        )
-        return get_error_response(ErrorCode.VALIDATION_ERROR, str(e))
-        
-    except HTTPException:
-        raise
         
     except Exception as e:
-        logger.error(
-            f"❌ [SUGGEST_TAGS] Unexpected error: {str(e)}",
-            extra={
-                "user_id": str(current_user.id),
-                "query": q,
-                "error": str(e),
-                "correlation_id": correlation_id
-            }
-        )
-        raise handle_database_error(e, "suggest_tags", "tags")
-
-
-
+        logger.error(f"❌ [SUGGEST_TAGS] Unexpected error: {str(e)}")
+        raise handle_database_error(e, "suggest_tags", "tag")
