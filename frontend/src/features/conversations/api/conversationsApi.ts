@@ -50,6 +50,37 @@ export class ConversationsApi {
   }
 
   /**
+   * Get conversation with messages and initial unread count
+   */
+  static async getConversationWithMessages(
+    conversationId: string,
+    messagesLimit: number = 50,
+    messagesOffset: number = 0
+  ): Promise<{
+    conversation: Conversation;
+    messages: any[];
+    messages_total: number;
+    messages_limit: number;
+    messages_offset: number;
+    has_more_messages: boolean;
+    initial_unread_count: number;
+  }> {
+    try {
+      const params = new URLSearchParams({
+        messages_limit: String(messagesLimit),
+        messages_offset: String(messagesOffset),
+      });
+
+      const response = await httpClient.get(
+        `/conversations/${conversationId}/with-messages?${params.toString()}`
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
    * Create a new conversation
    */
   static async createConversation(data: CreateConversationRequest): Promise<Conversation> {

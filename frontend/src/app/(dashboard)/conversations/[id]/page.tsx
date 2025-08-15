@@ -15,13 +15,14 @@ import { MessageComposer } from '@/features/conversations/components/MessageComp
 import { ConversationHeader } from '@/features/conversations/components/ConversationHeader';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
 import { UnreadMessagesBanner } from '@/features/conversations/components/UnreadMessagesBanner';
-import { hasPermission } from '@/lib/auth';
+
 import { useAuthStore } from '@/lib/store';
-import { useMessages, useSendMessage } from '@/features/messages/hooks/useMessages';
-import { useConversation } from '@/features/conversations/hooks/useConversations';
+import { useSendMessage } from '@/features/messages/hooks/useMessages';
+import { useConversationWithMessages, conversationQueryKeys } from '@/features/conversations/hooks/useConversations';
 import { useConversationWebSocket } from '@/hooks/useWebSocket';
 import { useUnreadMessages } from '@/features/conversations/hooks/useUnreadMessages';
-import { SenderType } from '@/features/messages/models/message';
+import { useQueryClient } from '@tanstack/react-query';
+import { Message } from '@/features/messages/models/message';
 import { isSameDay } from '@/lib/utils';
 import { 
   InformationCircleIcon,
@@ -44,7 +45,30 @@ export default function ConversationDetailsPage() {
   const webSocket = useConversationWebSocket(conversationId);
   const { isConnected, sendTypingStart, sendTypingStop } = webSocket;
 
-  // Unread messages management
+  // Fetch conversation with messages and initial unread count
+  const { 
+    data: conversationWithMessages, 
+    isLoading: conversationLoading, 
+    error: conversationError 
+  } = useConversationWithMessages(conversationId, 50, 0);
+
+  // Extract data from the combined response
+  const conversation = conversationWithMessages?.conversation;
+  const initialUnreadCount = conversationWithMessages?.initial_unread_count || 0;
+  const messagesData = conversationWithMessages ? {
+    pages: [{ messages: conversationWithMessages.messages }],
+    pageParams: [0]
+  } : undefined;
+  const messagesLoading = conversationLoading;
+  const messagesError = conversationError;
+  const hasNextPage = conversationWithMessages?.has_more_messages || false;
+  const isFetchingNextPage = false; // Not implemented for this endpoint yet
+  const fetchNextPage = () => {}; // Not implemented for this endpoint yet
+
+  // Get all messages for rendering
+  const allMessages = messagesData?.pages?.[0]?.messages || [];
+
+  // Unread messages management with initial count from backend
   const {
     unreadCount,
     bannerUnreadCount, // Separate count for banner display
@@ -58,26 +82,82 @@ export default function ConversationDetailsPage() {
     autoMarkAsRead: true,
     enabled: !!conversationId,
     wsClient: webSocket.client,
-    isConnected: isConnected
+    isConnected: isConnected,
+    initialUnreadCount: initialUnreadCount
   });
 
-  // Fetch conversation and messages
-  const { 
-    data: conversation, 
-    isLoading: conversationLoading, 
-    error: conversationError 
-  } = useConversation(conversationId);
-  
-  const { 
-    data: messagesData, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage,
-    isLoading: messagesLoading,
-    error: messagesError 
-  } = useMessages(conversationId);
-
   const sendMessageMutation = useSendMessage();
+  const queryClient = useQueryClient();
+
+  // Handle optimistic updates for the new query structure
+  const handleSendMessage = (text: string) => {
+    console.log('📤 [SEND] User clicked send message:', text);
+    console.log('📤 [SEND] Conversation ID:', conversationId);
+    
+    // Create optimistic message
+    const optimisticMessage = {
+      _id: `optimistic-${Date.now()}`,
+      conversation_id: conversationId,
+      message_type: 'text',
+      direction: 'outbound',
+      sender_role: 'agent',
+      sender_id: user?._id || '',
+      sender_name: user?.name || user?.email || 'You',
+      text_content: text,
+      status: 'sending',
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      type: 'text',
+      isOptimistic: true,
+    };
+
+    // Add optimistic message to the conversation with messages query
+    queryClient.setQueryData(
+      [...conversationQueryKeys.detail(conversationId), 'with-messages', 50, 0],
+      (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        const oldData = old as { messages: Message[]; messages_total: number };
+        return {
+          ...oldData,
+          messages: [...oldData.messages, optimisticMessage],
+          messages_total: oldData.messages_total + 1,
+        };
+      }
+    );
+
+    // Send the actual message
+    sendMessageMutation.mutate({
+      conversation_id: conversationId,
+      text_content: text,
+    }, {
+      onSuccess: (response) => {
+        // Update optimistic message with real data
+        queryClient.setQueryData(
+          [...conversationQueryKeys.detail(conversationId), 'with-messages', 50, 0],
+          (old: unknown) => {
+            if (!old || typeof old !== 'object') return old;
+            const oldData = old as { messages: Message[] };
+            const sentMessage = response.message;
+            
+            // Replace optimistic message with real data
+            const updatedMessages = oldData.messages.map((msg: Message) => 
+              (msg as Message & { isOptimistic?: boolean }).isOptimistic ? { ...sentMessage, status: 'sent' } : msg
+            );
+            
+            return {
+              ...oldData,
+              messages: updatedMessages,
+            };
+          }
+        );
+
+        // Trigger banner to disappear by setting hasRepliedToUnread
+        // This will be handled by the WebSocket message handler
+        console.log('✅ [SEND] Message sent successfully, banner should disappear');
+      }
+    });
+  };
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -96,18 +176,7 @@ export default function ConversationDetailsPage() {
     }
   }, [scrollToBottom]);
 
-  // Mark messages as read when agent enters conversation view
-  const handleMarkMessagesAsRead = useCallback(async () => {
-    if (!hasMarkedAsRead && conversationId && isConnected) {
-      try {
-        // Use the unread messages hook to mark messages as read
-        await markMessagesAsRead();
-        console.log('✅ Marked messages as read via WebSocket');
-      } catch (error) {
-        console.error('Failed to mark messages as read:', error);
-      }
-    }
-  }, [conversationId, hasMarkedAsRead, isConnected, markMessagesAsRead]);
+
 
   // Check if user is near bottom of messages
   const isNearBottom = useCallback(() => {
@@ -140,12 +209,12 @@ export default function ConversationDetailsPage() {
   // Auto-scroll to bottom when new messages arrive (if user is near bottom)
   useEffect(() => {
     if (messagesData?.pages && messagesData.pages.length > 0) {
-      const allMessages = messagesData.pages.flatMap((page) => 
-        (page as { messages: any[] }).messages
+      const currentMessages = messagesData.pages.flatMap((page) => 
+        (page as { messages: Message[] }).messages
       );
       
       // Check if there are new messages (more than before)
-      if (allMessages.length > 0 && shouldScrollToBottom) {
+      if (currentMessages.length > 0 && shouldScrollToBottom) {
         const timer = setTimeout(() => {
           scrollToBottom('smooth');
         }, 50);
@@ -155,15 +224,7 @@ export default function ConversationDetailsPage() {
     }
   }, [messagesData?.pages, shouldScrollToBottom, scrollToBottom]);
 
-  // Handle sending a message
-  const handleSendMessage = (text: string) => {
-    console.log('📤 [SEND] User clicked send message:', text);
-    console.log('📤 [SEND] Conversation ID:', conversationId);
-    sendMessageMutation.mutate({
-      conversation_id: conversationId,
-      text_content: text,
-    });
-  };
+
 
   // Handle sending media (placeholder)
   const handleSendMedia = (file: File, caption?: string) => {
@@ -225,10 +286,7 @@ export default function ConversationDetailsPage() {
     );
   }
 
-  // Flatten messages from all pages
-  const allMessages = messagesData?.pages.flatMap((page) => 
-    (page as { messages: any[] }).messages
-  ) || [];
+
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -244,12 +302,7 @@ export default function ConversationDetailsPage() {
         />
       )}
 
-      {/* Unread Messages Banner */}
-      <UnreadMessagesBanner
-        unreadCount={bannerUnreadCount}
-        onScrollToUnread={scrollToUnread}
-        isVisible={isUnreadBannerVisible}
-      />
+
 
       {/* Debug button - remove this after testing */}
       {process.env.NODE_ENV === 'development' && (
@@ -345,15 +398,14 @@ export default function ConversationDetailsPage() {
                     <DayBanner date={message.timestamp} />
                   )}
                   
-                  {/* Unread messages marker - only show if banner is not visible */}
-                  {isFirstUnread && !isUnreadBannerVisible && (
-                    <div 
-                      ref={unreadMessagesRef}
-                      className="flex justify-center my-2"
-                    >
-                      <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
-                        {bannerUnreadCount} unread message{bannerUnreadCount !== 1 ? 's' : ''}
-                      </div>
+                  {/* Unread Messages Banner - positioned right above first unread message */}
+                  {isFirstUnread && isUnreadBannerVisible && (
+                    <div ref={unreadMessagesRef}>
+                      <UnreadMessagesBanner
+                        unreadCount={bannerUnreadCount}
+                        onScrollToUnread={scrollToUnread}
+                        isVisible={true}
+                      />
                     </div>
                   )}
                   

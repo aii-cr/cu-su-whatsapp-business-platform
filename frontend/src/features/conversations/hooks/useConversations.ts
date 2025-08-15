@@ -51,6 +51,22 @@ export function useConversation(conversationId: string) {
 }
 
 /**
+ * Hook to fetch conversation with messages and initial unread count
+ */
+export function useConversationWithMessages(
+  conversationId: string,
+  messagesLimit: number = 50,
+  messagesOffset: number = 0
+) {
+  return useQuery({
+    queryKey: [...conversationQueryKeys.detail(conversationId), 'with-messages', messagesLimit, messagesOffset],
+    queryFn: () => ConversationsApi.getConversationWithMessages(conversationId, messagesLimit, messagesOffset),
+    staleTime: 30 * 1000,
+    enabled: !!conversationId,
+  });
+}
+
+/**
  * Hook to fetch conversation statistics
  */
 export function useConversationStats() {

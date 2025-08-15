@@ -15,6 +15,7 @@ interface UseUnreadMessagesOptions {
   enabled?: boolean; // Whether the hook should be active
   wsClient?: any; // WebSocket client instance
   isConnected?: boolean; // Connection status from parent WebSocket hook
+  initialUnreadCount?: number; // Initial unread count from backend (WhatsApp-like)
 }
 
 export function useUnreadMessages({
@@ -22,7 +23,8 @@ export function useUnreadMessages({
   autoMarkAsRead = true,
   enabled = true,
   wsClient: providedWsClient,
-  isConnected: providedIsConnected = false
+  isConnected: providedIsConnected = false,
+  initialUnreadCount = 0
 }: UseUnreadMessagesOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -185,29 +187,29 @@ export function useUnreadMessages({
     };
   }, [enabled, autoMarkAsRead, conversationId, user, markMessagesAsRead, wsClient, providedIsConnected]);
 
-  // Capture initial unread count and update database unread count
+  // Use initial unread count from backend (WhatsApp-like behavior)
   useEffect(() => {
     if (!enabled) return;
 
     const count = calculateUnreadCount();
     setUnreadCount(count);
     
-    // CRUCIAL: Capture initial unread count for banner BEFORE auto-mark-as-read happens
-    if (!initialUnreadCapturedRef.current && count > 0) {
-      console.log(`🎯 [UNREAD] CAPTURING initial unread count for banner: ${count} messages`);
-      setBannerUnreadCount(count);
+    // CRUCIAL: Use initial unread count from backend for banner display
+    if (!initialUnreadCapturedRef.current && initialUnreadCount > 0) {
+      console.log(`🎯 [UNREAD] USING backend initial unread count for banner: ${initialUnreadCount} messages`);
+      setBannerUnreadCount(initialUnreadCount);
       setIsVisible(true);
       initialUnreadCapturedRef.current = true;
     }
     
     // If no unread messages initially, hide banner
-    if (count === 0 && !initialUnreadCapturedRef.current) {
+    if (initialUnreadCount === 0 && !initialUnreadCapturedRef.current) {
       setIsVisible(false);
       initialUnreadCapturedRef.current = true;
     }
     
-    console.log(`📊 [UNREAD] DB unread: ${count} | Banner: ${bannerUnreadCount} | Visible: ${isVisible} | Replied: ${hasRepliedToUnread}`);
-  }, [enabled, calculateUnreadCount, conversationId, bannerUnreadCount, isVisible, hasRepliedToUnread]);
+    console.log(`📊 [UNREAD] Backend initial: ${initialUnreadCount} | DB unread: ${count} | Banner: ${bannerUnreadCount} | Visible: ${isVisible} | Replied: ${hasRepliedToUnread}`);
+  }, [enabled, calculateUnreadCount, conversationId, bannerUnreadCount, isVisible, hasRepliedToUnread, initialUnreadCount]);
 
   // Banner visibility control (separate from database count)
   useEffect(() => {

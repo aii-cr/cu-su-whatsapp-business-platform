@@ -485,12 +485,22 @@ class ConversationService(BaseService):
                 messages = []
                 total_count = 0
             
-            logger.info(f"Retrieved conversation {conversation_id} with {len(messages)} messages (total: {total_count})")
+            # Calculate initial unread count for WhatsApp-like banner
+            # Count inbound messages that are not read and are from customers
+            unread_count = await db.messages.count_documents({
+                "conversation_id": ObjectId(conversation_id),
+                "direction": "inbound",
+                "status": "received",
+                "sender_role": "customer"
+            })
+            
+            logger.info(f"Retrieved conversation {conversation_id} with {len(messages)} messages (total: {total_count}, unread: {unread_count})")
             
             return {
                 "conversation": conversation,
                 "messages": messages,
                 "messages_total": total_count,
+                "initial_unread_count": unread_count,
                 "has_access": True
             }
             
