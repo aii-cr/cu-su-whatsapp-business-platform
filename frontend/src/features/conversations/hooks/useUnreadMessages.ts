@@ -16,6 +16,7 @@ interface UseUnreadMessagesOptions {
   wsClient?: any; // WebSocket client instance
   isConnected?: boolean; // Connection status from parent WebSocket hook
   initialUnreadCount?: number; // Initial unread count from backend (WhatsApp-like)
+  onAgentReply?: () => void; // Callback when agent sends a reply
 }
 
 export function useUnreadMessages({
@@ -24,7 +25,8 @@ export function useUnreadMessages({
   enabled = true,
   wsClient: providedWsClient,
   isConnected: providedIsConnected = false,
-  initialUnreadCount = 0
+  initialUnreadCount = 0,
+  onAgentReply
 }: UseUnreadMessagesOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -142,6 +144,14 @@ export function useUnreadMessages({
     }
   }, [conversationId, user, hasMarkedAsRead, queryClient, wsClient, providedIsConnected]);
 
+  // Manually hide banner (for immediate feedback)
+  const hideBanner = useCallback(() => {
+    console.log('🎯 [UNREAD] Manually hiding banner');
+    setHasRepliedToUnread(true);
+    setBannerUnreadCount(0);
+    setIsVisible(false);
+  }, []);
+
   // Auto-mark as read when agent views conversation
   useEffect(() => {
     if (!enabled || !autoMarkAsRead || !conversationId || !user) {
@@ -177,8 +187,19 @@ export function useUnreadMessages({
       await markMessagesAsRead();
     };
 
-    // Start the process after a short delay to ensure messages are loaded
-    markAsReadTimeoutRef.current = setTimeout(waitForConnection, 1000); // Reduced to 1 second
+    // Only auto-mark as read if we're actively viewing the conversation for a significant time
+    // This prevents the banner from disappearing too quickly
+    const isOnConversationPage = window.location.pathname.includes(`/conversations/${conversationId}`);
+    
+    if (isOnConversationPage) {
+      // If we're on the conversation page, mark as read after 5 seconds of viewing
+      // This gives the agent time to see the banner and decide whether to reply
+      markAsReadTimeoutRef.current = setTimeout(waitForConnection, 5000);
+      console.log('📱 [UNREAD] On conversation page, will auto-mark as read in 5 seconds');
+    } else {
+      // If we're on the main page, don't auto-mark as read - let the banner stay visible
+      console.log('📱 [UNREAD] On main page, not auto-marking as read - banner should stay visible');
+    }
 
     return () => {
       if (markAsReadTimeoutRef.current) {
@@ -286,6 +307,13 @@ export function useUnreadMessages({
           console.log('📤 [UNREAD] Agent sent a reply, hiding banner');
           setHasRepliedToUnread(true);
           setBannerUnreadCount(0); // Reset banner count
+          setIsVisible(false); // Immediately hide banner
+          
+          // Call the callback if provided
+          if (onAgentReply) {
+            onAgentReply();
+          }
+          
           // Banner will hide automatically via the visibility effect
         }
       }
@@ -338,6 +366,7 @@ export function useUnreadMessages({
     hasRepliedToUnread, // Whether agent has replied to unread messages
     isCurrentlyViewing,
     markMessagesAsRead,
+    hideBanner, // Manual banner hide function
     calculateUnreadCount
   };
 }

@@ -84,9 +84,9 @@ export function useSendMessage() {
         direction: 'outbound',
         sender_role: 'agent',
         sender_id: user?._id || '',
-        sender_name: (user?.first_name && user?.last_name) 
-          ? `${user.first_name} ${user.last_name}` 
-          : user?.email || 'You',
+        sender_name: user?.name || 
+                    (user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+                    user?.email || 'You',
         text_content: variables.text_content,
         status: 'sending', // Show as sending with loading indicator (pending state)
         timestamp: new Date().toISOString(),

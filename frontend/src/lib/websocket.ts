@@ -377,12 +377,17 @@ export class MessagingWebSocketClient extends WebSocketClient {
           });
           
           if (optimisticIndex !== -1) {
-            // Replace optimistic message with real message
+            // Replace optimistic message with real message, but preserve the optimistic sender_name
+            const optimisticMessage = messages[optimisticIndex] as { sender_name?: string };
+            const realMessageData = realMessage as Record<string, unknown>;
+            
             messages[optimisticIndex] = {
-              ...(realMessage as Record<string, unknown>),
-              _id: (realMessage as Record<string, unknown>)['id'] || (realMessage as Record<string, unknown>)['_id'] || '',
+              ...realMessageData,
+              _id: realMessageData['id'] || realMessageData['_id'] || '',
               status: 'sent',
               isOptimistic: false,
+              // Preserve the optimistic sender_name to avoid flash
+              sender_name: optimisticMessage.sender_name || realMessageData['sender_name'],
             } as unknown as typeof messages[number];
             messageUpdated = true;
             
@@ -434,12 +439,17 @@ export class MessagingWebSocketClient extends WebSocketClient {
         });
         
         if (optimisticIndex !== -1) {
-          // Replace optimistic message with real message
+          // Replace optimistic message with real message, but preserve the optimistic sender_name
+          const optimisticMessage = messages[optimisticIndex] as { sender_name?: string };
+          const realMessageData = realMessage as Record<string, unknown>;
+          
           messages[optimisticIndex] = {
-            ...(realMessage as Record<string, unknown>),
-            _id: (realMessage as Record<string, unknown>)['id'] || (realMessage as Record<string, unknown>)['_id'] || '',
+            ...realMessageData,
+            _id: realMessageData['id'] || realMessageData['_id'] || '',
             status: 'sent',
             isOptimistic: false,
+            // Preserve the optimistic sender_name to avoid flash
+            sender_name: optimisticMessage.sender_name || realMessageData['sender_name'],
           } as unknown as typeof messages[number];
           messageUpdated = true;
           

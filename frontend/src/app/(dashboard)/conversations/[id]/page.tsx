@@ -76,7 +76,8 @@ export default function ConversationDetailsPage() {
     hasMarkedAsRead,
     hasRepliedToUnread,
     isCurrentlyViewing,
-    markMessagesAsRead
+    markMessagesAsRead,
+    hideBanner
   } = useUnreadMessages({
     conversationId,
     autoMarkAsRead: true,
@@ -102,7 +103,9 @@ export default function ConversationDetailsPage() {
       direction: 'outbound',
       sender_role: 'agent',
       sender_id: user?._id || '',
-      sender_name: user?.name || user?.email || 'You',
+      sender_name: user?.name || 
+                  (user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : null) ||
+                  user?.email || 'You',
       text_content: text,
       status: 'sending',
       timestamp: new Date().toISOString(),
@@ -155,6 +158,9 @@ export default function ConversationDetailsPage() {
         // Trigger banner to disappear by setting hasRepliedToUnread
         // This will be handled by the WebSocket message handler
         console.log('✅ [SEND] Message sent successfully, banner should disappear');
+        
+        // Manually hide banner for immediate feedback
+        hideBanner();
       }
     });
   };
