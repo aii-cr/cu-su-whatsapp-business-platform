@@ -27,11 +27,14 @@ export function useUnreadMessages({
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [bannerUnreadCount, setBannerUnreadCount] = useState(0); // Banner-specific count (persists independently)
   const [hasMarkedAsRead, setHasMarkedAsRead] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
+  const [hasRepliedToUnread, setHasRepliedToUnread] = useState(false); // Track if agent replied
+  const [isVisible, setIsVisible] = useState(false);
   const [isCurrentlyViewing, setIsCurrentlyViewing] = useState(false);
   const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastViewTimeRef = useRef<number>(0);
+  const initialUnreadCapturedRef = useRef<boolean>(false); // Track if we captured initial unread count
 
   // Use provided WebSocket client or fall back to global one
   const wsClient = providedWsClient || globalWsClient;
@@ -122,9 +125,9 @@ export function useUnreadMessages({
       
       setHasMarkedAsRead(true);
       setUnreadCount(0);
-      setIsVisible(false);
       setIsCurrentlyViewing(true);
       lastViewTimeRef.current = Date.now();
+      // Note: Don't set setIsVisible(false) here - banner visibility is controlled separately
       
       // Invalidate messages query to refresh status
       queryClient.invalidateQueries({
@@ -182,36 +185,61 @@ export function useUnreadMessages({
     };
   }, [enabled, autoMarkAsRead, conversationId, user, markMessagesAsRead, wsClient, providedIsConnected]);
 
-  // Update unread count when messages change
+  // Capture initial unread count and update database unread count
   useEffect(() => {
     if (!enabled) return;
 
     const count = calculateUnreadCount();
     setUnreadCount(count);
     
-    // Show banner if there are unread messages and we haven't marked them as read
-    // AND we're not currently viewing the conversation
-    const shouldShowBanner = count > 0 && !hasMarkedAsRead && !isCurrentlyViewing;
+    // CRUCIAL: Capture initial unread count for banner BEFORE auto-mark-as-read happens
+    if (!initialUnreadCapturedRef.current && count > 0) {
+      console.log(`🎯 [UNREAD] CAPTURING initial unread count for banner: ${count} messages`);
+      setBannerUnreadCount(count);
+      setIsVisible(true);
+      initialUnreadCapturedRef.current = true;
+    }
+    
+    // If no unread messages initially, hide banner
+    if (count === 0 && !initialUnreadCapturedRef.current) {
+      setIsVisible(false);
+      initialUnreadCapturedRef.current = true;
+    }
+    
+    console.log(`📊 [UNREAD] DB unread: ${count} | Banner: ${bannerUnreadCount} | Visible: ${isVisible} | Replied: ${hasRepliedToUnread}`);
+  }, [enabled, calculateUnreadCount, conversationId, bannerUnreadCount, isVisible, hasRepliedToUnread]);
+
+  // Banner visibility control (separate from database count)
+  useEffect(() => {
+    if (!enabled) return;
+    
+    // Banner shows when: bannerUnreadCount > 0 AND agent hasn't replied
+    const shouldShowBanner = bannerUnreadCount > 0 && !hasRepliedToUnread;
     setIsVisible(shouldShowBanner);
     
-    console.log(`📊 [UNREAD] Unread count updated: ${count} messages`);
-    console.log(`📊 [UNREAD] Banner visibility: ${shouldShowBanner ? 'Visible' : 'Hidden'}`);
-    console.log(`📊 [UNREAD] Currently viewing: ${isCurrentlyViewing}`);
-  }, [enabled, calculateUnreadCount, hasMarkedAsRead, isCurrentlyViewing, conversationId]);
+    console.log(`🎯 [UNREAD] Banner visibility check: ${bannerUnreadCount} unread, replied: ${hasRepliedToUnread} → ${shouldShowBanner ? 'SHOW' : 'HIDE'}`);
+  }, [enabled, bannerUnreadCount, hasRepliedToUnread]);
 
   // WebSocket message handlers
   useEffect(() => {
-    if (!enabled || !conversationId) return;
+    if (!enabled || !conversationId || !wsClient) {
+      console.log('🚫 [UNREAD] WebSocket handlers disabled:', { enabled, conversationId: !!conversationId, wsClient: !!wsClient });
+      return;
+    }
+
+    console.log('🔗 [UNREAD] Setting up WebSocket subscriptions for conversation:', conversationId);
 
     // Handle messages read confirmation
     const unsubscribeMessagesRead = wsClient.subscribe('messages_read_confirmed', (message: any) => {
       if (message.conversation_id === conversationId) {
         console.log('✅ [UNREAD] Received messages read confirmation:', message);
-        setUnreadCount(0);
-        setIsVisible(false);
+        setUnreadCount(0); // Database count goes to 0
         setHasMarkedAsRead(true);
         setIsCurrentlyViewing(true);
         lastViewTimeRef.current = Date.now();
+        
+        // IMPORTANT: Do NOT hide banner here! Banner persists until agent replies
+        console.log('📊 [UNREAD] Messages marked as read in backend, but banner stays visible until agent replies');
         
         // Invalidate messages query to refresh status
         queryClient.invalidateQueries({
@@ -227,6 +255,13 @@ export function useUnreadMessages({
         if (message.message?.direction === 'inbound' && message.message?.sender_role === 'customer') {
           console.log('📨 [UNREAD] New inbound message received');
           
+          // Always increment banner count for new customer messages
+          setBannerUnreadCount(prev => {
+            const newCount = prev + 1;
+            console.log(`📨 [UNREAD] Banner count incremented: ${prev} → ${newCount}`);
+            return newCount;
+          });
+          
           // Check if we're currently viewing this conversation
           const now = Date.now();
           const isCurrentlyViewing = (now - lastViewTimeRef.current) < 30000; // 30 seconds threshold
@@ -237,12 +272,19 @@ export function useUnreadMessages({
             markMessagesAsRead();
           } else {
             console.log('📨 [UNREAD] Not currently viewing, incrementing unread count');
-            // Recalculate unread count and show banner
+            // Recalculate unread count
             const newCount = calculateUnreadCount();
             setUnreadCount(newCount);
-            setIsVisible(newCount > 0 && !hasMarkedAsRead);
             setIsCurrentlyViewing(false);
           }
+        }
+        
+        // If it's an outbound message from agent (reply), hide banner
+        if (message.message?.direction === 'outbound' && message.message?.sender_role === 'agent') {
+          console.log('📤 [UNREAD] Agent sent a reply, hiding banner');
+          setHasRepliedToUnread(true);
+          setBannerUnreadCount(0); // Reset banner count
+          // Banner will hide automatically via the visibility effect
         }
       }
     });
@@ -252,7 +294,7 @@ export function useUnreadMessages({
       if (message.conversation_id === conversationId) {
         console.log('📊 [UNREAD] Received unread count update:', message.unread_count);
         setUnreadCount(message.unread_count);
-        setIsVisible(message.unread_count > 0 && !hasMarkedAsRead && !isCurrentlyViewing);
+        // Don't change banner visibility here - it's controlled separately by banner logic
       }
     });
 
@@ -261,15 +303,20 @@ export function useUnreadMessages({
       unsubscribeNewMessage();
       unsubscribeUnreadCount();
     };
-  }, [enabled, conversationId, calculateUnreadCount, hasMarkedAsRead, isCurrentlyViewing, queryClient, markMessagesAsRead]);
+  }, [enabled, conversationId, wsClient, queryClient, calculateUnreadCount, markMessagesAsRead]); // Include necessary stable functions
 
-  // Reset state when conversation changes
+  // Reset state when conversation changes (page reload effect)
   useEffect(() => {
     setHasMarkedAsRead(false);
-    setIsVisible(true);
+    setHasRepliedToUnread(false); // Reset reply status
+    setIsVisible(false); // Start hidden, will show if there are unread messages
     setUnreadCount(0);
+    setBannerUnreadCount(0); // Reset banner count
     setIsCurrentlyViewing(false);
     lastViewTimeRef.current = 0;
+    initialUnreadCapturedRef.current = false; // Reset capture flag
+    
+    console.log(`🔄 [UNREAD] State reset for conversation: ${conversationId}`);
   }, [conversationId]);
 
   // Cleanup on unmount
@@ -283,8 +330,10 @@ export function useUnreadMessages({
 
   return {
     unreadCount,
+    bannerUnreadCount, // Separate count for banner display
     isVisible,
     hasMarkedAsRead,
+    hasRepliedToUnread, // Whether agent has replied to unread messages
     isCurrentlyViewing,
     markMessagesAsRead,
     calculateUnreadCount

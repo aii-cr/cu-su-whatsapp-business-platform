@@ -47,8 +47,10 @@ export default function ConversationDetailsPage() {
   // Unread messages management
   const {
     unreadCount,
+    bannerUnreadCount, // Separate count for banner display
     isVisible: isUnreadBannerVisible,
     hasMarkedAsRead,
+    hasRepliedToUnread,
     isCurrentlyViewing,
     markMessagesAsRead
   } = useUnreadMessages({
@@ -244,7 +246,7 @@ export default function ConversationDetailsPage() {
 
       {/* Unread Messages Banner */}
       <UnreadMessagesBanner
-        unreadCount={unreadCount}
+        unreadCount={bannerUnreadCount}
         onScrollToUnread={scrollToUnread}
         isVisible={isUnreadBannerVisible}
       />
@@ -278,7 +280,7 @@ export default function ConversationDetailsPage() {
             🔧 Direct WS Test
           </button>
           <span className="ml-2 text-sm">
-            Unread: {unreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'} | Viewing: {isCurrentlyViewing ? 'Yes' : 'No'}
+            DB Unread: {unreadCount} | Banner Unread: {bannerUnreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Replied: {hasRepliedToUnread ? 'Yes' : 'No'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'} | Viewing: {isCurrentlyViewing ? 'Yes' : 'No'}
           </span>
         </div>
       )}
@@ -350,7 +352,7 @@ export default function ConversationDetailsPage() {
                       className="flex justify-center my-2"
                     >
                       <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
-                        {unreadCount} unread message{unreadCount !== 1 ? 's' : ''}
+                        {bannerUnreadCount} unread message{bannerUnreadCount !== 1 ? 's' : ''}
                       </div>
                     </div>
                   )}

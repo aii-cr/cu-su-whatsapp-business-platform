@@ -331,7 +331,23 @@ async def handle_dashboard_websocket_message(user_id: str, message: dict):
     try:
         message_type = message.get("type")
         
-        if message_type == "mark_conversation_read":
+        if message_type == "subscribe_dashboard":
+            await manager.subscribe_to_dashboard(user_id)
+            await manager.send_personal_message({
+                "type": "dashboard_subscription_confirmed",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+            logger.info(f"🏠 [DASHBOARD_WS] User {user_id} subscribed to dashboard updates")
+        
+        elif message_type == "unsubscribe_dashboard":
+            await manager.unsubscribe_from_dashboard(user_id)
+            await manager.send_personal_message({
+                "type": "dashboard_unsubscription_confirmed",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+            logger.info(f"🏠 [DASHBOARD_WS] User {user_id} unsubscribed from dashboard updates")
+        
+        elif message_type == "mark_conversation_read":
             conversation_id = message.get("conversation_id")
             if conversation_id:
                 await websocket_service.reset_unread_count_for_user(user_id, conversation_id)

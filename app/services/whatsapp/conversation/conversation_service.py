@@ -103,6 +103,16 @@ class ConversationService(BaseService):
             conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
             
             if conversation:
+                # Ensure required fields have default values if missing
+                if "customer_type" not in conversation or conversation["customer_type"] is None:
+                    conversation["customer_type"] = "individual"
+                if "priority" not in conversation or conversation["priority"] is None:
+                    conversation["priority"] = "normal"
+                if "channel" not in conversation or conversation["channel"] is None:
+                    conversation["channel"] = "whatsapp"
+                if "status" not in conversation or conversation["status"] is None:
+                    conversation["status"] = "pending"
+                
                 # Get tags for this conversation
                 conversation_tags = await db.conversation_tags.find({
                     "conversation_id": ObjectId(conversation_id)
@@ -213,9 +223,20 @@ class ConversationService(BaseService):
             sort_by, sort_direction
         ).skip(skip).limit(per_page).to_list(per_page)
         
-        # Populate tags for each conversation
+        # Populate tags for each conversation and ensure required fields
         for conversation in conversations:
             conversation_id = conversation["_id"]
+            
+            # Ensure required fields have default values if missing
+            if "customer_type" not in conversation or conversation["customer_type"] is None:
+                conversation["customer_type"] = "individual"
+            if "priority" not in conversation or conversation["priority"] is None:
+                conversation["priority"] = "normal"
+            if "channel" not in conversation or conversation["channel"] is None:
+                conversation["channel"] = "whatsapp"
+            if "status" not in conversation or conversation["status"] is None:
+                conversation["status"] = "pending"
+            
             # Get tags for this conversation
             conversation_tags = await db.conversation_tags.find({
                 "conversation_id": conversation_id
@@ -747,6 +768,75 @@ class ConversationService(BaseService):
         except Exception as e:
             logger.error(f"Error auto-assigning conversation {conversation_id}: {str(e)}")
             return None
+
+    async def get_conversation_stats(self) -> Dict[str, Any]:
+        """
+        Get conversation statistics for dashboard.
+        
+        Returns:
+            Dictionary containing conversation statistics
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get conversation counts
+            total_conversations = await db.conversations.count_documents({})
+            active_conversations = await db.conversations.count_documents({"status": "active"})
+            closed_conversations = await db.conversations.count_documents({"status": "closed"})
+            unassigned_conversations = await db.conversations.count_documents({"assigned_agent_id": None})
+            
+            # Get conversations by status
+            status_pipeline = [
+                {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+            ]
+            status_stats = await db.conversations.aggregate(status_pipeline).to_list(None)
+            conversations_by_status = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in status_stats}
+            
+            # Get conversations by priority
+            priority_pipeline = [
+                {"$group": {"_id": "$priority", "count": {"$sum": 1}}}
+            ]
+            priority_stats = await db.conversations.aggregate(priority_pipeline).to_list(None)
+            conversations_by_priority = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in priority_stats}
+            
+            # Get conversations by channel
+            channel_pipeline = [
+                {"$group": {"_id": "$channel", "count": {"$sum": 1}}}
+            ]
+            channel_stats = await db.conversations.aggregate(channel_pipeline).to_list(None)
+            conversations_by_channel = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in channel_stats}
+            
+            stats = {
+                "total_conversations": total_conversations,
+                "active_conversations": active_conversations,
+                "closed_conversations": closed_conversations,
+                "unassigned_conversations": unassigned_conversations,
+                "conversations_by_status": conversations_by_status,
+                "conversations_by_priority": conversations_by_priority,
+                "conversations_by_channel": conversations_by_channel,
+                "average_response_time_minutes": 0.0,  # TODO: Calculate from messages
+                "average_resolution_time_minutes": 0.0,  # TODO: Calculate from closed conversations
+                "customer_satisfaction_rate": 0.0  # TODO: Calculate from surveys
+            }
+            
+            logger.info(f"📊 [STATS] Generated conversation stats: {total_conversations} total, {active_conversations} active")
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error getting conversation stats: {str(e)}")
+            # Return empty stats on error
+            return {
+                "total_conversations": 0,
+                "active_conversations": 0,
+                "closed_conversations": 0,
+                "unassigned_conversations": 0,
+                "conversations_by_status": {},
+                "conversations_by_priority": {},
+                "conversations_by_channel": {},
+                "average_response_time_minutes": 0.0,
+                "average_resolution_time_minutes": 0.0,
+                "customer_satisfaction_rate": 0.0
+            }
 
 
 # Global conversation service instance

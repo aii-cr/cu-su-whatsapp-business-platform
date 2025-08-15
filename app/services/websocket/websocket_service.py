@@ -102,9 +102,12 @@ class ConnectionManager:
         """Send a message to a specific user."""
         if user_id in self.active_connections:
             disconnected = set()
+            message_sent = False
             for connection in self.active_connections[user_id]:
                 try:
                     await connection.send_text(json.dumps(message))
+                    message_sent = True
+                    logger.info(f"✅ [WEBSOCKET] Message sent to user {user_id}: {message.get('type', 'unknown')}")
                 except Exception as e:
                     logger.error(f"Error sending message to user {user_id}: {str(e)}")
                     disconnected.add(connection)
@@ -112,6 +115,11 @@ class ConnectionManager:
             # Remove disconnected connections
             for connection in disconnected:
                 self.active_connections[user_id].discard(connection)
+            
+            if not message_sent:
+                logger.warning(f"⚠️ [WEBSOCKET] No active connections for user {user_id} to send message: {message.get('type', 'unknown')}")
+        else:
+            logger.warning(f"⚠️ [WEBSOCKET] User {user_id} not found in active connections. Available users: {list(self.active_connections.keys())}")
     
     async def broadcast_to_conversation(self, message: dict, conversation_id: str):
         """Broadcast a message to all users subscribed to a conversation."""
@@ -149,9 +157,15 @@ class ConnectionManager:
     async def broadcast_to_dashboard(self, message: dict):
         """Broadcast a message to all dashboard subscribers."""
         logger.info(f"🏠 [DASHBOARD] Broadcasting to {len(self.dashboard_subscribers)} dashboard subscribers")
+        logger.info(f"🏠 [DASHBOARD] Dashboard subscribers: {list(self.dashboard_subscribers)}")
+        logger.info(f"🏠 [DASHBOARD] Active connections: {list(self.active_connections.keys())}")
+        
         for user_id in list(self.dashboard_subscribers):
             if user_id in self.active_connections:
+                logger.info(f"🏠 [DASHBOARD] Sending message to user {user_id}: {message.get('type', 'unknown')}")
                 await self.send_personal_message(message, user_id)
+            else:
+                logger.warning(f"⚠️ [DASHBOARD] User {user_id} is subscribed but not connected")
 
     async def broadcast_conversation_assignment_update(self, conversation_id: str, assigned_agent_id: str, agent_name: str):
         """Broadcast conversation assignment update to all dashboard subscribers."""
@@ -223,8 +237,14 @@ class WebSocketService:
                 serialized_message[key] = str(value)
             elif key == 'sender_id':
                 serialized_message[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_message[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'read_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_message[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_message[key] = value
+                else:
+                    serialized_message[key] = None
             elif key == 'whatsapp_data':
                 # Handle nested whatsapp_data object
                 if isinstance(value, dict):
@@ -238,6 +258,8 @@ class WebSocketService:
                 else:
                     serialized_message[key] = value
             elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):  # Catch any other datetime-like objects
                 serialized_message[key] = value.isoformat()
             else:
                 serialized_message[key] = value
@@ -320,10 +342,22 @@ class WebSocketService:
         for key, value in conversation_data.items():
             if key == '_id':
                 serialized_conversation[key] = str(value)
-            elif key == 'assigned_to':
+            elif key == 'assigned_to' or key == 'assigned_agent_id' or key == 'department_id' or key == 'created_by':
                 serialized_conversation[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_conversation[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'last_message_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_conversation[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_conversation[key] = value
+                else:
+                    serialized_conversation[key] = None
+            elif isinstance(value, datetime):
+                # Catch any other datetime objects
+                serialized_conversation[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                # Catch any other datetime-like objects
+                serialized_conversation[key] = value.isoformat()
             else:
                 serialized_conversation[key] = value
         
@@ -356,10 +390,22 @@ class WebSocketService:
         for key, value in conversation_data.items():
             if key == '_id':
                 serialized_conversation[key] = str(value)
-            elif key == 'assigned_agent_id':
+            elif key == 'assigned_agent_id' or key == 'department_id' or key == 'created_by':
                 serialized_conversation[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_conversation[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'last_message_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_conversation[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_conversation[key] = value
+                else:
+                    serialized_conversation[key] = None
+            elif isinstance(value, datetime):
+                # Catch any other datetime objects
+                serialized_conversation[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                # Catch any other datetime-like objects
+                serialized_conversation[key] = value.isoformat()
             else:
                 serialized_conversation[key] = value
         
@@ -459,6 +505,19 @@ class WebSocketService:
                             logger.error(f"❌ [AUTO_READ] Error auto-marking message as read: {str(auto_read_error)}")
                 else:
                     logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
+                    # For unassigned conversations, we should still track unread counts
+                    # but we need to determine which agents should be notified
+                    # For now, let's increment unread count for all dashboard subscribers
+                    # This is a simplified approach - in a real system, you might want to
+                    # notify specific agents based on department, availability, etc.
+                    
+                    # Get all dashboard subscribers and increment their unread count
+                    for user_id in list(manager.dashboard_subscribers):
+                        if user_id in manager.active_connections:
+                            manager.increment_unread_count(user_id, conversation_id)
+                            unread_count = manager.unread_counts.get(user_id, {}).get(conversation_id, 0)
+                            await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
+                            logger.info(f"📊 [UNREAD] Incremented unread count for dashboard subscriber {user_id}: {unread_count}")
             except Exception as e:
                 logger.error(f"❌ [UNREAD] Error updating unread count: {str(e)}")
             

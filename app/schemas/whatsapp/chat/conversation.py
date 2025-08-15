@@ -60,10 +60,10 @@ class ConversationResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
     customer_phone: str
     customer_name: Optional[str] = None
-    customer_type: str
-    status: str
-    priority: str
-    channel: str
+    customer_type: str = "individual"
+    status: str = "pending"
+    priority: str = "normal"
+    channel: str = "whatsapp"
     department_id: Optional[PyObjectId] = None
     assigned_agent_id: Optional[PyObjectId] = None
     last_message_at: Optional[datetime] = None
@@ -143,12 +143,12 @@ class ConversationStatsResponse(BaseModel):
     active_conversations: int
     closed_conversations: int
     unassigned_conversations: int
-    conversations_by_status: Dict[str, int]
-    conversations_by_priority: Dict[str, int]
-    conversations_by_channel: Dict[str, int]
-    average_response_time_minutes: float
-    average_resolution_time_minutes: float
-    customer_satisfaction_rate: float
+    conversations_by_status: Dict[str, int] = {}
+    conversations_by_priority: Dict[str, int] = {}
+    conversations_by_channel: Dict[str, int] = {}
+    average_response_time_minutes: float = 0.0
+    average_resolution_time_minutes: float = 0.0
+    customer_satisfaction_rate: float = 0.0
 
 # Conversation Activity
 class ConversationActivity(BaseModel):
