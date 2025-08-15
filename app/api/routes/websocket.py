@@ -298,9 +298,26 @@ async def handle_mark_messages_read(user_id: str, conversation_id: str):
                 "messages_marked_read": messages_marked_read,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }, user_id)
+            
+            # Also notify about conversation update to refresh UI
+            await websocket_service.notify_conversation_update(conversation_id, {
+                "last_read_at": now.isoformat(),
+                "unread_count": 0
+            })
         
     except Exception as e:
         logger.error(f"❌ [WEBSOCKET] Error marking messages as read for user {user_id} in conversation {conversation_id}: {str(e)}")
+        
+        # Send error message to client
+        try:
+            await manager.send_personal_message({
+                "type": "error",
+                "message": "Failed to mark messages as read",
+                "conversation_id": conversation_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }, user_id)
+        except Exception:
+            pass  # Ignore errors when sending error messages
 
 
 async def handle_dashboard_websocket_message(user_id: str, message: dict):

@@ -38,6 +38,7 @@ export default function ConversationDetailsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const unreadMessagesRef = useRef<HTMLDivElement>(null);
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(true);
 
   // WebSocket connection for real-time messaging
   const webSocket = useConversationWebSocket(conversationId);
@@ -48,12 +49,14 @@ export default function ConversationDetailsPage() {
     unreadCount,
     isVisible: isUnreadBannerVisible,
     hasMarkedAsRead,
+    isCurrentlyViewing,
     markMessagesAsRead
   } = useUnreadMessages({
     conversationId,
     autoMarkAsRead: true,
     enabled: !!conversationId,
-    wsClient: webSocket.client
+    wsClient: webSocket.client,
+    isConnected: isConnected
   });
 
   // Fetch conversation and messages
@@ -75,8 +78,10 @@ export default function ConversationDetailsPage() {
   const sendMessageMutation = useSendMessage();
 
   // Scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    }
   }, []);
 
   // Scroll to unread messages
@@ -87,7 +92,7 @@ export default function ConversationDetailsPage() {
       // If no unread marker, scroll to bottom
       scrollToBottom();
     }
-  }, []);
+  }, [scrollToBottom]);
 
   // Mark messages as read when agent enters conversation view
   const handleMarkMessagesAsRead = useCallback(async () => {
@@ -102,26 +107,51 @@ export default function ConversationDetailsPage() {
     }
   }, [conversationId, hasMarkedAsRead, isConnected, markMessagesAsRead]);
 
-  // Auto-scroll when messages load
+  // Check if user is near bottom of messages
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const threshold = 150; // Increased threshold for better UX
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  }, []);
+
+  // Handle scroll events to determine if we should auto-scroll
+  const handleScroll = useCallback(() => {
+    const nearBottom = isNearBottom();
+    setShouldScrollToBottom(nearBottom);
+  }, [isNearBottom]);
+
+  // Auto-scroll when messages load or new messages arrive
   useEffect(() => {
     if (messagesData?.pages && messagesData.pages.length > 0) {
       const timer = setTimeout(() => {
-        if (isNearBottom() || messagesData.pages[0].messages.length === 1) {
-          scrollToBottom();
+        // Always scroll to bottom on initial load
+        if (messagesData.pages[0].messages.length === 1 || shouldScrollToBottom) {
+          scrollToBottom('smooth');
         }
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [messagesData?.pages]);
+  }, [messagesData?.pages, shouldScrollToBottom, scrollToBottom]);
 
-  // Check if user is near bottom of messages
-  const isNearBottom = () => {
-    const container = messagesContainerRef.current;
-    if (!container) return true;
-    const threshold = 100; // pixels from bottom
-    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
-  };
+  // Auto-scroll to bottom when new messages arrive (if user is near bottom)
+  useEffect(() => {
+    if (messagesData?.pages && messagesData.pages.length > 0) {
+      const allMessages = messagesData.pages.flatMap((page) => 
+        (page as { messages: any[] }).messages
+      );
+      
+      // Check if there are new messages (more than before)
+      if (allMessages.length > 0 && shouldScrollToBottom) {
+        const timer = setTimeout(() => {
+          scrollToBottom('smooth');
+        }, 50);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [messagesData?.pages, shouldScrollToBottom, scrollToBottom]);
 
   // Handle sending a message
   const handleSendMessage = (text: string) => {
@@ -248,7 +278,7 @@ export default function ConversationDetailsPage() {
             🔧 Direct WS Test
           </button>
           <span className="ml-2 text-sm">
-            Unread: {unreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'}
+            Unread: {unreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'} | Viewing: {isCurrentlyViewing ? 'Yes' : 'No'}
           </span>
         </div>
       )}
@@ -257,6 +287,7 @@ export default function ConversationDetailsPage() {
       <div 
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800/30"
+        onScroll={handleScroll}
       >
         {/* Load more messages button */}
         {hasNextPage && (

@@ -14,20 +14,24 @@ interface UseUnreadMessagesOptions {
   autoMarkAsRead?: boolean; // Whether to automatically mark messages as read when viewing
   enabled?: boolean; // Whether the hook should be active
   wsClient?: any; // WebSocket client instance
+  isConnected?: boolean; // Connection status from parent WebSocket hook
 }
 
 export function useUnreadMessages({
   conversationId,
   autoMarkAsRead = true,
   enabled = true,
-  wsClient: providedWsClient
+  wsClient: providedWsClient,
+  isConnected: providedIsConnected = false
 }: UseUnreadMessagesOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [unreadCount, setUnreadCount] = useState(0);
   const [hasMarkedAsRead, setHasMarkedAsRead] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [isCurrentlyViewing, setIsCurrentlyViewing] = useState(false);
   const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastViewTimeRef = useRef<number>(0);
 
   // Use provided WebSocket client or fall back to global one
   const wsClient = providedWsClient || globalWsClient;
@@ -40,7 +44,8 @@ export function useUnreadMessages({
     wsClient: !!wsClient,
     providedWsClient: !!providedWsClient,
     globalWsClient: !!globalWsClient,
-    wsClientType: wsClient?.constructor?.name
+    wsClientType: wsClient?.constructor?.name,
+    providedIsConnected
   });
 
   // Calculate unread messages count from query cache
@@ -92,25 +97,23 @@ export function useUnreadMessages({
 
     try {
       console.log('📖 [UNREAD] Marking messages as read for conversation:', conversationId);
-      console.log('📖 [UNREAD] WebSocket connected:', wsClient.isConnected);
-      console.log('📖 [UNREAD] WebSocket readyState:', wsClient.wsInstance?.readyState);
+      console.log('📖 [UNREAD] WebSocket client type:', wsClient?.constructor?.name);
+      console.log('📖 [UNREAD] Provided connection status:', providedIsConnected);
+      console.log('📖 [UNREAD] WebSocket client connected:', wsClient?.isConnected);
+      console.log('📖 [UNREAD] WebSocket readyState:', wsClient?.wsInstance?.readyState);
       console.log('📖 [UNREAD] User ID:', user._id);
       
-      // Wait for WebSocket to be connected
-      if (!wsClient.isConnected) {
-        console.log('⏳ [UNREAD] Waiting for WebSocket connection...');
-        // Wait up to 5 seconds for connection
-        for (let i = 0; i < 50; i++) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          if (wsClient.isConnected) {
-            console.log('✅ [UNREAD] WebSocket connected, proceeding...');
-            break;
-          }
-        }
-        
-        if (!wsClient.isConnected) {
-          console.warn('⚠️ [UNREAD] WebSocket not connected after waiting, proceeding with HTTP only');
-        }
+      // Check if we have a valid WebSocket client
+      if (!wsClient) {
+        console.warn('⚠️ [UNREAD] No WebSocket client available');
+        return;
+      }
+      
+      // Check WebSocket connection status
+      const isWsConnected = wsClient.isConnected || providedIsConnected;
+      if (!isWsConnected) {
+        console.warn('⚠️ [UNREAD] WebSocket not connected, cannot mark messages as read');
+        return;
       }
       
       // Send WebSocket message to mark messages as read
@@ -120,6 +123,8 @@ export function useUnreadMessages({
       setHasMarkedAsRead(true);
       setUnreadCount(0);
       setIsVisible(false);
+      setIsCurrentlyViewing(true);
+      lastViewTimeRef.current = Date.now();
       
       // Invalidate messages query to refresh status
       queryClient.invalidateQueries({
@@ -130,7 +135,7 @@ export function useUnreadMessages({
     } catch (error) {
       console.error('❌ [UNREAD] Failed to mark messages as read:', error);
     }
-  }, [conversationId, user, hasMarkedAsRead, queryClient]);
+  }, [conversationId, user, hasMarkedAsRead, queryClient, wsClient, providedIsConnected]);
 
   // Auto-mark as read when agent views conversation
   useEffect(() => {
@@ -146,18 +151,36 @@ export function useUnreadMessages({
       clearTimeout(markAsReadTimeoutRef.current);
     }
 
-    // Mark as read after a short delay to ensure messages are loaded
-    markAsReadTimeoutRef.current = setTimeout(() => {
-      console.log('⏰ [UNREAD] Auto-mark as read timeout triggered for conversation:', conversationId);
-      markMessagesAsRead();
-    }, 1000); // 1 second delay
+    // Wait for WebSocket to be connected before marking as read
+    const waitForConnection = async () => {
+      console.log('⏰ [UNREAD] Auto-mark as read triggered for conversation:', conversationId);
+      
+      // Check if we have a valid WebSocket client
+      if (!wsClient) {
+        console.warn('⚠️ [UNREAD] No WebSocket client available for auto-mark as read');
+        return;
+      }
+      
+      // Check WebSocket connection status
+      const isWsConnected = wsClient.isConnected || providedIsConnected;
+      if (!isWsConnected) {
+        console.warn('⚠️ [UNREAD] WebSocket not connected, aborting auto-mark as read');
+        return;
+      }
+      
+      // Now mark messages as read
+      await markMessagesAsRead();
+    };
+
+    // Start the process after a short delay to ensure messages are loaded
+    markAsReadTimeoutRef.current = setTimeout(waitForConnection, 1000); // Reduced to 1 second
 
     return () => {
       if (markAsReadTimeoutRef.current) {
         clearTimeout(markAsReadTimeoutRef.current);
       }
     };
-  }, [enabled, autoMarkAsRead, conversationId, user, markMessagesAsRead]);
+  }, [enabled, autoMarkAsRead, conversationId, user, markMessagesAsRead, wsClient, providedIsConnected]);
 
   // Update unread count when messages change
   useEffect(() => {
@@ -167,10 +190,14 @@ export function useUnreadMessages({
     setUnreadCount(count);
     
     // Show banner if there are unread messages and we haven't marked them as read
-    setIsVisible(count > 0 && !hasMarkedAsRead);
+    // AND we're not currently viewing the conversation
+    const shouldShowBanner = count > 0 && !hasMarkedAsRead && !isCurrentlyViewing;
+    setIsVisible(shouldShowBanner);
     
     console.log(`📊 [UNREAD] Unread count updated: ${count} messages`);
-  }, [enabled, calculateUnreadCount, hasMarkedAsRead]);
+    console.log(`📊 [UNREAD] Banner visibility: ${shouldShowBanner ? 'Visible' : 'Hidden'}`);
+    console.log(`📊 [UNREAD] Currently viewing: ${isCurrentlyViewing}`);
+  }, [enabled, calculateUnreadCount, hasMarkedAsRead, isCurrentlyViewing, conversationId]);
 
   // WebSocket message handlers
   useEffect(() => {
@@ -183,6 +210,8 @@ export function useUnreadMessages({
         setUnreadCount(0);
         setIsVisible(false);
         setHasMarkedAsRead(true);
+        setIsCurrentlyViewing(true);
+        lastViewTimeRef.current = Date.now();
         
         // Invalidate messages query to refresh status
         queryClient.invalidateQueries({
@@ -194,13 +223,26 @@ export function useUnreadMessages({
     // Handle new messages
     const unsubscribeNewMessage = wsClient.subscribe('new_message', (message: any) => {
       if (message.conversation_id === conversationId) {
-        // If it's an inbound message and we're not currently viewing, increment unread count
+        // If it's an inbound message from customer
         if (message.message?.direction === 'inbound' && message.message?.sender_role === 'customer') {
           console.log('📨 [UNREAD] New inbound message received');
-          // Recalculate unread count
-          const newCount = calculateUnreadCount();
-          setUnreadCount(newCount);
-          setIsVisible(newCount > 0 && !hasMarkedAsRead);
+          
+          // Check if we're currently viewing this conversation
+          const now = Date.now();
+          const isCurrentlyViewing = (now - lastViewTimeRef.current) < 30000; // 30 seconds threshold
+          
+          if (isCurrentlyViewing) {
+            console.log('📨 [UNREAD] Currently viewing conversation, auto-marking as read');
+            // Auto-mark as read if we're currently viewing
+            markMessagesAsRead();
+          } else {
+            console.log('📨 [UNREAD] Not currently viewing, incrementing unread count');
+            // Recalculate unread count and show banner
+            const newCount = calculateUnreadCount();
+            setUnreadCount(newCount);
+            setIsVisible(newCount > 0 && !hasMarkedAsRead);
+            setIsCurrentlyViewing(false);
+          }
         }
       }
     });
@@ -210,7 +252,7 @@ export function useUnreadMessages({
       if (message.conversation_id === conversationId) {
         console.log('📊 [UNREAD] Received unread count update:', message.unread_count);
         setUnreadCount(message.unread_count);
-        setIsVisible(message.unread_count > 0 && !hasMarkedAsRead);
+        setIsVisible(message.unread_count > 0 && !hasMarkedAsRead && !isCurrentlyViewing);
       }
     });
 
@@ -219,13 +261,15 @@ export function useUnreadMessages({
       unsubscribeNewMessage();
       unsubscribeUnreadCount();
     };
-  }, [enabled, conversationId, calculateUnreadCount, hasMarkedAsRead, queryClient]);
+  }, [enabled, conversationId, calculateUnreadCount, hasMarkedAsRead, isCurrentlyViewing, queryClient, markMessagesAsRead]);
 
   // Reset state when conversation changes
   useEffect(() => {
     setHasMarkedAsRead(false);
     setIsVisible(true);
     setUnreadCount(0);
+    setIsCurrentlyViewing(false);
+    lastViewTimeRef.current = 0;
   }, [conversationId]);
 
   // Cleanup on unmount
@@ -241,6 +285,7 @@ export function useUnreadMessages({
     unreadCount,
     isVisible,
     hasMarkedAsRead,
+    isCurrentlyViewing,
     markMessagesAsRead,
     calculateUnreadCount
   };

@@ -410,7 +410,7 @@ class WebSocketService:
             # 2. Update unread counts for the assigned agent only
             try:
                 from app.db.client import database
-                db = await database._get_db()
+                db = await database.get_database()
                 
                 # Get conversation to find assigned agent
                 conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
@@ -427,6 +427,36 @@ class WebSocketService:
                         logger.info(f"📊 [UNREAD] Incremented unread count for assigned agent {assigned_agent_id}: {unread_count}")
                     else:
                         logger.info(f"📊 [UNREAD] Assigned agent {assigned_agent_id} is currently viewing conversation, not incrementing unread count")
+                        
+                        # If agent is viewing, auto-mark the message as read
+                        try:
+                            from app.db.models.whatsapp.chat.message import MessageStatus
+                            from datetime import datetime, timezone
+                            
+                            # Update the message status to read
+                            result = await db.messages.update_one(
+                                {"_id": ObjectId(message["_id"])},
+                                {
+                                    "$set": {
+                                        "status": MessageStatus.READ,
+                                        "read_at": datetime.now(timezone.utc),
+                                        "updated_at": datetime.now(timezone.utc)
+                                    }
+                                }
+                            )
+                            
+                            if result.modified_count > 0:
+                                logger.info(f"📖 [AUTO_READ] Auto-marked message {message['_id']} as read for viewing agent {assigned_agent_id}")
+                                
+                                # Notify about the read status update
+                                await WebSocketService.notify_message_read_status(
+                                    conversation_id,
+                                    message_ids=[str(message["_id"])],
+                                    read_by_user_id=assigned_agent_id,
+                                    read_by_user_name="Agent"
+                                )
+                        except Exception as auto_read_error:
+                            logger.error(f"❌ [AUTO_READ] Error auto-marking message as read: {str(auto_read_error)}")
                 else:
                     logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
             except Exception as e:
