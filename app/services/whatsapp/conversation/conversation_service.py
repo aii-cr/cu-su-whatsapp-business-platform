@@ -655,8 +655,13 @@ class ConversationService(BaseService):
             
             # Check if conversation is already assigned
             if conversation.get("assigned_agent_id"):
-                logger.warning(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
-                return None
+                # If it's assigned to the same agent, just return the conversation
+                if str(conversation["assigned_agent_id"]) == agent_id:
+                    logger.info(f"Conversation {conversation_id} is already assigned to the requesting agent {agent_id}")
+                    return conversation
+                else:
+                    logger.warning(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
+                    return None
             
             # Update conversation with assigned agent
             update_data = {

@@ -12,6 +12,8 @@ from app.core.logger import logger
 from app.services.websocket.websocket_service import manager
 from app.services import websocket_service
 from app.core.error_handling import handle_external_api_error
+from app.db.client import database
+from bson import ObjectId
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
@@ -83,8 +85,8 @@ async def dashboard_websocket_endpoint(websocket: WebSocket, user_id: str):
         logger.info(f"🏠 [DASHBOARD_WS] Connected and subscribed to dashboard for user {user_id}")
         logger.info(f"🏠 [DASHBOARD_WS] Total dashboard subscribers: {len(manager.dashboard_subscribers)}")
         
-        # Send current unread counts to user
-        unread_counts = manager.get_unread_counts(user_id)
+        # Calculate and send current unread counts from database
+        unread_counts = await calculate_unread_counts_from_database(user_id)
         await manager.send_personal_message({
             "type": "initial_unread_counts",
             "unread_counts": unread_counts,
@@ -433,4 +435,81 @@ async def get_websocket_stats():
         
     except Exception as e:
         logger.error(f"Error getting WebSocket stats: {str(e)}")
-        raise handle_external_api_error("websocket", e) 
+        raise handle_external_api_error("websocket", e)
+
+
+async def calculate_unread_counts_from_database(user_id: str) -> dict:
+    """
+    Calculate unread message counts from the database for a user.
+    
+    Args:
+        user_id: User ID to calculate unread counts for
+        
+    Returns:
+        Dictionary mapping conversation_id to unread count
+    """
+    try:
+        db = await database.get_database()
+        
+        # Get all conversations where the user is assigned or where there's no assigned agent
+        # For assigned conversations: count unread messages
+        # For unassigned conversations: count all unread messages
+        pipeline = [
+            {
+                "$match": {
+                    "$or": [
+                        {"assigned_agent_id": ObjectId(user_id)},
+                        {"assigned_agent_id": None}
+                    ]
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "messages",
+                    "let": {"conversation_id": "$_id"},
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$and": [
+                                        {"$eq": ["$conversation_id", "$$conversation_id"]},
+                                        {"$eq": ["$direction", "inbound"]},
+                                        {"$eq": ["$status", "received"]}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "$count": "unread_count"
+                        }
+                    ],
+                    "as": "unread_messages"
+                }
+            },
+            {
+                "$project": {
+                    "conversation_id": {"$toString": "$_id"},
+                    "unread_count": {
+                        "$ifNull": [
+                            {"$arrayElemAt": ["$unread_messages.unread_count", 0]},
+                            0
+                        ]
+                    }
+                }
+            }
+        ]
+        
+        conversations_with_unread = await db.conversations.aggregate(pipeline).to_list(None)
+        
+        # Convert to dictionary format
+        unread_counts = {}
+        for conv in conversations_with_unread:
+            if conv["unread_count"] > 0:
+                unread_counts[conv["conversation_id"]] = conv["unread_count"]
+        
+        logger.info(f"📊 [UNREAD] Calculated unread counts for user {user_id}: {unread_counts}")
+        return unread_counts
+        
+    except Exception as e:
+        logger.error(f"❌ [UNREAD] Error calculating unread counts for user {user_id}: {str(e)}")
+        return {} 

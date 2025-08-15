@@ -505,19 +505,38 @@ class WebSocketService:
                             logger.error(f"❌ [AUTO_READ] Error auto-marking message as read: {str(auto_read_error)}")
                 else:
                     logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
-                    # For unassigned conversations, we should still track unread counts
-                    # but we need to determine which agents should be notified
-                    # For now, let's increment unread count for all dashboard subscribers
-                    # This is a simplified approach - in a real system, you might want to
-                    # notify specific agents based on department, availability, etc.
-                    
-                    # Get all dashboard subscribers and increment their unread count
-                    for user_id in list(manager.dashboard_subscribers):
-                        if user_id in manager.active_connections:
-                            manager.increment_unread_count(user_id, conversation_id)
-                            unread_count = manager.unread_counts.get(user_id, {}).get(conversation_id, 0)
-                            await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
-                            logger.info(f"📊 [UNREAD] Incremented unread count for dashboard subscriber {user_id}: {unread_count}")
+                    # For unassigned conversations, we need to track unread counts for all dashboard subscribers
+                    # Calculate the correct unread count from database first
+                    try:
+                        from app.db.client import database
+                        db = await database.get_database()
+                        
+                        # Count unread messages for this conversation
+                        unread_count = await db.messages.count_documents({
+                            "conversation_id": ObjectId(conversation_id),
+                            "direction": "inbound",
+                            "status": "received"
+                        })
+                        
+                        # Update unread count for all dashboard subscribers
+                        for user_id in list(manager.dashboard_subscribers):
+                            if user_id in manager.active_connections:
+                                # Set the unread count directly instead of incrementing
+                                if user_id not in manager.unread_counts:
+                                    manager.unread_counts[user_id] = {}
+                                manager.unread_counts[user_id][conversation_id] = unread_count
+                                
+                                await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
+                                logger.info(f"📊 [UNREAD] Set unread count for dashboard subscriber {user_id}: {unread_count}")
+                    except Exception as e:
+                        logger.error(f"❌ [UNREAD] Error calculating unread count from database: {str(e)}")
+                        # Fallback to increment method if database query fails
+                        for user_id in list(manager.dashboard_subscribers):
+                            if user_id in manager.active_connections:
+                                manager.increment_unread_count(user_id, conversation_id)
+                                unread_count = manager.unread_counts.get(user_id, {}).get(conversation_id, 0)
+                                await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
+                                logger.info(f"📊 [UNREAD] Incremented unread count for dashboard subscriber {user_id}: {unread_count}")
             except Exception as e:
                 logger.error(f"❌ [UNREAD] Error updating unread count: {str(e)}")
             

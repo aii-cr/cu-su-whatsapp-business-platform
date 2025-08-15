@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { useAuthStore } from '@/lib/store';
 import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '@/features/conversations/api/conversationsApi';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -50,6 +51,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
     className = ''
   }, ref) => {
     const { user } = useAuthStore();
+    const queryClient = useQueryClient();
     const [isClaiming, setIsClaiming] = useState(false);
     const getStatusVariant = (status: string) => {
       switch (status) {
@@ -81,8 +83,9 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
         await ConversationsApi.claimConversation(String(conversation._id));
         toast.success('Conversation claimed successfully! You have been assigned to this chat.');
         
-        // Refresh the page to show updated assignment
-        window.location.reload();
+        // Invalidate and refetch conversation data instead of reloading
+        queryClient.invalidateQueries({ queryKey: ['conversations', 'detail', String(conversation._id)] });
+        queryClient.invalidateQueries({ queryKey: ['conversations', 'list'] });
       } catch (error) {
         console.error('Error claiming conversation:', error);
         toast.error('Failed to claim conversation. Please try again.');
