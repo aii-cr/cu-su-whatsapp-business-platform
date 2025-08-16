@@ -72,12 +72,16 @@ export default function ConversationDetailsPage() {
   const sendMessageMutation = useSendMessage();
   const queryClient = useQueryClient();
 
-  // Handle sending messages (VirtualizedMessageList handles real-time updates via WebSocket)
+  // Handle sending messages with optimistic updates
   const handleSendMessage = (text: string) => {
     console.log('📤 [SEND] User clicked send message:', text);
     console.log('📤 [SEND] Conversation ID:', conversationId);
     
-    // Send the message - real-time updates will come via WebSocket
+    // Add optimistic message immediately
+    const optimisticId = (window as any).addOptimisticMessage?.(text);
+    console.log('🚀 [SEND] Added optimistic message with ID:', optimisticId);
+    
+    // Send the actual message
     sendMessageMutation.mutate({
       conversation_id: conversationId,
       text_content: text,
@@ -85,11 +89,21 @@ export default function ConversationDetailsPage() {
       onSuccess: (response) => {
         console.log('✅ [SEND] Message sent successfully:', response);
         
+        // Update optimistic message with real data
+        if (optimisticId && response) {
+          (window as any).updateOptimisticMessage?.(optimisticId, response);
+        }
+        
         // Hide banner for immediate feedback
         hideBanner();
       },
       onError: (error) => {
         console.error('❌ [SEND] Failed to send message:', error);
+        
+        // Remove optimistic message on error
+        if (optimisticId) {
+          (window as any).removeOptimisticMessage?.(optimisticId);
+        }
       }
     });
   };

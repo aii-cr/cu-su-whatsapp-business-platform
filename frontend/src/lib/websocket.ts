@@ -290,45 +290,45 @@ export class MessagingWebSocketClient extends WebSocketClient {
       }
     }
     
-    // For messages from other users or if no optimistic message found, add normally
-    // Force a complete refresh to ensure UI updates
-    console.log('🔔 [WEBSOCKET] Invalidating queries to force re-fetch...');
+    // For messages from other users or if no optimistic message found, add to query manually
+    console.log('🔔 [WHATSAPP_UX] Adding new message to infinite query smoothly...');
     
-    // Invalidate both the messages query and the conversation with messages query
-    // to ensure the UI updates regardless of which query structure is being used
+    // Update the infinite query directly for WhatsApp-style smooth experience
+    this.queryClient.setQueryData(
+      messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+      (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        // Add to the first page (latest messages)
+        const updatedPages = [...oldData.pages];
+        if (updatedPages[0]) {
+          // Check if message already exists to avoid duplicates
+          const existingMessage = updatedPages[0].messages.find((m: any) => m._id === message._id);
+          if (!existingMessage) {
+            console.log('✅ [WHATSAPP_UX] Adding new message to query data directly');
+            updatedPages[0] = {
+              ...updatedPages[0],
+              messages: [...updatedPages[0].messages, message]
+            };
+          } else {
+            console.log('⚠️ [WHATSAPP_UX] Message already exists in query, skipping');
+          }
+        }
+        
+        return {
+          ...oldData,
+          pages: updatedPages
+        };
+      }
+    );
+
+    // Minimal invalidation - only mark conversation list as stale (no refetch)
     this.queryClient.invalidateQueries({
-      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+      queryKey: ['conversations'],
+      refetchType: 'none'
     });
 
-    // Also invalidate the conversation with messages query that the conversation page uses
-    this.queryClient.invalidateQueries({
-      queryKey: ['conversations', 'detail', conversation_id, 'with-messages', 50, 0],
-    });
-
-    // Force refetch to ensure immediate update
-    this.queryClient.refetchQueries({
-      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-    });
-
-    this.queryClient.refetchQueries({
-      queryKey: ['conversations', 'detail', conversation_id, 'with-messages', 50, 0],
-    });
-
-    // Also try invalidating with a broader pattern to catch any variations
-    this.queryClient.invalidateQueries({
-      queryKey: ['conversations', 'detail', conversation_id],
-    });
-
-    this.queryClient.invalidateQueries({
-      queryKey: ['messages', 'conversation', conversation_id],
-    });
-
-    console.log('🔔 [WEBSOCKET] Queries invalidated and refetched for new message - UI should update now');
-
-    // Update conversations list to reflect new last message
-    this.queryClient.invalidateQueries({
-      queryKey: conversationQueryKeys.lists(),
-    });
+    console.log('✅ [WHATSAPP_UX] New message added smoothly, VirtualizedMessageList will handle UX');
 
     // Show notification if message is from another user
     if (!isFromCurrentUser) {
