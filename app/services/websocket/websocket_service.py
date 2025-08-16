@@ -453,7 +453,15 @@ class WebSocketService:
             # 1. Always notify about the new message to conversation subscribers
             await WebSocketService.notify_new_message(conversation_id, message)
             
-            # 2. Update unread counts for the assigned agent only
+            # 2. Invalidate Redis cache for this conversation
+            try:
+                from app.services.whatsapp.message.cursor_message_service import cursor_message_service
+                await cursor_message_service.invalidate_conversation_cache(conversation_id)
+                logger.info(f"🔴 [CACHE] Invalidated cache for conversation {conversation_id} after new message")
+            except Exception as cache_error:
+                logger.warning(f"🔴 [CACHE] Failed to invalidate cache for conversation {conversation_id}: {str(cache_error)}")
+            
+            # 3. Update unread counts for the assigned agent only
             try:
                 from app.db.client import database
                 db = await database.get_database()

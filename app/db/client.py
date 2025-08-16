@@ -182,6 +182,10 @@ class DatabaseClient:
         """Create indexes for messages collection."""
         collection = self.db.messages
         indexes = [
+            # Primary cursor-based pagination index (conversation_id + _id desc)
+            IndexModel([("conversation_id", ASCENDING), ("_id", DESCENDING)], 
+                      name="idx_messages_conversation_id_desc"),
+            # Legacy timestamp-based index (kept for backward compatibility)
             IndexModel([("conversation_id", ASCENDING), ("timestamp", DESCENDING)], 
                       name="idx_messages_conversation_time"),
             IndexModel([("sender_id", ASCENDING)], name="idx_messages_sender"),

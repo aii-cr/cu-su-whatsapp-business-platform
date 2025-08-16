@@ -69,6 +69,8 @@ class ErrorCode(str, Enum):
     MESSAGE_INVALID_TYPE = "MSG_2107"
     MESSAGE_TOO_LARGE = "MSG_2108"
     MESSAGE_INVALID_CONTENT = "MSG_2109"
+    INVALID_CURSOR = "MSG_2110"
+    INVALID_ID = "MSG_2111"
     
     # Media & File Errors (2200-2299)
     MEDIA_NOT_FOUND = "MEDIA_2201"
@@ -338,6 +340,18 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Tag assignment failed",
         "status_code": 422,
         "detail": "Unable to assign tag to conversation"
+    },
+    
+    # Message Pagination
+    ErrorCode.INVALID_CURSOR: {
+        "message": "Invalid cursor provided",
+        "status_code": 400,
+        "detail": "The pagination cursor is invalid or malformed"
+    },
+    ErrorCode.INVALID_ID: {
+        "message": "Invalid ID provided",
+        "status_code": 400,
+        "detail": "The provided ID is invalid or malformed"
     },
 }
 

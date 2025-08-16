@@ -1,6 +1,7 @@
 """Service layer initialization and factory."""
 
 from app.services.whatsapp.message.message_service import message_service
+from app.services.whatsapp.message.cursor_message_service import cursor_message_service
 from app.services.whatsapp.conversation.conversation_service import conversation_service
 from app.services.whatsapp.tag_service import tag_service
 from app.services.audit.audit_service import audit_service
@@ -26,6 +27,7 @@ whatsapp_service = WhatsAppService()
 
 __all__ = [
     "message_service",
+    "cursor_message_service",
     "conversation_service",
     "tag_service",
     "audit_service",

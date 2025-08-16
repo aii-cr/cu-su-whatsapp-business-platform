@@ -24,27 +24,32 @@ export const messageQueryKeys = {
 };
 
 /**
- * Hook to fetch messages for a conversation with infinite scroll
+ * Hook to fetch messages for a conversation with cursor-based infinite scroll
  */
 export function useMessages(conversationId: string, limit: number = 50) {
   const handleError = createApiErrorHandler((msg: string) => toast.error(msg));
 
-  const query = useInfiniteQuery<MessageListResponse>({
+  const query = useInfiniteQuery<{
+    messages: Message[];
+    next_cursor: string | null;
+    has_more: boolean;
+    anchor: string;
+    cache_hit: boolean;
+  }>({
     queryKey: messageQueryKeys.conversationMessages(conversationId, { limit }),
-    queryFn: async ({ pageParam = 0 }) => {
-      return MessagesApi.getMessages(
+    queryFn: async ({ pageParam }) => {
+      return MessagesApi.getMessagesCursor(
         conversationId,
-        pageParam as number, // offset
-        limit
+        limit,
+        pageParam as string | undefined // cursor
       );
     },
-    getNextPageParam: (lastPage, allPages) => {
-      const nextOffset = allPages.length * limit;
-      return nextOffset < lastPage.total ? nextOffset : undefined;
+    getNextPageParam: (lastPage) => {
+      return lastPage.has_more ? lastPage.next_cursor : undefined;
     },
     staleTime: 30 * 1000, // 30 seconds
     enabled: !!conversationId,
-    initialPageParam: 0,
+    initialPageParam: undefined, // Start with no cursor to get latest messages
   });
 
   // Handle errors manually

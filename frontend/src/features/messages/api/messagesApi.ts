@@ -4,7 +4,7 @@
  */
 
 import { httpClient, handleApiError, ApiError } from '@/lib/http';
-import { Message, MessageSend, MessageListResponse } from '../models/message';
+import { Message, SendMessageRequest, MessageListResponse } from '../models/message';
 
 export interface MarkMessagesReadRequest {
   conversation_id: string;
@@ -41,9 +41,79 @@ export class MessagesApi {
   }
 
   /**
+   * Get messages for a conversation with cursor-based pagination
+   */
+  static async getMessagesCursor(
+    conversationId: string,
+    limit: number = 50,
+    before?: string
+  ): Promise<{
+    messages: Message[];
+    next_cursor: string | null;
+    has_more: boolean;
+    anchor: string;
+    cache_hit: boolean;
+  }> {
+    try {
+      const params = new URLSearchParams();
+      params.append('chatId', conversationId);
+      params.append('limit', limit.toString());
+      if (before) {
+        params.append('before', before);
+      }
+      
+      const response = await httpClient.get<{
+        messages: Message[];
+        next_cursor: string | null;
+        has_more: boolean;
+        anchor: string;
+        cache_hit: boolean;
+      }>(`/messages/cursor?${params.toString()}`);
+      return response;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get messages around a specific message ID
+   */
+  static async getMessagesAround(
+    conversationId: string,
+    anchorId: string,
+    limit: number = 25
+  ): Promise<{
+    messages: Message[];
+    next_cursor: string | null;
+    has_more: boolean;
+    anchor: string;
+    cache_hit: boolean;
+  }> {
+    try {
+      const params = new URLSearchParams();
+      params.append('chatId', conversationId);
+      params.append('anchorId', anchorId);
+      params.append('limit', limit.toString());
+      
+      const response = await httpClient.get<{
+        messages: Message[];
+        next_cursor: string | null;
+        has_more: boolean;
+        anchor: string;
+        cache_hit: boolean;
+      }>(`/messages/cursor/around?${params.toString()}`);
+      return response;
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  }
+
+  /**
    * Send a text message
    */
-  static async sendMessage(messageData: MessageSend): Promise<Message> {
+  static async sendMessage(messageData: SendMessageRequest): Promise<Message> {
     try {
       const response = await httpClient.post<Message>(
         '/messages/send',
@@ -144,7 +214,7 @@ export class MessagesApi {
    */
   static async sendBulkMessages(
     conversationIds: string[],
-    messageData: Omit<MessageSend, 'conversation_id'>
+    messageData: Omit<SendMessageRequest, 'conversation_id'>
   ): Promise<Message[]> {
     try {
       const response = await httpClient.post<Message[]>(
