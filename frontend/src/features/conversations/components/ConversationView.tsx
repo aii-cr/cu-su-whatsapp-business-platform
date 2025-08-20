@@ -17,9 +17,19 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
   const sendMessageMutation = useSendMessage();
 
   const handleSendMessage = (text: string) => {
+    console.log('🚀 [CONVERSATION] Sending message:', text);
+    console.log('🚀 [CONVERSATION] Conversation ID:', conversationId);
+    
     sendMessageMutation.mutate({
       conversation_id: conversationId,
       text_content: text,
+    }, {
+      onSuccess: (data) => {
+        console.log('✅ [CONVERSATION] Message sent successfully:', data);
+      },
+      onError: (error) => {
+        console.error('❌ [CONVERSATION] Message send failed:', error);
+      }
     });
   };
 

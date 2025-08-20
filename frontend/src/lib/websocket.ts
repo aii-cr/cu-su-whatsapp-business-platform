@@ -125,6 +125,8 @@ export class MessagingWebSocketClient extends WebSocketClient {
     try {
       const data = JSON.parse(event.data);
       console.log('📨 [WEBSOCKET] Frontend received message:', data);
+      console.log('📨 [WEBSOCKET] Message type:', data.type);
+      console.log('📨 [WEBSOCKET] Conversation ID:', data.conversation_id);
       
       // Create a WebSocket message in the format expected by the parent class
       const webSocketMessage = {
@@ -142,6 +144,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
       switch (data.type) {
         case 'new_message':
           console.log('🔔 [WEBSOCKET] Handling new_message');
+          console.log('🔔 [WEBSOCKET] Message data:', data.message);
           this.handleNewMessage({
             conversation_id: data.conversation_id,
             message: data.message
@@ -273,21 +276,29 @@ export class MessagingWebSocketClient extends WebSocketClient {
   }
 
   private handleNewMessage(data: WebSocketMessageData['new_message']) {
-    console.log('🔔 [WEBSOCKET] Frontend received new message:', data);
+    console.log('🔔 [WEBSOCKET] handleNewMessage called with data:', data);
     const { conversation_id, message } = data;
     const currentUser = useAuthStore.getState().user;
     
     console.log('🔔 [WEBSOCKET] About to update query for conversation:', conversation_id);
+    console.log('🔔 [WEBSOCKET] Current user ID:', currentUser?._id);
+    console.log('🔔 [WEBSOCKET] Message sender ID:', message.sender_id);
     
-    // Check if this message should update an optimistic message
+    // Check if this message is from the current user (optimistic message)
     const isFromCurrentUser = message.sender_id === currentUser?._id;
+    console.log('🔔 [WEBSOCKET] Is from current user:', isFromCurrentUser);
     
     if (isFromCurrentUser) {
-      // Try to update optimistic message instead of adding duplicate
-      const updated = this.updateOptimisticMessage(conversation_id, message);
+      console.log('🔔 [WEBSOCKET] Message is from current user, checking for optimistic message to update');
+      
+      // Try to update optimistic message in the query cache
+      const updated = this.updateOptimisticMessageInCache(conversation_id, message);
       if (updated) {
-        console.log('🔔 [WEBSOCKET] Updated optimistic message with real data');
+        console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data');
         return; // Don't add duplicate, we handled it manually
+      } else {
+        console.log('⚠️ [WEBSOCKET] No optimistic message found to update, will add to query normally');
+        // Continue with normal flow - this ensures the message appears even if optimistic update fails
       }
     }
     
@@ -298,8 +309,20 @@ export class MessagingWebSocketClient extends WebSocketClient {
     this.queryClient.setQueryData(
       messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
       (oldData: any) => {
-        if (!oldData) return oldData;
+        if (!oldData) {
+          console.log('⚠️ [WEBSOCKET] No existing query data, creating new structure');
+          return {
+            pages: [{
+              messages: [message],
+              next_cursor: null,
+              has_more: false,
+              anchor: 'latest',
+              cache_hit: false
+            }]
+          };
+        }
         
+        console.log('🔔 [WEBSOCKET] Updating existing query data');
         // Add to the first page (latest messages)
         const updatedPages = [...oldData.pages];
         if (updatedPages[0]) {
@@ -339,133 +362,48 @@ export class MessagingWebSocketClient extends WebSocketClient {
     }
   }
 
-  private updateOptimisticMessage(conversationId: string, realMessage: unknown): boolean {
-    let messageUpdated = false;
+  private updateOptimisticMessageInCache(conversationId: string, realMessage: unknown): boolean {
+    console.log('🔔 [WEBSOCKET] Attempting to update optimistic message in cache for:', realMessage);
     
-    // Update both query structures to ensure compatibility
+    const realMessageData = realMessage as any;
     
-    // 1. Update the messages query (for MessageList component)
-    this.queryClient.setQueryData(
+    // Try to find and update optimistic message in the query cache
+    const updated = this.queryClient.setQueryData(
       messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-      (old: unknown) => {
-        if (!old || typeof old !== 'object') return old;
-        const oldData = old as { pages: { messages: (unknown & { isOptimistic?: boolean })[], total: number }[] };
+      (oldData: any) => {
+        if (!oldData) return oldData;
         
-        const newPages = [...oldData.pages];
-        if (newPages[0]) {
-          const messages = [...newPages[0].messages];
+        const updatedPages = oldData.pages.map((page: any) => {
+          // Check if the real message already exists to prevent duplicates
+          const existingMessage = page.messages.find((msg: any) => msg._id === realMessageData._id);
+          if (existingMessage) {
+            console.log('✅ [WEBSOCKET] Real message already exists, skipping duplicate');
+            return page;
+          }
           
-          // Find optimistic message that matches this real message
-          const optimisticIndex = messages.findIndex((msg) => {
-            const message = msg as { 
-              isOptimistic?: boolean; 
-              text_content?: string; 
-              sender_id?: string;
-              _id?: string;
-              status?: string;
-            };
-            const real = realMessage as { 
-              text_content?: string; 
-              sender_id?: string;
-              whatsapp_message_id?: string;
-            };
-            
-            // More robust matching: check if message is optimistic and matches content and sender
-            // Also check if it's still in "sending" or "sent" status (not yet confirmed by webhook)
-            return message.isOptimistic && 
-                   message.text_content === real.text_content &&
-                   message.sender_id === real.sender_id &&
-                   (message.status === 'sending' || message.status === 'sent');
+          // Replace optimistic message with real message
+          const updatedMessages = page.messages.map((msg: any) => {
+            if (msg._id?.startsWith('optimistic-')) {
+              console.log('✅ [WEBSOCKET] Replacing optimistic message with real message');
+              return { ...realMessageData, _id: realMessageData._id };
+            }
+            return msg;
           });
           
-          if (optimisticIndex !== -1) {
-            // Replace optimistic message with real message, but preserve the optimistic sender_name
-            const optimisticMessage = messages[optimisticIndex] as { sender_name?: string };
-            const realMessageData = realMessage as Record<string, unknown>;
-            
-            messages[optimisticIndex] = {
-              ...realMessageData,
-              _id: realMessageData['id'] || realMessageData['_id'] || '',
-              status: 'sent',
-              isOptimistic: false,
-              // Preserve the optimistic sender_name to avoid flash
-              sender_name: optimisticMessage.sender_name || realMessageData['sender_name'],
-            } as unknown as typeof messages[number];
-            messageUpdated = true;
-            
-            console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data in messages query');
-            
-            newPages[0] = {
-              ...newPages[0],
-              messages
-            };
-          }
-        }
-        
-        return {
-          ...oldData,
-          pages: newPages
-        };
-      }
-    );
-
-    // 2. Also update the conversation with messages query (for conversation page)
-    this.queryClient.setQueryData(
-      ['conversations', 'detail', conversationId, 'with-messages', 50, 0],
-      (old: unknown) => {
-        if (!old || typeof old !== 'object') return old;
-        const oldData = old as { messages: (unknown & { isOptimistic?: boolean })[], messages_total: number };
-        
-        const messages = [...oldData.messages];
-        
-        // Find optimistic message that matches this real message
-        const optimisticIndex = messages.findIndex((msg) => {
-          const message = msg as { 
-            isOptimistic?: boolean; 
-            text_content?: string; 
-            sender_id?: string;
-            _id?: string;
-            status?: string;
+          return {
+            ...page,
+            messages: updatedMessages
           };
-          const real = realMessage as { 
-            text_content?: string; 
-            sender_id?: string;
-            whatsapp_message_id?: string;
-          };
-          
-          // More robust matching: check if message is optimistic and matches content and sender
-          return message.isOptimistic && 
-                 message.text_content === real.text_content &&
-                 message.sender_id === real.sender_id &&
-                 (message.status === 'sending' || message.status === 'sent');
         });
         
-        if (optimisticIndex !== -1) {
-          // Replace optimistic message with real message, but preserve the optimistic sender_name
-          const optimisticMessage = messages[optimisticIndex] as { sender_name?: string };
-          const realMessageData = realMessage as Record<string, unknown>;
-          
-          messages[optimisticIndex] = {
-            ...realMessageData,
-            _id: realMessageData['id'] || realMessageData['_id'] || '',
-            status: 'sent',
-            isOptimistic: false,
-            // Preserve the optimistic sender_name to avoid flash
-            sender_name: optimisticMessage.sender_name || realMessageData['sender_name'],
-          } as unknown as typeof messages[number];
-          messageUpdated = true;
-          
-          console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data in conversation query');
-        }
-        
         return {
           ...oldData,
-          messages
+          pages: updatedPages
         };
       }
     );
     
-    return messageUpdated;
+    return !!updated;
   }
 
   private handleMessageStatus(data: WebSocketMessageData['message_status'] & { message_data?: any }) {

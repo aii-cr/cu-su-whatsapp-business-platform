@@ -28,7 +28,6 @@ import { useAuthStore } from '@/lib/store';
 interface VirtualizedMessageListProps {
   conversationId: string;
   className?: string;
-  onSendMessage?: (text: string) => Promise<any>; // For optimistic updates
 }
 
 export function VirtualizedMessageList({ 
@@ -47,7 +46,6 @@ export function VirtualizedMessageList({
   const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [hasShownUnreadMarker, setHasShownUnreadMarker] = useState(false);
   const [lastSeenMessageCount, setLastSeenMessageCount] = useState(0);
-  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, Message>>(new Map());
   
   // Refs for tracking messages and animations
   const previousMessageIds = useRef<Set<string>>(new Set());
@@ -66,106 +64,6 @@ export function VirtualizedMessageList({
 
   // WebSocket integration
   const webSocket = useConversationWebSocket(conversationId);
-
-  // Optimistic message functions
-  const addOptimisticMessage = useCallback((text: string) => {
-    const optimisticId = `optimistic-${Date.now()}-${Math.random()}`;
-    const optimisticMessage: Message = {
-      _id: optimisticId,
-      conversation_id: conversationId,
-      message_type: 'text',
-      direction: 'outbound',
-      sender_role: 'agent',
-      sender_id: user?._id || 'current-user',
-      sender_name: user?.first_name || user?.email || 'You',
-      text_content: text,
-      status: 'sending',
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      type: 'text',
-    } as Message;
-
-    console.log('🚀 [WHATSAPP_UX] Adding optimistic message:', optimisticId);
-
-    // Add to optimistic messages state
-    setOptimisticMessages(prev => {
-      const newMap = new Map(prev).set(optimisticId, optimisticMessage);
-      console.log('🚀 [OPTIMISTIC] Added to state, total optimistic messages:', newMap.size);
-      return newMap;
-    });
-
-    // Always scroll to bottom for agent's own messages
-    setIsAtBottom(true);
-    setShowNewMessagesBanner(false);
-    setNewMessagesCount(0);
-
-    // Immediate smooth scroll to bottom for agent messages
-    setTimeout(() => {
-      scrollToBottomSmooth();
-    }, 50);
-
-    return optimisticId;
-  }, [conversationId, user]);
-
-  const updateOptimisticMessage = useCallback((optimisticId: string, realMessage: Message) => {
-    console.log('✅ [WHATSAPP_UX] Updating optimistic message with real data:', optimisticId);
-
-    // Remove from optimistic messages
-    setOptimisticMessages(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(optimisticId);
-      console.log('✅ [OPTIMISTIC] Removed from state, remaining optimistic messages:', newMap.size);
-      return newMap;
-    });
-
-    // Update the real message in the query cache without adding duplicates
-    queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        
-        const updatedPages = oldData.pages.map((page: any) => {
-          // Check if the real message already exists to prevent duplicates
-          const existingMessage = page.messages.find((msg: Message) => msg._id === realMessage._id);
-          if (existingMessage) {
-            console.log('✅ [OPTIMISTIC] Real message already exists, skipping duplicate');
-            return page;
-          }
-          
-          // Replace optimistic message with real message
-          const updatedMessages = page.messages.map((msg: Message) => {
-            if (msg._id === optimisticId) {
-              console.log('✅ [OPTIMISTIC] Replacing optimistic message with real message');
-              return { ...realMessage, _id: realMessage._id };
-            }
-            return msg;
-          });
-          
-          return {
-            ...page,
-            messages: updatedMessages
-          };
-        });
-        
-        return {
-          ...oldData,
-          pages: updatedPages
-        };
-      }
-    );
-  }, [conversationId, queryClient]);
-
-  const removeOptimisticMessage = useCallback((optimisticId: string) => {
-    console.log('❌ [WHATSAPP_UX] Removing failed optimistic message:', optimisticId);
-
-    // Remove from optimistic messages
-    setOptimisticMessages(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(optimisticId);
-      return newMap;
-    });
-  }, []);
 
   // Smooth scroll to bottom function
   const scrollToBottomSmooth = useCallback(() => {
@@ -189,28 +87,95 @@ export function VirtualizedMessageList({
     scrollToBottomSmooth();
   }, [scrollToBottomSmooth]);
 
-  // Expose functions globally for conversation page
-  (window as any).addOptimisticMessage = addOptimisticMessage;
-  (window as any).updateOptimisticMessage = updateOptimisticMessage;
-  (window as any).removeOptimisticMessage = removeOptimisticMessage;
-
   // Flatten messages from all pages and sort chronologically (oldest to newest)
   const messages = messagesData?.pages.flatMap((page) => page.messages) || [];
   const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
-
-  // Combine real messages with optimistic messages
-  const allMessages = [...sortedMessages, ...Array.from(optimisticMessages.values())];
-  const finalSortedMessages = allMessages.sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
   
   // Debug logging
-  if (optimisticMessages.size > 0) {
-    console.log('🔍 [OPTIMISTIC] Combined messages - Real:', sortedMessages.length, 'Optimistic:', optimisticMessages.size, 'Total:', finalSortedMessages.length);
-    console.log('🔍 [OPTIMISTIC] Optimistic message IDs:', Array.from(optimisticMessages.keys()));
+  console.log('🔍 [MESSAGES] Total messages loaded:', sortedMessages.length);
+  if (sortedMessages.length > 0) {
+    console.log('🔍 [MESSAGES] Latest message:', sortedMessages[sortedMessages.length - 1]);
+    console.log('🔍 [MESSAGES] Message IDs:', sortedMessages.map(m => m._id));
   }
+
+  // Debug: Log when messages change
+  useEffect(() => {
+    console.log('🔍 [MESSAGES] Messages updated:', {
+      count: sortedMessages.length,
+      ids: sortedMessages.map(m => m._id),
+      latest: sortedMessages[sortedMessages.length - 1]?.text_content
+    });
+  }, [sortedMessages]);
+
+  // Add test function to window for debugging
+  React.useEffect(() => {
+    (window as any).testMessageFlow = () => {
+      console.log('🧪 [TEST] Current messages:', sortedMessages);
+      console.log('🧪 [TEST] Conversation ID:', conversationId);
+      console.log('🧪 [TEST] User:', user);
+    };
+    
+    // Add test function to manually add a message to the query cache
+    (window as any).testAddMessage = () => {
+      const testMessage = {
+        _id: `test-${Date.now()}`,
+        conversation_id: conversationId,
+        message_type: 'text',
+        direction: 'outbound',
+        sender_role: 'agent',
+        sender_id: user?._id || 'test-user',
+        sender_name: user?.first_name || 'Test User',
+        text_content: `Test message ${Date.now()}`,
+        status: 'sent',
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        type: 'text',
+      };
+      
+      console.log('🧪 [TEST] Adding test message:', testMessage);
+      
+      // Update the query cache directly
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+        (oldData: any) => {
+          if (!oldData) {
+            return {
+              pages: [{
+                messages: [testMessage],
+                next_cursor: null,
+                has_more: false,
+                anchor: 'latest',
+                cache_hit: false
+              }]
+            };
+          }
+          
+          const updatedPages = [...oldData.pages];
+          if (updatedPages[0]) {
+            updatedPages[0] = {
+              ...updatedPages[0],
+              messages: [...updatedPages[0].messages, testMessage]
+            };
+          }
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        }
+      );
+      
+      console.log('🧪 [TEST] Test message added to query cache');
+    };
+    
+    return () => {
+      delete (window as any).testMessageFlow;
+      delete (window as any).testAddMessage;
+    };
+  }, [sortedMessages, conversationId, user, queryClient]);
 
   // Handle loading older messages when user scrolls to top
   const handleStartReached = useCallback(async () => {
@@ -235,13 +200,13 @@ export function VirtualizedMessageList({
   useEffect(() => {
     if (!isInitialized) {
       // Initialize with current message IDs
-      previousMessageIds.current = new Set(finalSortedMessages.map(msg => msg._id));
-      previousMessageCount.current = finalSortedMessages.length;
+      previousMessageIds.current = new Set(sortedMessages.map(msg => msg._id));
+      previousMessageCount.current = sortedMessages.length;
       return;
     }
 
     // Find truly new messages by comparing IDs
-    const currentMessageIds = new Set(finalSortedMessages.map(msg => msg._id));
+    const currentMessageIds = new Set(sortedMessages.map(msg => msg._id));
     const detectedNewMessageIds = new Set<string>();
     
     for (const messageId of currentMessageIds) {
@@ -258,10 +223,9 @@ export function VirtualizedMessageList({
     console.log(`📩 [WHATSAPP_UX] ${detectedNewMessageIds.size} new messages detected`);
 
     // Get the new messages
-    const newMessages = finalSortedMessages.filter(msg => detectedNewMessageIds.has(msg._id));
-    const customerMessages = newMessages.filter(msg => 
-      msg.direction === 'inbound' && !optimisticMessages.has(msg._id)
-    );
+    const newMessages = sortedMessages.filter(msg => detectedNewMessageIds.has(msg._id));
+    const customerMessages = newMessages.filter(msg => msg.direction === 'inbound');
+    const agentMessages = newMessages.filter(msg => msg.direction === 'outbound');
 
     if (customerMessages.length > 0) {
       console.log(`📩 [WHATSAPP_UX] ${customerMessages.length} new customer messages`);
@@ -281,25 +245,19 @@ export function VirtualizedMessageList({
       if (!firstUnreadMessageId && !hasShownUnreadMarker) {
         setFirstUnreadMessageId(customerMessages[0]._id);
       }
-    } else {
+    } else if (agentMessages.length > 0) {
       // Agent messages - always scroll to bottom smoothly
-      const agentMessages = newMessages.filter(msg => 
-        msg.direction === 'outbound' || optimisticMessages.has(msg._id)
-      );
-      
-      if (agentMessages.length > 0) {
-        console.log('📤 [WHATSAPP_UX] Agent message sent, scrolling to bottom');
-        setIsAtBottom(true);
-        setShowNewMessagesBanner(false);
-        setNewMessagesCount(0);
-        setHasShownUnreadMarker(true); // Hide unread marker when agent responds
-        scrollToBottomSmooth();
-      }
+      console.log('📤 [WHATSAPP_UX] Agent message sent, scrolling to bottom');
+      setIsAtBottom(true);
+      setShowNewMessagesBanner(false);
+      setNewMessagesCount(0);
+      setHasShownUnreadMarker(true); // Hide unread marker when agent responds
+      scrollToBottomSmooth();
     }
 
     // Update previous state and track new messages for animation
     previousMessageIds.current = currentMessageIds;
-    previousMessageCount.current = finalSortedMessages.length;
+    previousMessageCount.current = sortedMessages.length;
     
     // Add new message IDs to animation tracking (they will be removed after animation completes)
     newMessageIds.current = new Set([...Array.from(newMessageIds.current), ...Array.from(detectedNewMessageIds)]);
@@ -309,13 +267,12 @@ export function VirtualizedMessageList({
       newMessageIds.current = new Set();
     }, 3000);
   }, [
-    finalSortedMessages, 
+    sortedMessages, 
     isInitialized, 
     isAtBottom, 
     firstUnreadMessageId, 
     hasShownUnreadMarker,
-    scrollToBottomSmooth,
-    optimisticMessages
+    scrollToBottomSmooth
   ]);
 
   // Hide new messages banner when user scrolls to bottom
@@ -372,12 +329,11 @@ export function VirtualizedMessageList({
     date?: string;
     count?: number;
     message?: Message;
-    isOptimistic?: boolean;
     isNewMessage?: boolean;
   }> = [];
   
-  finalSortedMessages.forEach((message, index) => {
-    const previousMessage = index > 0 ? finalSortedMessages[index - 1] : null;
+  sortedMessages.forEach((message, index) => {
+    const previousMessage = index > 0 ? sortedMessages[index - 1] : null;
     const showDayBanner = !previousMessage || !isSameDay(message.timestamp, previousMessage.timestamp);
     
     // Add day banner
@@ -396,7 +352,7 @@ export function VirtualizedMessageList({
         message.direction === 'inbound') {
       
       // Count unread messages from this point
-      const unreadCount = finalSortedMessages
+      const unreadCount = sortedMessages
         .slice(index)
         .filter(msg => msg.direction === 'inbound').length;
       
@@ -408,14 +364,13 @@ export function VirtualizedMessageList({
     }
 
     // Add message
-    const isOptimistic = optimisticMessages.has(message._id);
     const isNewMessage = newMessageIds.current.has(message._id);
+    const isOptimistic = message._id?.startsWith('optimistic-');
     
     items.push({ 
       type: 'message', 
       message, 
       id: message._id || `temp-${index}`,
-      isOptimistic,
       isNewMessage: isNewMessage || isOptimistic
     });
   });
@@ -449,7 +404,7 @@ export function VirtualizedMessageList({
                 key={item.id}
                 message={item.message!}
                 isOwn={item.message!.direction === 'outbound'}
-                isOptimistic={item.isOptimistic}
+                isOptimistic={item.message!._id?.startsWith('optimistic-')}
                 isNewMessage={item.isNewMessage}
               />
             </div>

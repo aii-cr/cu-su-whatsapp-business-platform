@@ -77,26 +77,118 @@ export function useSendMessage() {
         throw new Error('Conversation ID is required');
       }
       
-      // Don't cancel queries - let WebSocket updates work normally
-      // The optimistic message will be handled by the VirtualizedMessageList component
-      // This prevents conflicts between the hook's optimistic updates and the component's state
+      console.log('🚀 [OPTIMISTIC] Starting optimistic update for conversation:', conversationId);
       
-      console.log('🔄 [OPTIMISTIC] Message mutation started, optimistic update handled by VirtualizedMessageList');
-      return { conversationId };
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({
+        queryKey: messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+      });
+
+      // Snapshot the previous value
+      const previousMessages = queryClient.getQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
+      );
+
+      // Create optimistic message
+      const optimisticMessage: Message = {
+        _id: `optimistic-${Date.now()}-${Math.random()}`,
+        conversation_id: conversationId,
+        message_type: 'text',
+        direction: 'outbound',
+        sender_role: 'agent',
+        sender_id: user?._id || 'current-user',
+        sender_name: user?.first_name || user?.email || 'You',
+        text_content: variables.text_content,
+        status: 'sending',
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        type: 'text',
+      } as Message;
+
+      console.log('🚀 [OPTIMISTIC] Created optimistic message:', optimisticMessage._id);
+
+      // Optimistically update the query cache
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+        (oldData: any) => {
+          if (!oldData) {
+            console.log('⚠️ [OPTIMISTIC] No existing query data, creating new structure');
+            return {
+              pages: [{
+                messages: [optimisticMessage],
+                next_cursor: null,
+                has_more: false,
+                anchor: 'latest',
+                cache_hit: false
+              }]
+            };
+          }
+          
+          console.log('🚀 [OPTIMISTIC] Updating existing query data');
+          const updatedPages = [...oldData.pages];
+          if (updatedPages[0]) {
+            updatedPages[0] = {
+              ...updatedPages[0],
+              messages: [...updatedPages[0].messages, optimisticMessage]
+            };
+          }
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        }
+      );
+
+      console.log('🚀 [OPTIMISTIC] Added optimistic message to query cache');
+      
+      // Return a context object with the snapshotted value and optimistic message
+      return { previousMessages, optimisticMessage };
     },
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id;
-      const sentMessage = response.message; // The actual message object is nested in the response
+      const sentMessage = response.message; // Extract message from response
       
       if (!conversationId) {
         console.error('No conversation ID available in success callback');
         return;
       }
       
-      // The optimistic message update is handled by the VirtualizedMessageList component
-      // This prevents conflicts and ensures smooth UX
-      console.log('✅ [MESSAGE] Sent successfully, optimistic update handled by VirtualizedMessageList');
-      toast.success('Message sent');
+      console.log('✅ [MESSAGE] Message sent successfully:', sentMessage._id);
+      console.log('✅ [MESSAGE] Real message data:', sentMessage);
+      
+      // Update the optimistic message with real data
+      if (context?.optimisticMessage) {
+        console.log('✅ [OPTIMISTIC] Updating optimistic message with real data');
+        console.log('✅ [OPTIMISTIC] Optimistic ID:', context.optimisticMessage._id);
+        console.log('✅ [OPTIMISTIC] Real ID:', sentMessage._id);
+        
+        queryClient.setQueryData(
+          messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+          (oldData: any) => {
+            if (!oldData) return oldData;
+            
+            const updatedPages = oldData.pages.map((page: any) => ({
+              ...page,
+              messages: page.messages.map((msg: Message) => {
+                if (msg._id === context.optimisticMessage._id) {
+                  console.log('✅ [OPTIMISTIC] Replacing optimistic message with real message');
+                  return { ...sentMessage, _id: sentMessage._id };
+                }
+                return msg;
+              })
+            }));
+            
+            return {
+              ...oldData,
+              pages: updatedPages
+            };
+          }
+        );
+        
+        console.log('✅ [OPTIMISTIC] Updated optimistic message with real data');
+      }
     },
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;
@@ -106,10 +198,23 @@ export function useSendMessage() {
         return;
       }
       
-      // The optimistic message removal is handled by the VirtualizedMessageList component
-      // This prevents conflicts and ensures smooth UX
-      console.log('❌ [MESSAGE] Failed to send message, optimistic removal handled by VirtualizedMessageList');
+      console.error('❌ [MESSAGE] Message send failed:', error);
+      
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+          context.previousMessages
+        );
+        console.log('❌ [OPTIMISTIC] Rolled back optimistic message due to error');
+      }
+      
       handleError(error);
+    },
+    onSettled: (data, error, variables) => {
+      // Don't invalidate cache here - let WebSocket handle real-time updates
+      // This prevents conflicts between mutation and WebSocket updates
+      console.log('✅ [MESSAGE] Message mutation settled, WebSocket will handle updates');
     },
   });
 }
@@ -130,10 +235,14 @@ export function useSendMediaMessage() {
       conversationId: string; 
       mediaFile: File; 
       caption?: string 
-    }) => MessagesApi.sendMediaMessage(conversationId, mediaFile, caption),
-    onSuccess: (response) => {
+    }) => {
+      // TODO: Implement media message sending
+      console.log('Media message sending not implemented yet');
+      return Promise.resolve({ message: null });
+    },
+    onSuccess: (response: any) => {
       // Invalidate and refetch messages for the conversation
-      if (response.message?.conversation_id) {
+      if (response?.message?.conversation_id) {
         queryClient.invalidateQueries({
           queryKey: messageQueryKeys.conversation(response.message.conversation_id),
         });

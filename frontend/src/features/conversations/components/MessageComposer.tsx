@@ -72,7 +72,11 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
 
     const handleSend = () => {
       const trimmedMessage = message.trim();
+      console.log('🔍 [COMPOSER] handleSend called with:', trimmedMessage);
+      console.log('🔍 [COMPOSER] disabled:', disabled, 'loading:', loading);
+      
       if (trimmedMessage && !disabled && !loading) {
+        console.log('🔍 [COMPOSER] Calling onSendMessage with:', trimmedMessage);
         onSendMessage(trimmedMessage);
         setMessage('');
         onTypingStop?.(); // Stop typing indicator when sending
@@ -80,6 +84,8 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
         }
+      } else {
+        console.log('🔍 [COMPOSER] Message not sent - conditions not met');
       }
     };
 
@@ -199,7 +205,10 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
         {/* Send button or voice note button */}
         {message.trim() ? (
           <Button
-            onClick={handleSend}
+            onClick={() => {
+              console.log('🔍 [COMPOSER] Send button clicked');
+              handleSend();
+            }}
             disabled={disabled || loading || !message.trim()}
             className="h-10 w-10 rounded-full p-0 bg-primary hover:bg-primary/90 text-primary-foreground"
             aria-label="Send message"

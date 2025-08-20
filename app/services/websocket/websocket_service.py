@@ -228,6 +228,9 @@ class WebSocketService:
     @staticmethod
     async def notify_new_message(conversation_id: str, message_data: dict):
         """Notify all subscribers about a new message."""
+        logger.info(f"🔔 [WEBSOCKET] notify_new_message called for conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Message data: {message_data}")
+        
         # Convert ObjectId fields to strings for JSON serialization
         serialized_message = {}
         for key, value in message_data.items():
@@ -271,8 +274,10 @@ class WebSocketService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        logger.info(f"🔔 [WEBSOCKET] Sending notification: {notification}")
+        
         await manager.broadcast_to_conversation(notification, str(conversation_id))
-        logger.info(f"Broadcasted new message notification for conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Broadcasted new message notification for conversation {conversation_id}")
     
     @staticmethod
     async def notify_message_status_update(conversation_id: str, message_id: str, status: str):

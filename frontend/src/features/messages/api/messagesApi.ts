@@ -113,9 +113,15 @@ export class MessagesApi {
   /**
    * Send a text message
    */
-  static async sendMessage(messageData: SendMessageRequest): Promise<Message> {
+  static async sendMessage(messageData: SendMessageRequest): Promise<{
+    message: Message;
+    whatsapp_response: any;
+  }> {
     try {
-      const response = await httpClient.post<Message>(
+      const response = await httpClient.post<{
+        message: Message;
+        whatsapp_response: any;
+      }>(
         '/messages/send',
         messageData
       );
