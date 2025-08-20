@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import './globals.css';
+import './globals.scss';
 import { Providers } from '@/app/providers';
 import { AuthWrapper } from '@/features/auth/components/AuthWrapper';
 import { getPageTitle, getMetaDescription } from '@/lib/branding';

@@ -1,0 +1,137 @@
+// SCSS Mixins - Reusable patterns for components
+@import 'variables';
+
+// Focus ring mixin for accessibility
+@mixin focus-ring($color: rgb(var(--ring)), $offset: 2px) {
+  &:focus-visible {
+    outline: 2px solid $color;
+    outline-offset: $offset;
+  }
+}
+
+// Button base styles
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $border-radius-md;
+  font-weight: 500;
+  transition: all $transition-normal;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  @include focus-ring;
+}
+
+// Card base styles
+@mixin card-base {
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--border));
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  transition: box-shadow $transition-normal;
+  
+  &:hover {
+    box-shadow: $shadow-md;
+  }
+}
+
+// WhatsApp chat bubble mixin
+@mixin chat-bubble($is-own: false) {
+  max-width: 70%;
+  padding: $chat-bubble-padding;
+  border-radius: $chat-bubble-radius;
+  word-wrap: break-word;
+  animation: messageSlideIn 0.2s ease-out;
+  
+  @if $is-own {
+    background: rgb(var(--primary));
+    color: rgb(var(--primary-foreground));
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+  } @else {
+    background: rgb(var(--muted));
+    color: rgb(var(--foreground));
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+  }
+}
+
+// Responsive breakpoint mixins
+@mixin mobile {
+  @media (max-width: 767px) {
+    @content;
+  }
+}
+
+@mixin tablet {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    @content;
+  }
+}
+
+@mixin desktop {
+  @media (min-width: 1024px) {
+    @content;
+  }
+}
+
+// Text truncation
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin text-truncate-multiline($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// Glass morphism effect
+@mixin glass-effect($blur: 10px, $opacity: 0.1) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+// Loading skeleton animation
+@mixin skeleton-loading {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--muted)) 25%,
+    rgb(var(--border)) 50%,
+    rgb(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+// Scrollbar styling
+@mixin custom-scrollbar($width: 4px, $track-color: rgb(var(--muted)), $thumb-color: rgb(var(--muted-foreground))) {
+  &::-webkit-scrollbar {
+    width: $width;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: $width / 2;
+    
+    &:hover {
+      background: rgb(var(--border));
+    }
+  }
+}
