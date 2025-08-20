@@ -23,10 +23,12 @@ export interface MessageBubbleProps {
   showAvatar?: boolean;
   showTimestamp?: boolean;
   className?: string;
+  isOptimistic?: boolean;
+  isNewMessage?: boolean;
 }
 
 const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ message, isOwn = false, showAvatar = true, showTimestamp = true, className }, ref) => {
+  ({ message, isOwn = false, showAvatar = true, showTimestamp = true, className, isOptimistic = false, isNewMessage = false }, ref) => {
     const isSystem = message.sender_role === 'system';
     const isOutbound = message.direction === 'outbound'; // Agent message
     const isInbound = message.direction === 'inbound'; // Customer message
@@ -43,6 +45,13 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       const readIconClass = shouldAlignRight ? 'text-white' : 'text-blue-500';
       const failedIconClass = shouldAlignRight ? 'text-red-200' : 'text-red-500';
       
+      // Determine animation class based on status
+      const getAnimationClass = () => {
+        if (isOptimistic) return 'animate-pulse';
+        if (message.status === 'delivered' || message.status === 'read') return 'animate-status-check';
+        return '';
+      };
+      
       switch (message.status) {
         case 'sending':
           return (
@@ -53,17 +62,21 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
         case 'pending':
           return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'sent':
-          return <CheckIcon className={`w-3 h-3 ${iconClass}`} />;
+          return (
+            <div className={cn('flex items-center', getAnimationClass())}>
+              <CheckIcon className={`w-3 h-3 ${iconClass}`} />
+            </div>
+          );
         case 'delivered':
           return (
-            <div className="flex">
+            <div className={cn('flex', getAnimationClass())}>
               <CheckIcon className={`w-3 h-3 ${iconClass} -mr-1`} />
               <CheckIcon className={`w-3 h-3 ${iconClass}`} />
             </div>
           );
         case 'read':
           return (
-            <div className="flex">
+            <div className={cn('flex', getAnimationClass())}>
               <CheckIcon className={`w-3 h-3 ${readIconClass} -mr-1`} />
               <CheckIcon className={`w-3 h-3 ${readIconClass}`} />
             </div>
@@ -145,12 +158,22 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       );
     }
 
+    // Determine animation class based on message type and state
+    const getAnimationClass = () => {
+      if (isOptimistic) return 'animate-message-push-in';
+      if (isNewMessage) {
+        return shouldAlignRight ? 'animate-outbound-message' : 'animate-inbound-message';
+      }
+      return '';
+    };
+
     return (
       <div
         ref={ref}
         className={cn(
-          'flex mb-4 group',
+          'flex mb-4 group message-animation-wrapper',
           shouldAlignRight ? 'justify-end' : 'justify-start',
+          getAnimationClass(),
           className
         )}
       >
@@ -183,7 +206,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           {/* Message bubble */}
           <div
             className={cn(
-              'relative px-4 py-2 rounded-lg shadow-sm',
+              'relative px-4 py-2 rounded-lg shadow-sm message-bubble-animate',
               shouldAlignRight 
                 ? 'bg-blue-500 text-white' // Agent messages - solid blue with white text for better contrast
                 : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100', // Customer messages with better contrast
@@ -191,7 +214,13 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
               'before:absolute before:content-[""] before:w-0 before:h-0',
               shouldAlignRight
                 ? 'before:right-[-6px] before:top-2 before:border-l-[6px] before:border-l-blue-500 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
-                : 'before:left-[-6px] before:top-2 before:border-r-[6px] before:border-r-white dark:before:border-r-slate-700 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
+                : 'before:left-[-6px] before:top-2 before:border-r-[6px] before:border-r-white dark:before:border-r-slate-700 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent',
+              // Animation states
+              {
+                'optimistic': isOptimistic,
+                'new-message': isNewMessage,
+                'status-updating': message.status === 'delivered' || message.status === 'read'
+              }
             )}
           >
             {/* Media content */}

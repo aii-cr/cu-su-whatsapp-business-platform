@@ -380,11 +380,38 @@ async def process_message_status(
     
     logger.info(f"✅ [STATUS] Updated message {whatsapp_message_id} status to {status_obj.status}")
     
-    # Send WebSocket notification for status update
-    await websocket_service.notify_message_status_update(
+    # Get updated message data for optimized notification
+    updated_message = await message_service.get_message(str(message["_id"]))
+    
+    # Serialize the message data to handle ObjectId fields
+    if updated_message:
+        serialized_message = {}
+        for key, value in updated_message.items():
+            if key == '_id':
+                serialized_message[key] = str(value)
+            elif key == 'conversation_id':
+                serialized_message[key] = str(value)
+            elif key == 'sender_id':
+                serialized_message[key] = str(value) if value else None
+            elif key == 'reply_to_message_id':
+                serialized_message[key] = str(value) if value else None
+            elif key == 'media_id':
+                serialized_message[key] = str(value) if value else None
+            elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                serialized_message[key] = value.isoformat()
+            else:
+                serialized_message[key] = value
+    else:
+        serialized_message = None
+    
+    # Send optimized WebSocket notification for status update
+    await websocket_service.notify_message_status_update_optimized(
         conversation_id=str(message["conversation_id"]),
-        message_id=whatsapp_message_id,  # Use WhatsApp message ID for status updates
-        status=status_obj.status
+        message_id=str(message["_id"]),  # Use internal message ID for consistency
+        status=status_obj.status,
+        message_data=serialized_message
     )
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:

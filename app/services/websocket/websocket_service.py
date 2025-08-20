@@ -287,6 +287,54 @@ class WebSocketService:
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
         logger.info(f"Broadcasted status update for message {message_id} in conversation {conversation_id}")
+        
+        # Invalidate Redis cache for this conversation to ensure fresh data
+        try:
+            from app.services.cache.redis_service import redis_service
+            await redis_service.invalidate_conversation_cache(conversation_id)
+            logger.info(f"🔴 [CACHE] Invalidated cache for conversation {conversation_id} after status update")
+        except Exception as e:
+            logger.warning(f"🔴 [CACHE] Failed to invalidate cache for conversation {conversation_id}: {str(e)}")
+
+    @staticmethod
+    async def notify_message_status_update_optimized(conversation_id: str, message_id: str, status: str, message_data: dict = None):
+        """
+        Optimized message status update notification that includes message data
+        to avoid unnecessary cache invalidation and query refetching.
+        """
+        # Serialize message_data to handle ObjectId and datetime fields
+        serialized_message_data = None
+        if message_data:
+            serialized_message_data = {}
+            for key, value in message_data.items():
+                if key == '_id':
+                    serialized_message_data[key] = str(value)
+                elif key == 'conversation_id':
+                    serialized_message_data[key] = str(value)
+                elif key == 'sender_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif key == 'reply_to_message_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif key == 'media_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif isinstance(value, datetime):
+                    serialized_message_data[key] = value.isoformat()
+                elif hasattr(value, 'isoformat'):
+                    serialized_message_data[key] = value.isoformat()
+                else:
+                    serialized_message_data[key] = value
+        
+        notification = {
+            "type": "message_status_update",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "status": status,
+            "message_data": serialized_message_data,  # Include serialized message data
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"Broadcasted optimized status update for message {message_id} in conversation {conversation_id}")
     
     @staticmethod
     async def notify_message_read_status(

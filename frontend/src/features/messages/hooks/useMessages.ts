@@ -78,63 +78,11 @@ export function useSendMessage() {
       }
       
       // Don't cancel queries - let WebSocket updates work normally
-      // Just create an optimistic message and add it
+      // The optimistic message will be handled by the VirtualizedMessageList component
+      // This prevents conflicts between the hook's optimistic updates and the component's state
       
-      // Create optimistic message with unique temp ID
-      const optimisticId = `temp-${Date.now()}-${Math.random()}`;
-      const optimisticMessage: Message & { isOptimistic?: boolean } = {
-        _id: optimisticId,
-        conversation_id: conversationId,
-        message_type: 'text',
-        direction: 'outbound',
-        sender_role: 'agent',
-        sender_id: user?._id || '',
-        sender_name: user?.name || 
-                    (user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : null) ||
-                    user?.email || 'You',
-        text_content: variables.text_content,
-        status: 'sending', // Show as sending with loading indicator (pending state)
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        type: 'text',
-        whatsapp_message_id: undefined,
-        whatsapp_data: undefined,
-        isOptimistic: true, // Mark as optimistic to handle real-time updates
-      };
-
-      // Get current data for rollback
-      const previousMessages = queryClient.getQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
-      );
-
-      // Optimistically add the message
-      console.log('🔄 [OPTIMISTIC] Adding optimistic message to query:', messageQueryKeys.conversationMessages(conversationId, { limit: 50 }));
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (old: unknown) => {
-          if (!old || typeof old !== 'object') return old;
-          const oldData = old as { pages: { messages: Message[], total: number }[] };
-          
-          // Add the optimistic message to the end of the first page (newest messages)
-          const newPages = [...oldData.pages];
-          if (newPages[0]) {
-            newPages[0] = {
-              ...newPages[0],
-              messages: [...newPages[0].messages, optimisticMessage],
-              total: newPages[0].total + 1
-            };
-          }
-          
-          return {
-            ...oldData,
-            pages: newPages
-          };
-        }
-      );
-
-      console.log('✅ [OPTIMISTIC] Optimistic message added successfully:', optimisticMessage._id);
-      return { previousMessages, optimisticMessage };
+      console.log('🔄 [OPTIMISTIC] Message mutation started, optimistic update handled by VirtualizedMessageList');
+      return { conversationId };
     },
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id;
@@ -145,40 +93,9 @@ export function useSendMessage() {
         return;
       }
       
-      // Update optimistic message with real backend data
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (old: unknown) => {
-          if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
-          const oldData = old as { pages: { messages: Message[], total: number }[] };
-          
-          const newPages = [...oldData.pages];
-          if (newPages[0]) {
-            const messageIndex = newPages[0].messages.findIndex(
-              (msg: Message) => msg._id === context.optimisticMessage._id
-            );
-            
-            if (messageIndex !== -1) {
-              // Replace optimistic message with real backend data
-              newPages[0].messages[messageIndex] = {
-                ...sentMessage,
-                _id: sentMessage._id, // Use backend ID
-                status: 'sent', // Mark as sent (single check mark)
-                isOptimistic: false // No longer optimistic since it's real data
-              };
-              
-              console.log('✅ [MESSAGE] Replaced optimistic message with real data:', sentMessage._id);
-            }
-          }
-          
-          return {
-            ...oldData,
-            pages: newPages
-          };
-        }
-      );
-
-      console.log('✅ [MESSAGE] Sent successfully, updated to "sent" status');
+      // The optimistic message update is handled by the VirtualizedMessageList component
+      // This prevents conflicts and ensures smooth UX
+      console.log('✅ [MESSAGE] Sent successfully, optimistic update handled by VirtualizedMessageList');
       toast.success('Message sent');
     },
     onError: (error, variables, context) => {
@@ -189,31 +106,9 @@ export function useSendMessage() {
         return;
       }
       
-      // Remove the optimistic message since sending failed
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (old: unknown) => {
-          if (!old || typeof old !== 'object' || !context?.optimisticMessage) return old;
-          const oldData = old as { pages: { messages: Message[], total: number }[] };
-          
-          const newPages = [...oldData.pages];
-          if (newPages[0]) {
-            newPages[0] = {
-              ...newPages[0],
-              messages: newPages[0].messages.filter(
-                (msg: Message) => msg._id !== context.optimisticMessage._id
-              ),
-              total: Math.max(0, newPages[0].total - 1)
-            };
-          }
-          
-          return {
-            ...oldData,
-            pages: newPages
-          };
-        }
-      );
-      
+      // The optimistic message removal is handled by the VirtualizedMessageList component
+      // This prevents conflicts and ensures smooth UX
+      console.log('❌ [MESSAGE] Failed to send message, optimistic removal handled by VirtualizedMessageList');
       handleError(error);
     },
   });

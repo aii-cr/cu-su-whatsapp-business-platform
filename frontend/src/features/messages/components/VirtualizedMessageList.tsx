@@ -47,6 +47,11 @@ export function VirtualizedMessageList({
   const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [hasShownUnreadMarker, setHasShownUnreadMarker] = useState(false);
   const [lastSeenMessageCount, setLastSeenMessageCount] = useState(0);
+  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, Message>>(new Map());
+  
+  // Refs for tracking messages and animations
+  const previousMessageIds = useRef<Set<string>>(new Set());
+  const newMessageIds = useRef<Set<string>>(new Set());
   
   // Data fetching
   const {
@@ -64,8 +69,9 @@ export function VirtualizedMessageList({
 
   // Optimistic message functions
   const addOptimisticMessage = useCallback((text: string) => {
+    const optimisticId = `optimistic-${Date.now()}-${Math.random()}`;
     const optimisticMessage: Message = {
-      _id: `optimistic-${Date.now()}`,
+      _id: optimisticId,
       conversation_id: conversationId,
       message_type: 'text',
       direction: 'outbound',
@@ -78,48 +84,37 @@ export function VirtualizedMessageList({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       type: 'text',
-      isOptimistic: true,
-    } as Message & { isOptimistic: boolean };
+    } as Message;
 
-    console.log('🚀 [WHATSAPP_UX] Adding optimistic message, scrolling to bottom...');
+    console.log('🚀 [WHATSAPP_UX] Adding optimistic message:', optimisticId);
+
+    // Add to optimistic messages state
+    setOptimisticMessages(prev => new Map(prev).set(optimisticId, optimisticMessage));
 
     // Always scroll to bottom for agent's own messages
     setIsAtBottom(true);
     setShowNewMessagesBanner(false);
     setNewMessagesCount(0);
 
-    // Add optimistic message to query
-    queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        
-        const updatedPages = [...oldData.pages];
-        if (updatedPages[0]) {
-          updatedPages[0] = {
-            ...updatedPages[0],
-            messages: [...updatedPages[0].messages, optimisticMessage]
-          };
-        }
-        
-        return {
-          ...oldData,
-          pages: updatedPages
-        };
-      }
-    );
-
     // Immediate smooth scroll to bottom for agent messages
     setTimeout(() => {
       scrollToBottomSmooth();
     }, 50);
 
-    return optimisticMessage._id;
-  }, [conversationId, queryClient, user]);
+    return optimisticId;
+  }, [conversationId, user]);
 
   const updateOptimisticMessage = useCallback((optimisticId: string, realMessage: Message) => {
-    console.log('✅ [WHATSAPP_UX] Updating optimistic message with real data');
+    console.log('✅ [WHATSAPP_UX] Updating optimistic message with real data:', optimisticId);
 
+    // Remove from optimistic messages
+    setOptimisticMessages(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(optimisticId);
+      return newMap;
+    });
+
+    // Update the real message in the query cache
     queryClient.setQueryData(
       messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
       (oldData: any) => {
@@ -127,9 +122,9 @@ export function VirtualizedMessageList({
         
         const updatedPages = oldData.pages.map((page: any) => ({
           ...page,
-          messages: page.messages.map((msg: Message & { isOptimistic?: boolean }) => 
+          messages: page.messages.map((msg: Message) => 
             msg._id === optimisticId 
-              ? { ...realMessage, isOptimistic: false }
+              ? { ...realMessage, _id: realMessage._id }
               : msg
           )
         }));
@@ -143,25 +138,15 @@ export function VirtualizedMessageList({
   }, [conversationId, queryClient]);
 
   const removeOptimisticMessage = useCallback((optimisticId: string) => {
-    console.log('❌ [WHATSAPP_UX] Removing failed optimistic message');
+    console.log('❌ [WHATSAPP_UX] Removing failed optimistic message:', optimisticId);
 
-    queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        
-        const updatedPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.filter((msg: Message) => msg._id !== optimisticId)
-        }));
-        
-        return {
-          ...oldData,
-          pages: updatedPages
-        };
-      }
-    );
-  }, [conversationId, queryClient]);
+    // Remove from optimistic messages
+    setOptimisticMessages(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(optimisticId);
+      return newMap;
+    });
+  }, []);
 
   // Smooth scroll to bottom function
   const scrollToBottomSmooth = useCallback(() => {
@@ -196,6 +181,12 @@ export function VirtualizedMessageList({
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
+  // Combine real messages with optimistic messages
+  const allMessages = [...sortedMessages, ...Array.from(optimisticMessages.values())];
+  const finalSortedMessages = allMessages.sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
   // Handle loading older messages when user scrolls to top
   const handleStartReached = useCallback(async () => {
     if (hasNextPage && !isFetchingNextPage && isInitialized) {
@@ -215,19 +206,36 @@ export function VirtualizedMessageList({
 
   // Handle new messages with WhatsApp-style behavior
   const previousMessageCount = useRef(0);
+  
   useEffect(() => {
-    if (!isInitialized || sortedMessages.length <= previousMessageCount.current) {
-      previousMessageCount.current = sortedMessages.length;
+    if (!isInitialized) {
+      // Initialize with current message IDs
+      previousMessageIds.current = new Set(finalSortedMessages.map(msg => msg._id));
+      previousMessageCount.current = finalSortedMessages.length;
       return;
     }
 
-    const newMessagesReceived = sortedMessages.length - previousMessageCount.current;
-    console.log(`📩 [WHATSAPP_UX] ${newMessagesReceived} new messages received`);
+    // Find truly new messages by comparing IDs
+    const currentMessageIds = new Set(finalSortedMessages.map(msg => msg._id));
+    const detectedNewMessageIds = new Set<string>();
+    
+    for (const messageId of currentMessageIds) {
+      if (!previousMessageIds.current.has(messageId)) {
+        detectedNewMessageIds.add(messageId);
+      }
+    }
 
-    // Check if new messages are from customer (not agent)
-    const newMessages = sortedMessages.slice(-newMessagesReceived);
+    if (detectedNewMessageIds.size === 0) {
+      previousMessageIds.current = currentMessageIds;
+      return;
+    }
+
+    console.log(`📩 [WHATSAPP_UX] ${detectedNewMessageIds.size} new messages detected`);
+
+    // Get the new messages
+    const newMessages = finalSortedMessages.filter(msg => detectedNewMessageIds.has(msg._id));
     const customerMessages = newMessages.filter(msg => 
-      msg.direction === 'inbound' && !(msg as any).isOptimistic
+      msg.direction === 'inbound' && !optimisticMessages.has(msg._id)
     );
 
     if (customerMessages.length > 0) {
@@ -251,7 +259,7 @@ export function VirtualizedMessageList({
     } else {
       // Agent messages - always scroll to bottom smoothly
       const agentMessages = newMessages.filter(msg => 
-        msg.direction === 'outbound' || (msg as any).isOptimistic
+        msg.direction === 'outbound' || optimisticMessages.has(msg._id)
       );
       
       if (agentMessages.length > 0) {
@@ -264,14 +272,25 @@ export function VirtualizedMessageList({
       }
     }
 
-    previousMessageCount.current = sortedMessages.length;
+    // Update previous state and track new messages for animation
+    previousMessageIds.current = currentMessageIds;
+    previousMessageCount.current = finalSortedMessages.length;
+    
+    // Add new message IDs to animation tracking (they will be removed after animation completes)
+    newMessageIds.current = new Set([...Array.from(newMessageIds.current), ...Array.from(detectedNewMessageIds)]);
+    
+    // Remove animation tracking after 3 seconds
+    setTimeout(() => {
+      newMessageIds.current = new Set();
+    }, 3000);
   }, [
-    sortedMessages.length, 
+    finalSortedMessages, 
     isInitialized, 
     isAtBottom, 
     firstUnreadMessageId, 
     hasShownUnreadMarker,
-    scrollToBottomSmooth
+    scrollToBottomSmooth,
+    optimisticMessages
   ]);
 
   // Hide new messages banner when user scrolls to bottom
@@ -329,9 +348,11 @@ export function VirtualizedMessageList({
     count?: number;
     message?: Message;
     isOptimistic?: boolean;
+    isNewMessage?: boolean;
   }> = [];
-  sortedMessages.forEach((message, index) => {
-    const previousMessage = index > 0 ? sortedMessages[index - 1] : null;
+  
+  finalSortedMessages.forEach((message, index) => {
+    const previousMessage = index > 0 ? finalSortedMessages[index - 1] : null;
     const showDayBanner = !previousMessage || !isSameDay(message.timestamp, previousMessage.timestamp);
     
     // Add day banner
@@ -350,7 +371,7 @@ export function VirtualizedMessageList({
         message.direction === 'inbound') {
       
       // Count unread messages from this point
-      const unreadCount = sortedMessages
+      const unreadCount = finalSortedMessages
         .slice(index)
         .filter(msg => msg.direction === 'inbound').length;
       
@@ -362,11 +383,15 @@ export function VirtualizedMessageList({
     }
 
     // Add message
+    const isOptimistic = optimisticMessages.has(message._id);
+    const isNewMessage = newMessageIds.current.has(message._id);
+    
     items.push({ 
       type: 'message', 
       message, 
       id: message._id || `temp-${index}`,
-      isOptimistic: (message as any).isOptimistic || false
+      isOptimistic,
+      isNewMessage: isNewMessage || isOptimistic
     });
   });
 
@@ -393,29 +418,14 @@ export function VirtualizedMessageList({
           }
           
           // Message with smooth push animation
-          const isOptimistic = item.isOptimistic || false;
-          const isNewMessage = item.message!.timestamp && 
-            new Date(item.message!.timestamp) > new Date(Date.now() - 3000); // Messages less than 3 seconds old
-          
           return (
-            <div 
-              className={cn(
-                "px-4 py-1",
-                // Smooth push animation for new messages
-                (isOptimistic || isNewMessage) && [
-                  "transition-all duration-500 ease-out",
-                  "animate-in slide-in-from-bottom-3 fade-in zoom-in-95"
-                ]
-              )}
-              style={{
-                // Ensure smooth animation
-                transform: (isOptimistic || isNewMessage) ? 'translateY(0)' : undefined,
-              }}
-            >
+            <div className="px-4 py-1">
               <MessageBubble
                 key={item.id}
                 message={item.message!}
                 isOwn={item.message!.direction === 'outbound'}
+                isOptimistic={item.isOptimistic}
+                isNewMessage={item.isNewMessage}
               />
             </div>
           );

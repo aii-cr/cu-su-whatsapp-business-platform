@@ -155,7 +155,8 @@ export class MessagingWebSocketClient extends WebSocketClient {
             conversation_id: data.conversation_id,
             message_id: data.message_id,
             status: data.status,
-            timestamp: data.timestamp || new Date().toISOString()
+            timestamp: data.timestamp || new Date().toISOString(),
+            message_data: data.message_data // Include message data for optimized updates
           });
           break;
           
@@ -466,24 +467,44 @@ export class MessagingWebSocketClient extends WebSocketClient {
     return messageUpdated;
   }
 
-  private handleMessageStatus(data: WebSocketMessageData['message_status']) {
+  private handleMessageStatus(data: WebSocketMessageData['message_status'] & { message_data?: any }) {
     console.log('🔔 [WEBSOCKET] Frontend received message status update:', data);
-    const { conversation_id, message_id, status } = data;
+    const { conversation_id, message_id, status, message_data } = data;
     
-    // Force a complete refresh to ensure status updates are visible
-    console.log(`🔔 [WEBSOCKET] Message status update: ${message_id} -> ${status}, invalidating queries...`);
-    
-    // Invalidate both query structures
-    this.queryClient.invalidateQueries({
-      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-    });
-
-    // Also invalidate the conversation with messages query
-    this.queryClient.invalidateQueries({
-      queryKey: ['conversations', 'detail', conversation_id, 'with-messages', 50, 0],
-    });
-
-    console.log('🔔 [WEBSOCKET] Queries invalidated for status update - UI should update now');
+    if (message_data) {
+      // Optimized update: directly update the message in the query cache
+      console.log(`🔔 [WEBSOCKET] Optimized status update: ${message_id} -> ${status}`);
+      
+      this.queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+        (oldData: any) => {
+          if (!oldData) return oldData;
+          
+          const updatedPages = oldData.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: any) => 
+              msg._id === message_id 
+                ? { ...msg, ...message_data, status }
+                : msg
+            )
+          }));
+          
+          return {
+            ...oldData,
+            pages: updatedPages
+          };
+        }
+      );
+      
+      console.log('🔔 [WEBSOCKET] Optimized status update applied - no query invalidation needed');
+    } else {
+      // Fallback: invalidate queries if no message data provided
+      console.log(`🔔 [WEBSOCKET] Fallback status update: ${message_id} -> ${status}, invalidating queries...`);
+      
+      this.queryClient.invalidateQueries({
+        queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+      });
+    }
 
     // Show notification for status updates (optional)
     if (status === 'delivered' || status === 'read') {

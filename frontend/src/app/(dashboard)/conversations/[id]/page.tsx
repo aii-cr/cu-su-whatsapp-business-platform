@@ -94,8 +94,13 @@ export default function ConversationDetailsPage() {
           (window as any).updateOptimisticMessage?.(optimisticId, response);
         }
         
-        // Hide banner for immediate feedback
+        // Hide banner for immediate feedback and mark as replied
         hideBanner();
+        // Mark that we've replied to unread messages
+        if (hasRepliedToUnread === false) {
+          // This will be handled by the useUnreadMessages hook
+          console.log('✅ [SEND] Agent replied to unread messages');
+        }
       },
       onError: (error) => {
         console.error('❌ [SEND] Failed to send message:', error);

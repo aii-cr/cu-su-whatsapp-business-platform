@@ -304,12 +304,61 @@ class RedisService:
             
             pattern = f"u:{user_id}:*"
             keys = await self.redis.keys(pattern)
+            
             if keys:
                 await self.redis.delete(*keys)
                 logger.info(f"🔴 [REDIS] Cleared {len(keys)} cache entries for user {user_id}")
-                
+            
         except Exception as e:
             logger.error(f"❌ [REDIS] Failed to clear user cache: {str(e)}")
+    
+    async def invalidate_conversation_cache(self, conversation_id: str):
+        """Invalidate all cache entries for a specific conversation."""
+        try:
+            await self._ensure_connected()
+            
+            # Pattern to match all conversation-related cache keys
+            patterns = [
+                f"u:*:conv:{conversation_id}:*",  # User-specific conversation cache
+                f"conv:{conversation_id}:*",      # Conversation metadata cache
+            ]
+            
+            all_keys = []
+            for pattern in patterns:
+                keys = await self.redis.keys(pattern)
+                all_keys.extend(keys)
+            
+            if all_keys:
+                await self.redis.delete(*all_keys)
+                logger.info(f"🔴 [REDIS] Invalidated {len(all_keys)} cache entries for conversation {conversation_id}")
+            else:
+                logger.info(f"🔴 [REDIS] No cache entries found to invalidate for conversation {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ [REDIS] Failed to invalidate conversation cache: {str(e)}")
+    
+    async def invalidate_message_cache(self, conversation_id: str, message_id: str = None):
+        """Invalidate message cache for a conversation, optionally for a specific message."""
+        try:
+            await self._ensure_connected()
+            
+            if message_id:
+                # Invalidate specific message cache
+                pattern = f"*:conv:{conversation_id}:*:{message_id}:*"
+            else:
+                # Invalidate all message cache for conversation
+                pattern = f"*:conv:{conversation_id}:win:*"
+            
+            keys = await self.redis.keys(pattern)
+            
+            if keys:
+                await self.redis.delete(*keys)
+                logger.info(f"🔴 [REDIS] Invalidated {len(keys)} message cache entries for conversation {conversation_id}")
+            else:
+                logger.info(f"🔴 [REDIS] No message cache entries found to invalidate for conversation {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ [REDIS] Failed to invalidate message cache: {str(e)}")
     
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get Redis cache statistics."""
