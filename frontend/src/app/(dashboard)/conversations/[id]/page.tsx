@@ -91,7 +91,12 @@ export default function ConversationDetailsPage() {
         
         // Update optimistic message with real data
         if (optimisticId && response) {
-          (window as any).updateOptimisticMessage?.(optimisticId, response);
+          // The response contains a 'message' property with the actual message data
+          const messageData = response.message || response;
+          console.log('🔄 [SEND] Updating optimistic message:', optimisticId, 'with real message:', messageData._id);
+          (window as any).updateOptimisticMessage?.(optimisticId, messageData);
+        } else {
+          console.warn('⚠️ [SEND] Missing optimisticId or response:', { optimisticId, response });
         }
         
         // Hide banner for immediate feedback and mark as replied
@@ -107,6 +112,7 @@ export default function ConversationDetailsPage() {
         
         // Remove optimistic message on error
         if (optimisticId) {
+          console.log('🗑️ [SEND] Removing failed optimistic message:', optimisticId);
           (window as any).removeOptimisticMessage?.(optimisticId);
         }
       }

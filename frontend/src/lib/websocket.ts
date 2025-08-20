@@ -287,7 +287,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
       const updated = this.updateOptimisticMessage(conversation_id, message);
       if (updated) {
         console.log('🔔 [WEBSOCKET] Updated optimistic message with real data');
-        return; // Don't invalidate, we handled it manually
+        return; // Don't add duplicate, we handled it manually
       }
     }
     
@@ -312,7 +312,8 @@ export class MessagingWebSocketClient extends WebSocketClient {
               messages: [...updatedPages[0].messages, message]
             };
           } else {
-            console.log('⚠️ [WHATSAPP_UX] Message already exists in query, skipping');
+            console.log('⚠️ [WHATSAPP_UX] Message already exists in query, skipping duplicate');
+            return oldData; // Return unchanged data to prevent unnecessary re-renders
           }
         }
         

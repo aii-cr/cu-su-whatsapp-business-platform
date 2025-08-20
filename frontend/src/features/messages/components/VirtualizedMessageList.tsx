@@ -89,7 +89,11 @@ export function VirtualizedMessageList({
     console.log('🚀 [WHATSAPP_UX] Adding optimistic message:', optimisticId);
 
     // Add to optimistic messages state
-    setOptimisticMessages(prev => new Map(prev).set(optimisticId, optimisticMessage));
+    setOptimisticMessages(prev => {
+      const newMap = new Map(prev).set(optimisticId, optimisticMessage);
+      console.log('🚀 [OPTIMISTIC] Added to state, total optimistic messages:', newMap.size);
+      return newMap;
+    });
 
     // Always scroll to bottom for agent's own messages
     setIsAtBottom(true);
@@ -111,23 +115,38 @@ export function VirtualizedMessageList({
     setOptimisticMessages(prev => {
       const newMap = new Map(prev);
       newMap.delete(optimisticId);
+      console.log('✅ [OPTIMISTIC] Removed from state, remaining optimistic messages:', newMap.size);
       return newMap;
     });
 
-    // Update the real message in the query cache
+    // Update the real message in the query cache without adding duplicates
     queryClient.setQueryData(
       messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
       (oldData: any) => {
         if (!oldData) return oldData;
         
-        const updatedPages = oldData.pages.map((page: any) => ({
-          ...page,
-          messages: page.messages.map((msg: Message) => 
-            msg._id === optimisticId 
-              ? { ...realMessage, _id: realMessage._id }
-              : msg
-          )
-        }));
+        const updatedPages = oldData.pages.map((page: any) => {
+          // Check if the real message already exists to prevent duplicates
+          const existingMessage = page.messages.find((msg: Message) => msg._id === realMessage._id);
+          if (existingMessage) {
+            console.log('✅ [OPTIMISTIC] Real message already exists, skipping duplicate');
+            return page;
+          }
+          
+          // Replace optimistic message with real message
+          const updatedMessages = page.messages.map((msg: Message) => {
+            if (msg._id === optimisticId) {
+              console.log('✅ [OPTIMISTIC] Replacing optimistic message with real message');
+              return { ...realMessage, _id: realMessage._id };
+            }
+            return msg;
+          });
+          
+          return {
+            ...page,
+            messages: updatedMessages
+          };
+        });
         
         return {
           ...oldData,
@@ -186,6 +205,12 @@ export function VirtualizedMessageList({
   const finalSortedMessages = allMessages.sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  
+  // Debug logging
+  if (optimisticMessages.size > 0) {
+    console.log('🔍 [OPTIMISTIC] Combined messages - Real:', sortedMessages.length, 'Optimistic:', optimisticMessages.size, 'Total:', finalSortedMessages.length);
+    console.log('🔍 [OPTIMISTIC] Optimistic message IDs:', Array.from(optimisticMessages.keys()));
+  }
 
   // Handle loading older messages when user scrolls to top
   const handleStartReached = useCallback(async () => {

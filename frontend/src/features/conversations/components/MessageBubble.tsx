@@ -4,6 +4,7 @@
  */
 
 import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Message, SenderType, MessageStatus, MessageType } from '@/features/messages/models/message';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -29,6 +30,24 @@ export interface MessageBubbleProps {
 
 const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
   ({ message, isOwn = false, showAvatar = true, showTimestamp = true, className, isOptimistic = false, isNewMessage = false }, ref) => {
+    // Track status changes for animation
+    const [previousStatus, setPreviousStatus] = useState(message.status);
+    const [shouldAnimateStatus, setShouldAnimateStatus] = useState(false);
+    
+    // Check if status changed and trigger animation
+    useEffect(() => {
+      if (message.status !== previousStatus) {
+        setShouldAnimateStatus(true);
+        setPreviousStatus(message.status);
+        
+        // Remove animation flag after animation completes
+        const timer = setTimeout(() => {
+          setShouldAnimateStatus(false);
+        }, 300);
+        
+        return () => clearTimeout(timer);
+      }
+    }, [message.status, previousStatus]);
     const isSystem = message.sender_role === 'system';
     const isOutbound = message.direction === 'outbound'; // Agent message
     const isInbound = message.direction === 'inbound'; // Customer message
@@ -45,10 +64,12 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       const readIconClass = shouldAlignRight ? 'text-white' : 'text-blue-500';
       const failedIconClass = shouldAlignRight ? 'text-red-200' : 'text-red-500';
       
-      // Determine animation class based on status
+      // Determine animation class based on status - only animate during transitions
       const getAnimationClass = () => {
         if (isOptimistic) return 'animate-pulse';
-        if (message.status === 'delivered' || message.status === 'read') return 'animate-status-check';
+        if (shouldAnimateStatus && (message.status === 'delivered' || message.status === 'read')) {
+          return 'animate-status-check';
+        }
         return '';
       };
       
