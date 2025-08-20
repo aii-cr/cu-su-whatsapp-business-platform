@@ -18,18 +18,12 @@ import {
   ArrowRightOnRectangleIcon 
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/Input';
+
 
 export function Header() {
   const { user, logout } = useAuthStore();
   const { toggleSidebar } = useUIStore();
   const router = useRouter();
-  const onQuickSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      const q = (e.target as HTMLInputElement).value.trim();
-      if (q) router.push(`/conversations?search=${encodeURIComponent(q)}`);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -99,9 +93,6 @@ export function Header() {
 
       {/* Right side - User info and controls */}
       <div className="flex items-center space-x-4">
-        <div className="hidden md:block w-64">
-          <Input placeholder="Quick search…" onKeyDown={onQuickSearch} />
-        </div>
         <ThemeToggle />
         
         {user && (

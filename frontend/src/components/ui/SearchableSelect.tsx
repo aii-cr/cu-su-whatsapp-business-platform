@@ -170,14 +170,21 @@ export function SearchableSelect({
           
           <div className="flex items-center gap-1">
             {value && (
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={handleClear}
-                className="p-1 hover:bg-muted rounded-sm"
-                disabled={disabled}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleClear(e as any);
+                  }
+                }}
+                className="p-1 hover:bg-muted rounded-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
+                aria-label="Clear selection"
               >
                 <XMarkIcon className="w-3 h-3" />
-              </button>
+              </div>
             )}
             <ChevronDownIcon 
               className={cn(
