@@ -168,7 +168,7 @@ export function ConversationListItem({
     <div
       onClick={handleClick}
       className={`
-        flex items-center p-4 border border-border rounded-lg 
+        flex items-start sm:items-center p-3 sm:p-4 border border-border rounded-lg 
         hover:bg-accent hover:text-accent-foreground 
         cursor-pointer transition-all duration-150 
         group relative overflow-visible
@@ -176,17 +176,17 @@ export function ConversationListItem({
       `}
     >
       {/* Customer Avatar */}
-      <div className="relative">
+      <div className="relative flex-shrink-0">
         <Avatar
           src={conversation.customer?.avatar_url || ''}
           fallback={customerName}
           size="md"
-          className="mr-4"
+          className="mr-3 sm:mr-4"
         />
         
-        {/* Unread indicator on avatar */}
+        {/* Unread indicator - positioned at top-left of avatar */}
         {conversation.unread_count > 0 && (
-          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-4 h-4 flex items-center justify-center text-xs font-medium border border-background">
+          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-5 h-5 sm:min-w-6 sm:h-6 flex items-center justify-center text-xs sm:text-sm font-bold border-2 border-background shadow-lg z-10">
             {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
           </div>
         )}
@@ -195,34 +195,35 @@ export function ConversationListItem({
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Top row: Customer name and timestamp */}
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center space-x-2 min-w-0">
-            <h3 className="font-medium text-foreground truncate">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="font-medium text-foreground truncate text-sm sm:text-base">
               {customerName}
             </h3>
             
             {customerPhone && (
               <div className="flex items-center text-muted-foreground">
                 <PhoneIcon className="w-3 h-3 mr-1" />
-                <span className="text-xs">{customerPhone}</span>
+                <span className="text-xs hidden sm:inline">{customerPhone}</span>
+                <span className="text-xs sm:hidden">{customerPhone.slice(-4)}</span>
               </div>
             )}
           </div>
           
-          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
             {formatRelativeTime(conversation.updated_at)}
           </span>
         </div>
         
         {/* Last message preview */}
         {conversation.last_message && (
-          <p className="text-sm text-muted-foreground truncate mb-2">
+          <p className="text-xs sm:text-sm text-muted-foreground truncate mb-2">
             {conversation.last_message.sender_type === 'customer' ? (
               <ChatBubbleLeftRightIcon className="w-3 h-3 inline mr-1" />
             ) : (
               <span className="text-xs font-medium mr-1">You: </span>
             )}
-            {truncateText(conversation.last_message.content, 60)}
+            {truncateText(conversation.last_message.content, 40)}
           </p>
         )}
         
@@ -233,7 +234,7 @@ export function ConversationListItem({
               tags={conversation.tags}
               variant="compact"
               size="sm"
-              maxDisplay={4}
+              maxDisplay={2}
               className="gap-1"
             />
           </div>
@@ -244,8 +245,8 @@ export function ConversationListItem({
         )}
         
         {/* Status, priority, and participants */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
             <Badge 
               variant={getStatusVariant(conversation.status)}
               className="text-xs"
@@ -276,16 +277,16 @@ export function ConversationListItem({
           </div>
           
           {/* Assignment and department info */}
-          <div className="flex flex-col items-end space-y-1 text-right">
+          <div className="flex flex-col items-start sm:items-end space-y-1 text-left sm:text-right">
             {/* Assigned agent */}
             {assignedAgentInfo && assignedAgentInfo.user && (
-              <div className="flex items-center space-x-2 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
-                <UserIcon className="w-4 h-4 text-primary" />
-                <div className="text-right">
-                  <div className="text-sm font-semibold leading-tight">
+              <div className="flex items-center gap-2 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
+                <UserIcon className="w-4 h-4 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-sm font-semibold leading-tight truncate">
                     {getUserFullName(assignedAgentInfo.user)}
                   </div>
-                  <div className="text-xs text-muted-foreground leading-tight">
+                  <div className="text-xs text-muted-foreground leading-tight truncate hidden sm:block">
                     {assignedAgentInfo.user.email}
                   </div>
                 </div>
@@ -294,9 +295,9 @@ export function ConversationListItem({
             
             {/* Fallback for when user data is loading or failed to load */}
             {assignedAgentInfo && !assignedAgentInfo.user && (
-              <div className="flex items-center space-x-1 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
-                <UserIcon className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">
+              <div className="flex items-center gap-1 text-foreground" title={`Assigned to: ${assignedAgentInfo.name}`}>
+                <UserIcon className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-medium truncate">
                   {agentsLoading ? 'Loading...' : assignedAgentInfo.name}
                 </span>
               </div>
@@ -304,25 +305,25 @@ export function ConversationListItem({
             
             {/* Department */}
             {department && (
-              <div className="flex items-center space-x-1 text-muted-foreground" title={`Department: ${department.name}`}>
-                <BuildingOfficeIcon className="w-3 h-3" />
-                <span className="text-xs">{department.name}</span>
+              <div className="flex items-center gap-1 text-muted-foreground" title={`Department: ${department.name}`}>
+                <BuildingOfficeIcon className="w-3 h-3 flex-shrink-0" />
+                <span className="text-xs truncate">{department.name}</span>
               </div>
             )}
             
             {/* Unassigned indicator with claim button */}
             {!assignedAgentInfo && (
-              <div className="flex flex-col items-end space-y-2">
-                <div className="flex items-center space-x-1 text-muted-foreground" title="Unassigned">
-                  <UserIcon className="w-4 h-4 text-warning" />
-                  <span className="text-sm font-medium text-warning">Unassigned</span>
+              <div className="flex flex-col items-start sm:items-end gap-2">
+                <div className="flex items-center gap-1 text-muted-foreground" title="Unassigned">
+                  <UserIcon className="w-4 h-4 text-warning flex-shrink-0" />
+                  <span className="text-xs sm:text-sm font-medium text-warning">Unassigned</span>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleClaimConversation}
                   disabled={isClaiming}
-                  className="text-xs px-2 py-1 h-7"
+                  className="text-xs px-2 py-1 h-7 w-full sm:w-auto"
                 >
                   {isClaiming ? 'Claiming...' : 'Claim'}
                 </Button>
@@ -333,21 +334,21 @@ export function ConversationListItem({
       </div>
 
       {/* Three dots menu - always visible */}
-      <div className="ml-2 flex items-center relative" ref={dropdownRef}>
+      <div className="ml-2 flex items-center relative flex-shrink-0" ref={dropdownRef}>
         <div 
           onClick={(e) => {
             e.stopPropagation();
             setShowDropdown(!showDropdown);
           }}
-          className="h-10 w-10 p-0 bg-muted hover:bg-accent text-foreground border border-border rounded-md flex items-center justify-center cursor-pointer transition-colors"
+          className="h-8 w-8 sm:h-10 sm:w-10 p-0 bg-muted hover:bg-accent text-foreground border border-border rounded-md flex items-center justify-center cursor-pointer transition-colors"
           aria-label="More actions"
         >
-          <EllipsisVerticalIcon className="w-5 h-5" />
+          <EllipsisVerticalIcon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         
         {/* Dropdown menu */}
         {showDropdown && (
-          <div className="absolute right-0 top-full mt-1 z-[9999] min-w-[160px] bg-popover border border-border rounded-md shadow-lg">
+          <div className="absolute right-0 top-full mt-1 z-[9999] min-w-[160px] bg-popover border border-border rounded-md shadow-lg sm:min-w-[180px]">
             <div className="py-1">
               <button
                 type="button"

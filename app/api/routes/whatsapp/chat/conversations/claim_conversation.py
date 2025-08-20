@@ -13,7 +13,7 @@ from app.core.middleware import get_correlation_id
 from app.db.models.auth import User
 from app.schemas.whatsapp.chat.conversation import ConversationResponse
 from app.services import conversation_service
-from app.services.websocket.websocket_service import manager
+from app.services.websocket.websocket_service import manager, websocket_service
 from app.config.error_codes import get_error_response, ErrorCode
 from app.core.error_handling import handle_database_error
 
@@ -69,6 +69,12 @@ async def claim_conversation(
             conversation_id=conversation_id,
             assigned_agent_id=str(current_user.id),
             agent_name=agent_name
+        )
+        
+        # Handle unread count updates for assignment change
+        await websocket_service.handle_conversation_assignment_change(
+            conversation_id=conversation_id,
+            new_assigned_agent_id=str(current_user.id)
         )
         
         logger.info(f"✅ [CLAIM_CONVERSATION] Conversation {conversation_id} successfully claimed by agent {current_user.email}")

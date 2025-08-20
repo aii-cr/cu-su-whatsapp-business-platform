@@ -439,6 +439,45 @@ class WebSocketService:
         await WebSocketService.notify_unread_count_update(user_id, conversation_id, 0)
 
     @staticmethod
+    async def handle_conversation_assignment_change(conversation_id: str, new_assigned_agent_id: str = None):
+        """
+        Handle unread count updates when conversation assignment changes.
+        This ensures unread counts are properly recalculated when conversations are claimed or reassigned.
+        """
+        try:
+            from app.db.client import database
+            db = await database.get_database()
+            
+            # Calculate the correct unread count from database
+            unread_count = await db.messages.count_documents({
+                "conversation_id": ObjectId(conversation_id),
+                "direction": "inbound",
+                "status": "received"
+            })
+            
+            # Clear unread counts for all dashboard subscribers for this conversation
+            for user_id in list(manager.dashboard_subscribers):
+                if user_id in manager.unread_counts and conversation_id in manager.unread_counts[user_id]:
+                    # Only clear if this user is not the new assigned agent
+                    if new_assigned_agent_id is None or user_id != new_assigned_agent_id:
+                        manager.unread_counts[user_id][conversation_id] = 0
+                        await WebSocketService.notify_unread_count_update(user_id, conversation_id, 0)
+                        logger.info(f"📊 [UNREAD] Cleared unread count for user {user_id} after assignment change")
+            
+            # Set unread count for the new assigned agent if there are unread messages
+            if new_assigned_agent_id and unread_count > 0:
+                if new_assigned_agent_id not in manager.unread_counts:
+                    manager.unread_counts[new_assigned_agent_id] = {}
+                manager.unread_counts[new_assigned_agent_id][conversation_id] = unread_count
+                await WebSocketService.notify_unread_count_update(new_assigned_agent_id, conversation_id, unread_count)
+                logger.info(f"📊 [UNREAD] Set unread count for newly assigned agent {new_assigned_agent_id}: {unread_count}")
+            
+            logger.info(f"📊 [UNREAD] Handled assignment change for conversation {conversation_id}, unread count: {unread_count}")
+            
+        except Exception as e:
+            logger.error(f"❌ [UNREAD] Error handling conversation assignment change: {str(e)}")
+
+    @staticmethod
     async def notify_incoming_message_processed(
         conversation_id: str, 
         message: dict, 
@@ -461,26 +500,36 @@ class WebSocketService:
             except Exception as cache_error:
                 logger.warning(f"🔴 [CACHE] Failed to invalidate cache for conversation {conversation_id}: {str(cache_error)}")
             
-            # 3. Update unread counts for the assigned agent only
+            # 3. Update unread counts - always calculate from database for accuracy
             try:
                 from app.db.client import database
                 db = await database.get_database()
                 
                 # Get conversation to find assigned agent
                 conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+                
+                # Calculate the correct unread count from database
+                unread_count = await db.messages.count_documents({
+                    "conversation_id": ObjectId(conversation_id),
+                    "direction": "inbound",
+                    "status": "received"
+                })
+                
                 if conversation and conversation.get("assigned_agent_id"):
                     assigned_agent_id = str(conversation["assigned_agent_id"])
                     active_viewers = manager.conversation_subscribers.get(conversation_id, set())
                     
-                    # Only increment unread count for assigned agent if they're not currently viewing
+                    # Only update unread count for assigned agent if they're not currently viewing
                     if assigned_agent_id not in active_viewers:
-                        manager.increment_unread_count(assigned_agent_id, conversation_id)
-                        # Notify about unread count update
-                        unread_count = manager.unread_counts.get(assigned_agent_id, {}).get(conversation_id, 0)
+                        # Set the unread count directly from database calculation
+                        if assigned_agent_id not in manager.unread_counts:
+                            manager.unread_counts[assigned_agent_id] = {}
+                        manager.unread_counts[assigned_agent_id][conversation_id] = unread_count
+                        
                         await WebSocketService.notify_unread_count_update(assigned_agent_id, conversation_id, unread_count)
-                        logger.info(f"📊 [UNREAD] Incremented unread count for assigned agent {assigned_agent_id}: {unread_count}")
+                        logger.info(f"📊 [UNREAD] Set unread count for assigned agent {assigned_agent_id}: {unread_count}")
                     else:
-                        logger.info(f"📊 [UNREAD] Assigned agent {assigned_agent_id} is currently viewing conversation, not incrementing unread count")
+                        logger.info(f"📊 [UNREAD] Assigned agent {assigned_agent_id} is currently viewing conversation, not updating unread count")
                         
                         # If agent is viewing, auto-mark the message as read
                         try:
@@ -509,56 +558,38 @@ class WebSocketService:
                                     read_by_user_id=assigned_agent_id,
                                     read_by_user_name="Agent"
                                 )
+                                
+                                # Reset unread count since message was auto-read
+                                manager.unread_counts[assigned_agent_id][conversation_id] = 0
+                                await WebSocketService.notify_unread_count_update(assigned_agent_id, conversation_id, 0)
                         except Exception as auto_read_error:
                             logger.error(f"❌ [AUTO_READ] Error auto-marking message as read: {str(auto_read_error)}")
                 else:
                     logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
-                    # For unassigned conversations, we need to track unread counts for all dashboard subscribers
-                    # Calculate the correct unread count from database first
-                    try:
-                        from app.db.client import database
-                        db = await database.get_database()
-                        
-                        # Count unread messages for this conversation
-                        unread_count = await db.messages.count_documents({
-                            "conversation_id": ObjectId(conversation_id),
-                            "direction": "inbound",
-                            "status": "received"
-                        })
-                        
-                        # Update unread count for all dashboard subscribers
-                        for user_id in list(manager.dashboard_subscribers):
-                            if user_id in manager.active_connections:
-                                # Set the unread count directly instead of incrementing
-                                if user_id not in manager.unread_counts:
-                                    manager.unread_counts[user_id] = {}
-                                manager.unread_counts[user_id][conversation_id] = unread_count
-                                
-                                await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
-                                logger.info(f"📊 [UNREAD] Set unread count for dashboard subscriber {user_id}: {unread_count}")
-                    except Exception as e:
-                        logger.error(f"❌ [UNREAD] Error calculating unread count from database: {str(e)}")
-                        # Fallback to increment method if database query fails
-                        for user_id in list(manager.dashboard_subscribers):
-                            if user_id in manager.active_connections:
-                                manager.increment_unread_count(user_id, conversation_id)
-                                unread_count = manager.unread_counts.get(user_id, {}).get(conversation_id, 0)
-                                await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
-                                logger.info(f"📊 [UNREAD] Incremented unread count for dashboard subscriber {user_id}: {unread_count}")
+                    # For unassigned conversations, update unread count for all dashboard subscribers
+                    for user_id in list(manager.dashboard_subscribers):
+                        if user_id in manager.active_connections:
+                            # Set the unread count directly from database calculation
+                            if user_id not in manager.unread_counts:
+                                manager.unread_counts[user_id] = {}
+                            manager.unread_counts[user_id][conversation_id] = unread_count
+                            
+                            await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
+                            logger.info(f"📊 [UNREAD] Set unread count for dashboard subscriber {user_id}: {unread_count}")
             except Exception as e:
                 logger.error(f"❌ [UNREAD] Error updating unread count: {str(e)}")
             
-            # 3. If this is a new conversation, notify dashboard subscribers
+            # 4. If this is a new conversation, notify dashboard subscribers
             if is_new_conversation and conversation:
                 logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation_id}")
                 await WebSocketService.notify_new_conversation(conversation)
                 await WebSocketService.notify_conversation_list_update(conversation, "created")
             
-            # 4. If conversation status was updated, notify dashboard
+            # 5. If conversation status was updated, notify dashboard
             if conversation and conversation.get("status") == "waiting":
                 await WebSocketService.notify_conversation_list_update(conversation, "status_changed")
             
-            # 5. Update dashboard stats
+            # 6. Update dashboard stats
             try:
                 from app.services import conversation_service
                 stats = await conversation_service.get_conversation_stats()

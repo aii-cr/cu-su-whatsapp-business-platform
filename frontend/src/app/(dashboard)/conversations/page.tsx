@@ -90,73 +90,82 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-bold text-foreground">Conversations</h1>
-            <div className="flex items-center space-x-2">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+      {/* Header Section - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Conversations</h1>
+            <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
               <span className="text-xs text-muted-foreground">{wsConnected ? 'Live' : 'Offline'}</span>
+              {getTotalUnreadCount() > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {getTotalUnreadCount()} unread
+                </Badge>
+              )}
             </div>
-            {getTotalUnreadCount() > 0 && (
-              <Badge variant="destructive" className="text-xs">
-                {getTotalUnreadCount()} unread
-              </Badge>
-            )}
           </div>
-          <p className="text-muted-foreground">Welcome back, {user ? getUserDisplayName(user) : 'User'}!</p>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Welcome back, {user ? getUserDisplayName(user) : 'User'}!
+          </p>
         </div>
-        <Button onClick={() => setIsNewConversationModalOpen(true)}>
+        <Button 
+          onClick={() => setIsNewConversationModalOpen(true)}
+          className="w-full sm:w-auto"
+          size="sm"
+        >
           <PlusIcon className="w-4 h-4 mr-2" />
-          New Conversation
+          <span className="hidden sm:inline">New Conversation</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards - Mobile Responsive Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active</p>
-                <p className="text-2xl font-bold">{statsLoading ? '...' : stats?.active_conversations ?? 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Active</p>
+                <p className="text-lg sm:text-2xl font-bold">{statsLoading ? '...' : stats?.active_conversations ?? 0}</p>
               </div>
-              <ChatBubbleLeftRightIcon className="w-8 h-8 text-primary-500" />
+              <ChatBubbleLeftRightIcon className="w-6 h-6 sm:w-8 sm:h-8 text-primary-500 flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Pending</p>
+                <p className="text-lg sm:text-2xl font-bold">
                   {statsLoading ? '...' : ((stats?.total_conversations ?? 0) - (stats?.active_conversations ?? 0) - (stats?.closed_conversations ?? 0))}
                 </p>
               </div>
-              <ClockIcon className="w-8 h-8 text-warning" />
+              <ClockIcon className="w-6 h-6 sm:w-8 sm:h-8 text-warning flex-shrink-0" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Closed</p>
-                <p className="text-2xl font-bold">{statsLoading ? '...' : stats?.closed_conversations ?? 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Closed</p>
+                <p className="text-lg sm:text-2xl font-bold">{statsLoading ? '...' : stats?.closed_conversations ?? 0}</p>
               </div>
-              <Badge variant="secondary">Today</Badge>
+              <Badge variant="secondary" className="text-xs flex-shrink-0">Today</Badge>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Response</p>
-                <p className="text-2xl font-bold">{statsLoading ? '...' : `${Math.round(stats?.average_response_time_minutes ?? 0)}m`}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Avg Response</p>
+                <p className="text-lg sm:text-2xl font-bold">{statsLoading ? '...' : `${Math.round(stats?.average_response_time_minutes ?? 0)}m`}</p>
               </div>
-              <Badge variant="success">↓ 30s</Badge>
+              <Badge variant="success" className="text-xs flex-shrink-0">↓ 30s</Badge>
             </div>
           </CardContent>
         </Card>
@@ -204,7 +213,7 @@ export default function ConversationsPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {conversationsWithUnreadCounts.map((conversation: Conversation) => {
                 const assignedAgent = conversation.assigned_agent_id ? agentsMap.get(conversation.assigned_agent_id) ?? null : null;
                 return (

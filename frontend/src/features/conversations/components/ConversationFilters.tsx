@@ -124,9 +124,9 @@ export function ConversationFilters({
   ].filter(Boolean).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Main search and quick filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         {/* Search */}
         <div className="flex-1 relative">
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
@@ -140,48 +140,53 @@ export function ConversationFilters({
           />
         </div>
 
-        {/* Quick status filter */}
-        <Select
-          options={statusOptions}
-          value={filters.status}
-          onChange={(value) => handleFilterChange('status', value)}
-          placeholder="All Statuses"
-          className="w-40"
-          disabled={loading}
-        />
+        {/* Quick filters row */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          {/* Quick status filter */}
+          <Select
+            options={statusOptions}
+            value={filters.status}
+            onChange={(value) => handleFilterChange('status', value)}
+            placeholder="All Statuses"
+            className="w-full sm:w-40"
+            disabled={loading}
+          />
 
-        {/* Sort */}
-        <Select
-          options={sortOptions}
-          value={`${filters.sort_by || 'updated_at'}:${filters.sort_order || 'desc'}`}
-          onChange={handleSortChange}
-          placeholder="Sort by..."
-          className="w-44"
-          disabled={loading}
-        />
+          {/* Sort */}
+          <Select
+            options={sortOptions}
+            value={`${filters.sort_by || 'updated_at'}:${filters.sort_order || 'desc'}`}
+            onChange={handleSortChange}
+            placeholder="Sort by..."
+            className="w-full sm:w-44"
+            disabled={loading}
+          />
 
-        {/* Advanced filters toggle */}
-        <Button
-          variant="outline"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="whitespace-nowrap"
-          disabled={loading}
-        >
-          <AdjustmentsHorizontalIcon className="w-4 h-4 mr-2" />
-          Filters
-          {activeFilterCount > 0 && (
-            <Badge variant="default" className="ml-2 text-xs">
-              {activeFilterCount}
-            </Badge>
-          )}
-        </Button>
+          {/* Advanced filters toggle */}
+          <Button
+            variant="outline"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="whitespace-nowrap w-full sm:w-auto"
+            disabled={loading}
+            size="sm"
+          >
+            <AdjustmentsHorizontalIcon className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Filters</span>
+            <span className="sm:hidden">More</span>
+            {activeFilterCount > 0 && (
+              <Badge variant="default" className="ml-2 text-xs">
+                {activeFilterCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Advanced filters */}
       {showAdvanced && (
         <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <CardContent className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               {/* Priority filter */}
               <Select
                 label="Priority"
