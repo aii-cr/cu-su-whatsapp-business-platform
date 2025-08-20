@@ -82,7 +82,7 @@ export function Header() {
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className="lg:hidden"
+          className="lg:hidden text-foreground hover:text-foreground"
           aria-label="Toggle sidebar"
         >
           <Bars3Icon className="w-5 h-5" />
@@ -113,10 +113,10 @@ export function Header() {
                 size="sm"
               />
               <div className="text-sm">
-                <p className="font-medium text-foreground">
+                <p className="font-medium text-foreground leading-tight">
                   {getUserDisplayName(user)}
                 </p>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground leading-tight">
                   {user.email}
                 </p>
               </div>
@@ -126,6 +126,7 @@ export function Header() {
               variant="ghost"
               size="icon"
               onClick={handleLogout}
+              className="text-foreground hover:text-foreground"
               aria-label="Logout"
             >
               <ArrowRightOnRectangleIcon className="w-5 h-5" />

@@ -1,5 +1,6 @@
 // SCSS Typography - Text utilities and font styles
-@import 'variables';
+@use 'variables' as *;
+@use 'mixins' as *;
 
 // Base typography styles
 body {

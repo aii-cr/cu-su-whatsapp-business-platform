@@ -99,20 +99,23 @@ src/
 - Don't override Tailwind's responsive breakpoints
 - Don't use SCSS for simple layout tasks
 - Don't forget to use CSS modules to prevent style leaks
+- **NEVER use deprecated `@import` syntax** - always use `@use` with `as *` namespace
+- **NEVER place `@use` rules after other rules** - they must come first in the file
+- **NEVER forget to import mixins** in files that use `@include` statements
 
 ## Import Order in globals.scss
 
 ```scss
-// Import Tailwind directives first
+// Import SCSS partials first (must come before @tailwind)
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@use '../styles/animations' as *;
+@use '../styles/typography' as *;
+
+// Import Tailwind directives
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-// Then import SCSS partials
-@import '../styles/variables';
-@import '../styles/mixins';
-@import '../styles/animations';
-@import '../styles/typography';
 ```
 
 ## Component Example
@@ -137,8 +140,8 @@ const EnhancedButton = ({ effect, ...props }) => {
 
 ```scss
 // EnhancedButton.module.scss
-@import '../../styles/variables';
-@import '../../styles/mixins';
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
 
 .button {
   @include button-base;
@@ -180,6 +183,126 @@ const EnhancedButton = ({ effect, ...props }) => {
 - `.skeleton`, `.focus-ring`
 - `.animate-*` classes for animations
 - `.chat-*` classes for chat interface
+
+# SASS DEPRECATION PREVENTION (MANDATORY)
+
+## Modern Sass Syntax Requirements
+
+### ✅ Required: Use `@use` Instead of `@import`
+```scss
+// ✅ CORRECT - Modern syntax
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@use '../styles/animations' as *;
+
+// ❌ FORBIDDEN - Deprecated syntax
+@import '../styles/variables';
+@import '../styles/mixins';
+@import '../styles/animations';
+```
+
+### ✅ Required: Import Order Rules
+```scss
+// ✅ CORRECT - @use must come first
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// ❌ FORBIDDEN - @use after other rules
+@tailwind base;
+@use '../styles/variables' as *; // This will cause build errors
+```
+
+### ✅ Required: Explicit Mixin Imports
+```scss
+// ✅ CORRECT - Import mixins when using @include
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *; // Required for @include statements
+
+.button {
+  @include button-base; // Now works correctly
+}
+
+// ❌ FORBIDDEN - Missing mixin import
+@use '../styles/variables' as *;
+// Missing: @use '../styles/mixins' as *;
+
+.button {
+  @include button-base; // This will cause "Undefined mixin" error
+}
+```
+
+## File-Specific Requirements
+
+### Global SCSS (`src/app/globals.scss`)
+```scss
+// ✅ CORRECT - Complete import structure
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@use '../styles/animations' as *;
+@use '../styles/typography' as *;
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+### Component SCSS Modules (`Component.module.scss`)
+```scss
+// ✅ CORRECT - Component-level imports
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.component {
+  @include button-base;
+  color: rgb(var(--primary));
+}
+```
+
+### Style Partials (`_variables.scss`, `_mixins.scss`, etc.)
+```scss
+// ✅ CORRECT - Partial dependencies
+@use 'variables' as *; // In _mixins.scss, _animations.scss, _typography.scss
+```
+
+## Common Deprecation Errors to Avoid
+
+### ❌ Build Error: "@use rules must be written before any other rules"
+**Cause**: `@use` statements placed after `@tailwind` or other rules
+**Fix**: Move all `@use` statements to the very beginning of the file
+
+### ❌ Build Error: "Undefined mixin"
+**Cause**: Using `@include` without importing the mixin file
+**Fix**: Add `@use '../styles/mixins' as *;` to files that use `@include`
+
+### ❌ Warning: "Sass @import rules are deprecated"
+**Cause**: Using old `@import` syntax instead of `@use`
+**Fix**: Replace all `@import` with `@use ... as *;`
+
+## Validation Checklist
+
+Before committing any SCSS changes, verify:
+- [ ] All `@import` statements replaced with `@use ... as *;`
+- [ ] All `@use` statements are at the top of the file
+- [ ] Files using `@include` have `@use '../styles/mixins' as *;`
+- [ ] No build errors or deprecation warnings
+- [ ] All mixins and variables are accessible where needed
+
+## Migration Commands
+
+When updating existing files:
+```bash
+# Find all @import statements
+grep -r "@import" src/**/*.scss
+
+# Find all files using @include
+grep -r "@include" src/**/*.scss
+
+# Verify no deprecation warnings
+npm run build
+```
 
 # DESIGN SYSTEM & THEMING (MANDATORY)
 

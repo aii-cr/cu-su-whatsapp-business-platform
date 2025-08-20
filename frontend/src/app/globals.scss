@@ -1,14 +1,14 @@
 // Global SCSS file - Main entry point
-// Import Tailwind directives first
+// Import SCSS partials first (must come before @tailwind)
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@use '../styles/animations' as *;
+@use '../styles/typography' as *;
+
+// Import Tailwind directives
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-// Import SCSS partials
-@import '../styles/variables';
-@import '../styles/mixins';
-@import '../styles/animations';
-@import '../styles/typography';
 
 // CSS Custom Properties (CSS Variables) for theming
 :root {

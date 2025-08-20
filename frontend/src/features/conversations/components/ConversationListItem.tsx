@@ -21,9 +21,10 @@ import {
   ExclamationCircleIcon,
   EllipsisVerticalIcon,
   EllipsisHorizontalIcon,
-  TagIcon
+  TagIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button/index';
 import { TagList } from '@/features/tags';
 import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -138,8 +139,11 @@ export function ConversationListItem({
     }
   };
 
-  const customerName = conversation.customer?.name || 'Unknown Customer';
-  const customerPhone = conversation.customer?.phone;
+  // Get customer name from multiple possible sources
+  const customerName = conversation.customer?.name || 
+                      conversation.customer_name || 
+                      (conversation.customer?.phone ? `Customer ${conversation.customer.phone.slice(-4)}` : 'Unknown Customer');
+  const customerPhone = conversation.customer?.phone || conversation.customer_phone;
   
   const assignedAgentInfo = assignedAgent ? {
     user: assignedAgent,
@@ -189,9 +193,6 @@ export function ConversationListItem({
               <h3 className="font-semibold text-foreground text-sm truncate flex-1">
                 {customerName}
               </h3>
-              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                {formatRelativeTime(conversation.updated_at)}
-              </span>
             </div>
             
             {customerPhone && (
@@ -314,9 +315,7 @@ export function ConversationListItem({
               )}
             </div>
             
-            <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-              {formatRelativeTime(conversation.updated_at)}
-            </span>
+
           </div>
           
           {/* Last message preview */}
@@ -445,13 +444,14 @@ export function ConversationListItem({
       <div className="absolute top-3 right-3">
         <div ref={dropdownRef} className="relative">
           <Button
-            variant="ghost"
-            size="sm"
+            variant="outline"
+            size="icon"
             onClick={(e) => {
               e.stopPropagation();
               setShowDropdown(!showDropdown);
             }}
-            className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="bg-background border-border hover:bg-accent hover:border-border text-foreground"
+            aria-label="More actions"
           >
             <EllipsisVerticalIcon className="w-4 h-4" />
           </Button>

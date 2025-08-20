@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Hook that debounces a value with a specified delay
- * @param value - The value to debounce
- * @param delay - The delay in milliseconds
- * @returns The debounced value
+ * Hook to debounce a value with a specified delay.
+ * Useful for search inputs to prevent excessive API calls.
  */
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);

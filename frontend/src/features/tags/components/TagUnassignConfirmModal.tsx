@@ -7,7 +7,7 @@ import * as React from 'react';
 import { AlertTriangle, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button/index';
 import { TagSummary } from '../models/tag';
 
 export interface TagUnassignConfirmModalProps {

@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/Button/index';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
 import { useAuthStore } from '@/lib/store';
@@ -114,8 +114,9 @@ export default function ConversationsPage() {
           onClick={() => setIsNewConversationModalOpen(true)}
           className="w-full sm:w-auto"
           size="sm"
+          effect="gradient"
+          icon={<PlusIcon className="w-4 h-4" />}
         >
-          <PlusIcon className="w-4 h-4 mr-2" />
           <span className="hidden sm:inline">New Conversation</span>
           <span className="sm:hidden">New</span>
         </Button>

@@ -86,10 +86,10 @@ export function Sidebar() {
                   key={item.name}
                   href={item.href}
                   className={cn(
-                    'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
+                    'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors w-full hover:bg-accent hover:text-accent-foreground',
                     isActive
-                      ? 'bg-primary-100 text-primary-600 dark:bg-primary-500/20 dark:text-primary-400'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      ? 'bg-primary text-white hover:bg-primary/90'
+                      : 'text-muted-foreground'
                   )}
                   onClick={() => setSidebarOpen(false)} // Close on mobile
                 >

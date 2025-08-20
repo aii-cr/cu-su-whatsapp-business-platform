@@ -1,5 +1,6 @@
 // SCSS Animations - Custom keyframes and animations
-@import 'variables';
+@use 'variables' as *;
+@use 'mixins' as *;
 
 // Skeleton loading animation
 @keyframes skeleton-pulse {

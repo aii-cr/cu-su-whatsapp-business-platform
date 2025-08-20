@@ -240,8 +240,9 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
           <DropdownMenu
             trigger={
               <Button 
-                variant="ghost" 
+                variant="outline" 
                 size="icon"
+                className="bg-background border-border hover:bg-accent hover:border-border text-foreground"
                 aria-label="More actions"
               >
                 <EllipsisVerticalIcon className="w-5 h-5" />

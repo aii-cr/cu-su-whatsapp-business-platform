@@ -1,5 +1,5 @@
 // SCSS Mixins - Reusable patterns for components
-@import 'variables';
+@use 'variables' as *;
 
 // Focus ring mixin for accessibility
 @mixin focus-ring($color: rgb(var(--ring)), $offset: 2px) {

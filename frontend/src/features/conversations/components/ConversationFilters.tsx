@@ -11,13 +11,17 @@ import { Input } from '@/components/ui/Input';
 import { LegacySelect as Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { ConversationFilters as IConversationFilters, ConversationStatus, ConversationPriority } from '../models/conversation';
+import { useAgentOptions } from '@/features/users/hooks/useAgentSearch';
+import { useDebounce } from '@/hooks/useDebounce';
 import { 
   MagnifyingGlassIcon,
   FunnelIcon,
   XMarkIcon,
   AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
+import React from 'react'; // Added missing import for React
 
 interface ConversationFiltersProps {
   filters: IConversationFilters;
@@ -34,6 +38,13 @@ export function ConversationFilters({
 }: ConversationFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [localSearch, setLocalSearch] = useState(filters.search || '');
+  const [agentSearchTerm, setAgentSearchTerm] = useState('');
+
+  // Debounce the search to prevent excessive API calls
+  const debouncedSearch = useDebounce(localSearch, 500);
+
+  // Agent search functionality
+  const { options: agentOptions, isLoading: agentSearchLoading } = useAgentOptions(agentSearchTerm);
 
   // Status options
   const statusOptions = [
@@ -60,14 +71,6 @@ export function ConversationFilters({
     { value: 'phone', label: 'Phone' },
   ];
 
-  // Customer type options
-  const customerTypeOptions = [
-    { value: 'new', label: 'New Customer' },
-    { value: 'returning', label: 'Returning Customer' },
-    { value: 'vip', label: 'VIP Customer' },
-    { value: 'premium', label: 'Premium Customer' },
-  ];
-
   // Sort options
   const sortOptions = [
     { value: 'updated_at:desc', label: 'Most Recent' },
@@ -86,10 +89,15 @@ export function ConversationFilters({
     });
   };
 
+  // Handle search with debouncing
   const handleSearchChange = (value: string) => {
     setLocalSearch(value);
-    handleFilterChange('search', value);
   };
+
+  // Apply debounced search to filters
+  React.useEffect(() => {
+    handleFilterChange('search', debouncedSearch);
+  }, [debouncedSearch]);
 
   const handleSortChange = (value: string) => {
     const [sort_by, sort_order] = value.split(':');
@@ -101,14 +109,16 @@ export function ConversationFilters({
     });
   };
 
+  const handleAgentSearch = (searchTerm: string) => {
+    setAgentSearchTerm(searchTerm);
+  };
+
   const hasActiveFilters = Boolean(
     filters.search ||
     filters.status ||
     filters.priority ||
     filters.channel ||
-    filters.department_id ||
     filters.assigned_agent_id ||
-    filters.customer_type ||
     filters.has_unread !== undefined
   );
 
@@ -117,9 +127,7 @@ export function ConversationFilters({
     filters.status,
     filters.priority,
     filters.channel,
-    filters.department_id,
     filters.assigned_agent_id,
-    filters.customer_type,
     filters.has_unread !== undefined ? 'unread' : null,
   ].filter(Boolean).length;
 
@@ -207,16 +215,6 @@ export function ConversationFilters({
                 disabled={loading}
               />
 
-              {/* Customer type filter */}
-              <Select
-                label="Customer Type"
-                options={customerTypeOptions}
-                value={filters.customer_type}
-                onChange={(value) => handleFilterChange('customer_type', value)}
-                placeholder="All Types"
-                disabled={loading}
-              />
-
               {/* Unread filter */}
               <Select
                 label="Unread Messages"
@@ -230,33 +228,19 @@ export function ConversationFilters({
                 disabled={loading}
               />
 
-              {/* Department filter - TODO: Load from API */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-foreground">
-                  Department
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Department ID"
-                  value={filters.department_id || ''}
-                  onChange={(e) => handleFilterChange('department_id', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              {/* Agent filter - TODO: Load from API */}
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-foreground">
-                  Assigned Agent
-                </label>
-                <Input
-                  type="text"
-                  placeholder="Agent ID"
-                  value={filters.assigned_agent_id || ''}
-                  onChange={(e) => handleFilterChange('assigned_agent_id', e.target.value)}
-                  disabled={loading}
-                />
-              </div>
+              {/* Agent filter - Searchable dropdown */}
+              <SearchableSelect
+                label="Assigned Agent"
+                options={agentOptions}
+                value={filters.assigned_agent_id || ''}
+                onChange={(value) => handleFilterChange('assigned_agent_id', value)}
+                onSearch={handleAgentSearch}
+                placeholder="Search agents..."
+                searchPlaceholder="Search by name or email..."
+                disabled={loading}
+                loading={agentSearchLoading}
+                noOptionsMessage="No agents found"
+              />
             </div>
 
             {/* Filter actions */}
@@ -334,7 +318,44 @@ export function ConversationFilters({
             </Badge>
           )}
 
-          {/* Add more active filter badges as needed */}
+          {filters.channel && (
+            <Badge variant="secondary" className="text-xs">
+              Channel: {filters.channel}
+              <button
+                onClick={() => handleFilterChange('channel', '')}
+                className="ml-1 hover:text-destructive"
+                disabled={loading}
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+
+          {filters.assigned_agent_id && (
+            <Badge variant="secondary" className="text-xs">
+              Agent: {agentOptions.find(opt => opt.value === filters.assigned_agent_id)?.label || filters.assigned_agent_id}
+              <button
+                onClick={() => handleFilterChange('assigned_agent_id', '')}
+                className="ml-1 hover:text-destructive"
+                disabled={loading}
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
+
+          {filters.has_unread !== undefined && (
+            <Badge variant="secondary" className="text-xs">
+              {filters.has_unread ? 'Has Unread' : 'All Read'}
+              <button
+                onClick={() => handleFilterChange('has_unread', undefined)}
+                className="ml-1 hover:text-destructive"
+                disabled={loading}
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            </Badge>
+          )}
         </div>
       )}
     </div>
