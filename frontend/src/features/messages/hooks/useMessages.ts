@@ -47,7 +47,8 @@ export function useMessages(conversationId: string, limit: number = 50) {
     getNextPageParam: (lastPage) => {
       return lastPage.has_more ? lastPage.next_cursor : undefined;
     },
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 0, // Disable stale caching for messages
+    gcTime: 0, // Disable garbage collection caching for messages
     enabled: !!conversationId,
     initialPageParam: undefined, // Start with no cursor to get latest messages
   });
@@ -89,62 +90,12 @@ export function useSendMessage() {
         messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
       );
 
-      // Create optimistic message
-      const optimisticMessage: Message = {
-        _id: `optimistic-${Date.now()}-${Math.random()}`,
-        conversation_id: conversationId,
-        message_type: 'text',
-        direction: 'outbound',
-        sender_role: 'agent',
-        sender_id: user?._id || 'current-user',
-        sender_name: user?.first_name || user?.email || 'You',
-        text_content: variables.text_content,
-        status: 'sending',
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        type: 'text',
-      } as Message;
-
-      console.log('🚀 [OPTIMISTIC] Created optimistic message:', optimisticMessage._id);
-
-      // Optimistically update the query cache
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) {
-            console.log('⚠️ [OPTIMISTIC] No existing query data, creating new structure');
-            return {
-              pages: [{
-                messages: [optimisticMessage],
-                next_cursor: null,
-                has_more: false,
-                anchor: 'latest',
-                cache_hit: false
-              }]
-            };
-          }
-          
-          console.log('🚀 [OPTIMISTIC] Updating existing query data');
-          const updatedPages = [...oldData.pages];
-          if (updatedPages[0]) {
-            updatedPages[0] = {
-              ...updatedPages[0],
-              messages: [...updatedPages[0].messages, optimisticMessage]
-            };
-          }
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-
-      console.log('🚀 [OPTIMISTIC] Added optimistic message to query cache');
+      // Note: Optimistic message is now handled by VirtualizedMessageList component
+      // to avoid conflicts and ensure smooth UX
+      console.log('🚀 [OPTIMISTIC] Optimistic message handled by VirtualizedMessageList');
       
-      // Return a context object with the snapshotted value and optimistic message
-      return { previousMessages, optimisticMessage };
+      // Return a context object with the snapshotted value
+      return { previousMessages };
     },
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id;
@@ -158,37 +109,9 @@ export function useSendMessage() {
       console.log('✅ [MESSAGE] Message sent successfully:', sentMessage._id);
       console.log('✅ [MESSAGE] Real message data:', sentMessage);
       
-      // Update the optimistic message with real data
-      if (context?.optimisticMessage) {
-        console.log('✅ [OPTIMISTIC] Updating optimistic message with real data');
-        console.log('✅ [OPTIMISTIC] Optimistic ID:', context.optimisticMessage._id);
-        console.log('✅ [OPTIMISTIC] Real ID:', sentMessage._id);
-        
-        queryClient.setQueryData(
-          messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-          (oldData: any) => {
-            if (!oldData) return oldData;
-            
-            const updatedPages = oldData.pages.map((page: any) => ({
-              ...page,
-              messages: page.messages.map((msg: Message) => {
-                if (msg._id === context.optimisticMessage._id) {
-                  console.log('✅ [OPTIMISTIC] Replacing optimistic message with real message');
-                  return { ...sentMessage, _id: sentMessage._id };
-                }
-                return msg;
-              })
-            }));
-            
-            return {
-              ...oldData,
-              pages: updatedPages
-            };
-          }
-        );
-        
-        console.log('✅ [OPTIMISTIC] Updated optimistic message with real data');
-      }
+      // Note: Optimistic message update is now handled by the conversation page
+      // which calls updateOptimisticMessage on the VirtualizedMessageList
+      console.log('✅ [MESSAGE] Optimistic message update handled by conversation page');
     },
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;

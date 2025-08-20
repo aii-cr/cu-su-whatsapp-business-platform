@@ -42,26 +42,8 @@ class CursorMessageService(BaseService):
         db = await self._get_db()
         
         try:
-            # Try cache first for latest messages (no before cursor)
+            # Disable Redis caching temporarily – always fetch directly from MongoDB
             cache_hit = False
-            if not before:
-                # Use the existing Redis service method for caching
-                cached_data = await redis_service.get_cached_message_window(
-                    user_id=user_id or "system",
-                    conversation_id=conversation_id,
-                    anchor="latest",
-                    direction="before",
-                    limit=limit
-                )
-                if cached_data:
-                    logger.info(f"🔴 [CACHE] Cache hit for conversation {conversation_id}")
-                    return {
-                        "messages": cached_data.get("messages", []),
-                        "next_cursor": cached_data.get("next_cursor"),
-                        "has_more": cached_data.get("has_more", False),
-                        "cache_hit": True,
-                        "etag": cached_data.get("etag")
-                    }
             
             # Build query filter
             query_filter = {"conversation_id": ObjectId(conversation_id)}
@@ -102,21 +84,7 @@ class CursorMessageService(BaseService):
                 "cache_hit": cache_hit
             }
             
-            # Cache the result for latest messages (no before cursor)
-            if not before and messages:
-                try:
-                    await redis_service.cache_message_window(
-                        user_id=user_id or "system",
-                        conversation_id=conversation_id,
-                        messages=messages,
-                        anchor="latest",
-                        direction="before",
-                        limit=limit,
-                        ttl_seconds=60
-                    )
-                    logger.info(f"🔴 [CACHE] Cached messages for conversation {conversation_id}")
-                except Exception as e:
-                    logger.warning(f"🔴 [CACHE] Failed to cache messages for {conversation_id}: {str(e)}")
+            # Skip caching the result for now
             
             return result
             

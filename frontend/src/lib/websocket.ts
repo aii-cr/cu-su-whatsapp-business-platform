@@ -291,14 +291,31 @@ export class MessagingWebSocketClient extends WebSocketClient {
     if (isFromCurrentUser) {
       console.log('🔔 [WEBSOCKET] Message is from current user, checking for optimistic message to update');
       
-      // Try to update optimistic message in the query cache
-      const updated = this.updateOptimisticMessageInCache(conversation_id, message);
-      if (updated) {
-        console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data');
-        return; // Don't add duplicate, we handled it manually
+      // Try to update optimistic message using the window function from VirtualizedMessageList
+      if ((window as any).updateOptimisticMessage) {
+        // Find the optimistic message ID by matching text content and timestamp
+        const optimisticId = this.findOptimisticMessageId(conversation_id, message);
+        if (optimisticId) {
+          console.log('🔔 [WEBSOCKET] Found optimistic message to update:', optimisticId);
+          
+          // Add a small delay to ensure the optimistic message is visible with loading state
+          setTimeout(() => {
+            (window as any).updateOptimisticMessage(optimisticId, message);
+            console.log('🔔 [WEBSOCKET] Updated optimistic message after delay');
+          }, 500); // 500ms delay to show loading state
+          
+          return; // Don't add duplicate, we handled it manually
+        } else {
+          console.log('⚠️ [WEBSOCKET] No optimistic message found to update, will add to query normally');
+        }
       } else {
-        console.log('⚠️ [WEBSOCKET] No optimistic message found to update, will add to query normally');
-        // Continue with normal flow - this ensures the message appears even if optimistic update fails
+        console.log('⚠️ [WEBSOCKET] updateOptimisticMessage function not available, using fallback');
+        // Fallback to direct cache update
+        const updated = this.updateOptimisticMessageInCache(conversation_id, message);
+        if (updated) {
+          console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data (fallback)');
+          return; // Don't add duplicate, we handled it manually
+        }
       }
     }
     
@@ -360,6 +377,29 @@ export class MessagingWebSocketClient extends WebSocketClient {
       console.log('🔔 [WEBSOCKET] Showing toast notification');
       toast.info(`New message in conversation`);
     }
+  }
+
+  private findOptimisticMessageId(conversationId: string, realMessage: any): string | null {
+    // Get current query data to find optimistic message
+    const queryData = this.queryClient.getQueryData(
+      messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
+    ) as any;
+    
+    if (!queryData?.pages) return null;
+    
+    // Look for optimistic message with matching text content
+    for (const page of queryData.pages) {
+      for (const msg of page.messages) {
+        if (msg._id?.startsWith('optimistic-') && 
+            msg.text_content === realMessage.text_content &&
+            msg.direction === realMessage.direction) {
+          console.log('🔍 [WEBSOCKET] Found matching optimistic message:', msg._id);
+          return msg._id;
+        }
+      }
+    }
+    
+    return null;
   }
 
   private updateOptimisticMessageInCache(conversationId: string, realMessage: unknown): boolean {

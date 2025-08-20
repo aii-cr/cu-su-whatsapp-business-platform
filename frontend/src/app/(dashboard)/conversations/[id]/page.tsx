@@ -77,7 +77,7 @@ export default function ConversationDetailsPage() {
     console.log('📤 [SEND] User clicked send message:', text);
     console.log('📤 [SEND] Conversation ID:', conversationId);
     
-    // Add optimistic message immediately
+    // Add optimistic message immediately for smooth UX
     const optimisticId = (window as any).addOptimisticMessage?.(text);
     console.log('🚀 [SEND] Added optimistic message with ID:', optimisticId);
     
@@ -225,6 +225,15 @@ export default function ConversationDetailsPage() {
             className="px-3 py-1 bg-green-500 text-white rounded text-sm ml-2"
           >
             🔧 Direct WS Test
+          </button>
+          <button
+            onClick={() => {
+              console.log('🔧 [DEBUG] Testing optimistic message flow');
+              (window as any).testOptimisticMessage?.();
+            }}
+            className="px-3 py-1 bg-purple-500 text-white rounded text-sm ml-2"
+          >
+            🔧 Test Optimistic
           </button>
           <span className="ml-2 text-sm">
             DB Unread: {unreadCount} | Banner Unread: {bannerUnreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Replied: {hasRepliedToUnread ? 'Yes' : 'No'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'} | Viewing: {isCurrentlyViewing ? 'Yes' : 'No'}
