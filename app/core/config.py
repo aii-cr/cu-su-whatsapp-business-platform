@@ -26,6 +26,23 @@ class Settings(BaseSettings):
     SESSION_INACTIVITY_MINUTES: int = 160  # Session inactivity timeout in minutes
     ALGORITHM: str = "HS256"
     
+    
+    # Qdrant Settings
+    QDRANT_URL: str 
+    QDRANT_API_KEY: str
+    QDRANT_COLLECTION_NAME: str = "whatsapp_business_platform"
+    
+    # OpenAI Settings
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    OPENAI_EMBEDDING_DIMENSION: int = 1536
+    
+    # langchain settings
+    LANGCHAIN_TRACING_V2: bool = True
+    LANGCHAIN_PROJECT: str = "whatsapp-business-platform"
+    LANGCHAIN_API_KEY: str
+    
     # WhatsApp Business API Settings
     WHATSAPP_ACCESS_TOKEN: str 
     WHATSAPP_VERIFY_TOKEN: str 

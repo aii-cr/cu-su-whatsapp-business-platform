@@ -1,0 +1,302 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+You’re right—the **RAG prompt file** is essential. Below is the **final rulebook** (production-ready) with your structure, **semantic chunking**, **ParentDocumentRetriever**, **Ragas** metrics, centralized **API keys in `core/config.py`**, and now a **RAG prompt file** + usage.
+
+---
+
+# ✅ AI Agent Rulebook (LangGraph + LangChain + Qdrant + LangSmith + Ragas)
+
+## 0) North-star
+
+* Agent logic lives in `app/services/ai/**`. Routes remain under `app/api/routes/**`.
+* Orchestrate with **LangGraph** (typed state, explicit nodes, conditional edges, compiled before use).
+* All tools are **StructuredTool** with validated I/O; every run traced in **LangSmith**. 
+
+## 1) Folder layout (fits your repo)
+
+```
+app/
+  services/
+    ai/
+      __init__.py
+      config.py                 # reads from core/config.Settings
+      agent_service.py
+      graphs/
+        __init__.py
+        whatsapp_agent.py
+        subgraphs/
+          faq_rag_flow.py       # uses RAG prompt below
+          booking_flow.py
+          payments_flow.py
+      tools/
+        __init__.py
+        base.py
+        reservations.py
+        payments.py
+        calendar.py
+        company_info.py
+      rag/
+        __init__.py
+        ingest.py               # CSV → semantic chunks → Qdrant (parent/child)
+        retriever.py            # ParentDocumentRetriever over Qdrant
+        postprocess.py
+        schemas.py
+      prompts/
+        system/
+          policy.md
+          style.md
+          rag_answer.md         # << RAG PROMPT (new)
+        tools/
+          reservations.yaml
+          payments.yaml
+      telemetry/
+        tracing.py
+        metrics.py
+      evaluators/
+        ragas_runner.py         # offline evals
+      datasets/
+        golden.csv              # your gold set (first-class)
+```
+
+## 2) Config & secrets (single source of truth)
+
+Centralize API keys in `app/core/config.py` (`Settings`) and read them from `services/ai/config.py`.
+
+* `OPENAI_API_KEY, LANGSMITH_API_KEY, GUARDRAILS_API_KEY, QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION, EMBED_MODEL_ID, CHAT_MODEL_ID, …`
+* LangSmith tracing is enabled via env (`LANGCHAIN_TRACING_V2=true`, `LANGCHAIN_API_KEY`, optional project).
+
+### UPDATED: `app/core/config.py` (new fields)
+
+```python
+# UPDATED SECTION: app/core/config.py
+from pydantic import BaseSettings, Field
+
+class Settings(BaseSettings):
+    OPENAI_API_KEY: str = Field(..., repr=False)
+    LANGCHAIN_API_KEY: str | None = Field(default=None, repr=False) # lANGSMITH api key
+    GUARDRAILS_API_KEY: str | None = Field(default=None, repr=False)
+    QDRANT_URL: str
+    QDRANT_API_KEY: str = Field(..., repr=False)
+    QDRANT_COLLECTION_NAME: str = "company_docs"
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+```
+
+---
+
+## 3) Data & ingestion rules
+
+* Place your **golden CSV** at `app/services/ai/datasets/golden.csv`.
+* Ingestion uses **SemanticChunker** (sentence-level semantic similarity) to keep related plan details together; store **child chunks** in Qdrant; maintain **parent docs** for richer context via **ParentDocumentRetriever**. This balances embedding fidelity of small chunks with contextual richness of parents.
+* Use `tenant_id`, `locale`, `source`, `version_hash`, `pii=false` metadata; upsert idempotently.
+* Qdrant via `langchain-qdrant` with payload filters.
+
+### (Ref) You already have ingestion; keep the same `ingest.py` pattern you added earlier.
+
+---
+
+## 4) Retriever rules
+
+* Use **ParentDocumentRetriever** over **QdrantVectorStore**; always pass filters for `tenant_id` and `locale`; default `k=6`.
+
+---
+
+## 5) LangGraph rules
+
+* Typed state: `user_text, intent, context_docs (parents), tool_result, reply, confidence, policy_flags`.
+* Nodes: `detect_intent → {faq | booking | payment | fallback}`; edges are **conditional**; graph **must** be compiled before use.
+* Retries bounded; side-effects only in tools; `handoff` edge on low confidence/policy block.
+
+---
+
+## 6) Toolbelt rules
+
+* **StructuredTool** with Pydantic args; returns `{status,data,trace_id}`; timeouts(8s)/retries(2)/idempotency key; per-tool scopes; validated inputs; span tags to LangSmith.
+* Optional **Guardrails** around `agent_service.chat()` for IO-level checks.
+
+---
+
+## 7) WhatsApp-specific agent rules
+
+* ≤ \~700 chars, bullets, one CTA.
+* **Confirm before commit** (echo parsed fields) before calling booking/payment tools.
+* If outside 24h window, return `{action:"use_template", template_id}` for your sender layer.
+* Short-lived, single-use, allow-listed payment links only.
+* Never embed PII; mask when echoing.
+
+---
+
+## 8) Evaluation rules (Ragas + LangSmith)
+
+* **Offline CI** using **Ragas** metrics: *Faithfulness, Answer Relevancy, Context Precision, Context Recall*; gate merges on deltas. 
+* **Online** tracing/evals in **LangSmith** for live drift/hallucination signals.
+
+### NEW: `app/services/ai/evaluators/ragas_runner.py`
+
+```python
+# NEW CODE: app/services/ai/evaluators/ragas_runner.py
+"""
+Runs Ragas metrics on datasets/golden.csv for CI gating.
+"""
+from pathlib import Path
+import pandas as pd
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+
+def run(csv_path: str = "app/services/ai/datasets/adn_rag_base_full_v1_3.csv"):
+    df = pd.read_csv(Path(csv_path))
+    # Expect columns: question, predicted_answer, contexts (JSON or | separated), ground_truth
+    # Transform df as needed to the Ragas schema before evaluate()
+    return evaluate(
+        df,
+        metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
+    )
+```
+
+---
+
+# 🔧 RAG Prompt (file + usage)
+
+### NEW: `app/services/ai/prompts/system/rag_answer.md`
+
+```markdown
+<!-- RAG synthesis prompt for WhatsApp answers -->
+You are a concise assistant replying to customers on WhatsApp.
+
+Objectives:
+- Answer ONLY using the provided context. If missing, say you don’t have that info and offer next steps.
+- Prefer short paragraphs and bullet points; avoid marketing fluff.
+- If the user asks to book or pay, summarize required fields and ask for explicit confirmation.
+
+Style:
+- Same language as the user (English/Spanish).
+- ≤ 700 characters when possible.
+- Include 1 clear call-to-action when appropriate.
+
+Grounding & Safety:
+- Do not invent prices, URLs, or policies.
+- If context conflicts, pick the most recent source by `updated_at`.
+- Never echo or store sensitive data beyond what’s needed.
+
+Output Format:
+- Plain text suitable for WhatsApp.
+- If information is incomplete, ask one clarifying question.
+
+Inputs:
+- {{question}}  – the user’s message
+- {{context}}   – concatenated snippets from retrieved parent documents:
+                  each item has fields: source, section, updated_at, text
+
+Answer using ONLY {{context}}. If nothing useful is found, say:
+“Lo siento, no encuentro esa información en este momento. ¿Te ayudo con otra cosa o deseas que te contacte un agente?”
+```
+
+### NEW: `app/services/ai/graphs/subgraphs/faq_rag_flow.py`
+
+```python
+# NEW CODE: app/services/ai/graphs/subgraphs/faq_rag_flow.py
+"""
+FAQ/RAG flow: retrieve parents via ParentDocumentRetriever and synthesize with RAG prompt.
+"""
+from pathlib import Path
+from typing import TypedDict
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+class RagState(TypedDict, total=False):
+    user_text: str
+    context_docs: list[dict]
+    reply: str
+    confidence: float
+
+def _load_prompt() -> str:
+    path = Path("app/services/ai/prompts/system/rag_answer.md")
+    return path.read_text(encoding="utf-8")
+
+def format_context(parents: list) -> str:
+    # Keep tight snippets; attach minimal metadata for traceability.
+    lines = []
+    for p in parents[:4]:
+        meta = p.metadata if hasattr(p, "metadata") else p.get("metadata", {})
+        text = p.page_content if hasattr(p, "page_content") else p.get("text", "")
+        lines.append(f"[{meta.get('source','?')} | {meta.get('section','?')} | {meta.get('updated_at','?')}] {text}")
+    return "\n\n".join(lines)
+
+def build_rag_chain(model_name: str = "gpt-4o-mini"):
+    prompt = ChatPromptTemplate.from_template(_load_prompt())
+    llm = ChatOpenAI(model=model_name, temperature=0)
+    return prompt | llm
+
+async def run_rag(state: RagState, retriever, model_name: str) -> RagState:
+    parents = await retriever.aget_relevant_documents(state["user_text"])
+    state["context_docs"] = [getattr(d, "metadata", {}) for d in parents]
+    chain = build_rag_chain(model_name)
+    ctx = format_context(parents)
+    msg = await chain.ainvoke({"question": state["user_text"], "context": ctx})
+    state["reply"] = msg.content.strip()
+    # Optional confidence heuristic (e.g., # of sources, overlap)
+    state["confidence"] = 0.8 if parents else 0.2
+    return state
+```
+
+### UPDATED: `app/services/ai/graphs/whatsapp_agent.py` (wire the subgraph)
+
+```python
+# UPDATED SECTION: app/services/ai/graphs/whatsapp_agent.py
+from typing import TypedDict, Literal
+from langgraph.graph import StateGraph, END
+from app.services.ai.graphs.subgraphs.faq_rag_flow import run_rag
+from app.services.ai.rag.retriever import build_retriever, RetrieverConfig
+
+class AgentState(TypedDict, total=False):
+    user_text: str
+    intent: Literal["faq","booking","payment","fallback"]
+    context_docs: list[dict]
+    tool_result: dict
+    reply: str
+    confidence: float
+
+def detect_intent(state: AgentState) -> AgentState:
+    txt = state["user_text"].lower()
+    state["intent"] = "booking" if any(k in txt for k in ("book","reserve","availability")) \
+        else "payment" if any(k in txt for k in ("pay","price","link")) else "faq"
+    return state
+
+def build_graph(retriever, model_name: str):
+    g = StateGraph(AgentState)
+    g.add_node("detect_intent", detect_intent)
+    g.add_node("faq", lambda s: run_rag(s, retriever, model_name))
+    # booking/payment nodes omitted (unchanged)
+    g.set_entry_point("detect_intent")
+    g.add_conditional_edges("detect_intent", lambda s: s["intent"],
+                            {"faq": "faq", "booking": "booking", "payment": "payment"},
+                            default=END)
+    g.add_edge("faq", END)
+    return g.compile()
+```
+
+---
+
+# 9) Performance & cost rules
+
+* Reuse clients (LLM, embeddings, Qdrant) in app lifespan.
+* Compress chat history into facts (plan/date/party) before prompting.
+* Cache FAQ answers by normalized question + tenant + locale + `doc_version`.
+
+---
+
+# 10) DoD
+
+* [ ] **SemanticChunker** + **ParentDocumentRetriever** over Qdrant with filters.  
+* [ ] RAG prompt file present and used by `faq_rag_flow.py`.
+* [ ] Tools are StructuredTool with resilience + RBAC; side-effects only there.
+* [ ] LangSmith tracing enabled; online + offline evals (Ragas) wired.
+* [ ] Secrets centralized in `core/config.py`; no PII in vectors.
+* [ ] WhatsApp reply style + confirmation step enforced.
