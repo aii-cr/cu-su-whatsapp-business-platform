@@ -18,6 +18,59 @@ import {
   PhotoIcon 
 } from '@heroicons/react/24/outline';
 
+// Simple markdown renderer for WhatsApp-style formatting
+const renderMarkdown = (text: string): React.ReactNode => {
+  if (!text) return null;
+  
+  // Split by lines to handle line breaks
+  const lines = text.split('\n');
+  
+  return lines.map((line, lineIndex) => {
+    // Handle bullet points
+    if (line.trim().startsWith('• ')) {
+      return (
+        <div key={lineIndex} className="flex items-start space-x-2">
+          <span className="text-lg leading-none mt-0.5">•</span>
+          <span className="flex-1">{line.trim().substring(2)}</span>
+        </div>
+      );
+    }
+    
+    // Handle numbered lists (simple detection)
+    const numberedMatch = line.trim().match(/^(\d+)\.\s+(.+)$/);
+    if (numberedMatch) {
+      return (
+        <div key={lineIndex} className="flex items-start space-x-2">
+          <span className="text-sm font-medium leading-none mt-0.5">{numberedMatch[1]}.</span>
+          <span className="flex-1">{numberedMatch[2]}</span>
+        </div>
+      );
+    }
+    
+    // Handle bold text (simple **text** detection)
+    if (line.includes('**')) {
+      const parts = line.split(/(\*\*[^*]+\*\*)/g);
+      return (
+        <span key={lineIndex}>
+          {parts.map((part, partIndex) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              return (
+                <strong key={partIndex} className="font-semibold">
+                  {part.slice(2, -2)}
+                </strong>
+              );
+            }
+            return part;
+          })}
+        </span>
+      );
+    }
+    
+    // Regular line
+    return <span key={lineIndex}>{line}</span>;
+  });
+};
+
 export interface MessageBubbleProps {
   message: Message;
   isOwn?: boolean;
@@ -173,7 +226,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       return (
         <div ref={ref} className={cn('flex justify-center my-4', className)}>
           <Badge variant="secondary" className="text-xs px-3 py-1">
-            {message.text_content || message.content?.text}
+            {renderMarkdown(message.text_content || message.content?.text || '')}
           </Badge>
         </div>
       );
@@ -249,22 +302,22 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
 
             {/* Text content */}
             {message.text_content && (
-              <p className={cn(
-                'text-sm leading-relaxed',
+              <div className={cn(
+                'text-sm leading-relaxed space-y-1',
                 message.type !== 'text' && 'mt-2'
               )}>
-                {message.text_content}
-              </p>
+                {renderMarkdown(message.text_content)}
+              </div>
             )}
             
             {/* Fallback for content object */}
             {!message.text_content && message.content?.text && (
-              <p className={cn(
-                'text-sm leading-relaxed',
+              <div className={cn(
+                'text-sm leading-relaxed space-y-1',
                 message.type !== 'text' && 'mt-2'
               )}>
-                {message.content.text}
-              </p>
+                {renderMarkdown(message.content.text)}
+              </div>
             )}
 
             {/* Timestamp and status */}

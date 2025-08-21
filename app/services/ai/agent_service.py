@@ -4,6 +4,7 @@ Handles message processing, database integration, and response generation.
 """
 
 import asyncio
+import re
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 
@@ -13,6 +14,54 @@ from app.services.ai.graphs.whatsapp_agent import WhatsAppAgent, AgentState
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
 from app.services import message_service, conversation_service
 from app.services.websocket.websocket_service import manager, WebSocketService
+
+
+def strip_markdown(text: str) -> str:
+    """
+    Strip markdown formatting from text to make it suitable for WhatsApp.
+    
+    Args:
+        text: Text with markdown formatting
+        
+    Returns:
+        Clean text without markdown
+    """
+    if not text:
+        return text
+    
+    # Remove markdown headers
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove bold/italic markers
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # **bold**
+    text = re.sub(r'\*(.*?)\*', r'\1', text)      # *italic*
+    text = re.sub(r'__(.*?)__', r'\1', text)      # __bold__
+    text = re.sub(r'_(.*?)_', r'\1', text)        # _italic_
+    
+    # Remove code blocks
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    text = re.sub(r'`(.*?)`', r'\1', text)        # inline code
+    
+    # Remove links but keep text
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    
+    # Remove strikethrough
+    text = re.sub(r'~~(.*?)~~', r'\1', text)
+    
+    # Convert bullet points to WhatsApp-style
+    text = re.sub(r'^\s*[-*+]\s+', '• ', text, flags=re.MULTILINE)
+    
+    # Remove blockquotes
+    text = re.sub(r'^\s*>\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\n\s*\n', '\n\n', text)  # Multiple newlines to double newlines
+    text = re.sub(r'[ \t]+', ' ', text)      # Multiple spaces to single space
+    
+    # Trim whitespace
+    text = text.strip()
+    
+    return text
 
 
 class AgentService:
@@ -106,10 +155,17 @@ class AgentService:
                     "reason": "auto_reply_disabled"
                 }
             
+            # Strip markdown from AI response for WhatsApp
+            raw_response = agent_result["reply"]
+            clean_response = strip_markdown(raw_response)
+            
+            logger.info(f"🤖 [AI] Original response: {raw_response[:100]}...")
+            logger.info(f"🤖 [AI] Cleaned response: {clean_response[:100]}...")
+            
             # Send AI response via WhatsApp and store as message
             ai_message_id = await self._send_and_store_ai_response(
                 conversation_id=conversation_id,
-                response_text=agent_result["reply"],
+                response_text=clean_response,
                 confidence=agent_result.get("confidence", 0.0),
                 metadata=agent_result,
                 customer_phone=customer_phone
@@ -142,7 +198,7 @@ class AgentService:
                 "success": True,
                 "ai_response_sent": True,
                 "ai_message_id": ai_message_id,
-                "response_text": agent_result["reply"],
+                "response_text": clean_response,
                 "confidence": agent_result.get("confidence", 0.0),
                 "requires_human_handoff": agent_result.get("requires_human_handoff", False),
                 "processing_time_ms": self._calculate_processing_time(agent_result),
