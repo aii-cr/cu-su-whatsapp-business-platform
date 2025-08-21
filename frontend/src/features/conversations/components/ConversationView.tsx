@@ -4,11 +4,13 @@
  */
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { MessageList } from '@/features/messages/components/MessageList';
 import { MessageComposer } from '@/features/conversations/components/MessageComposer';
 import { AutoReplyToggle } from '@/features/conversations/components/AutoReplyToggle';
 import { useSendMessage } from '@/features/messages/hooks/useMessages';
 import { ConversationTagManager } from '@/features/tags';
+import { ConversationsApi } from '../api/conversationsApi';
 
 interface ConversationViewProps {
   conversationId: string;
@@ -16,6 +18,13 @@ interface ConversationViewProps {
 
 export function ConversationView({ conversationId }: ConversationViewProps) {
   const sendMessageMutation = useSendMessage();
+  
+  // Fetch conversation data to get AI auto-reply state
+  const { data: conversation } = useQuery({
+    queryKey: ['conversation', conversationId],
+    queryFn: () => ConversationsApi.getConversation(conversationId),
+    enabled: !!conversationId,
+  });
 
   const handleSendMessage = (text: string) => {
     console.log('🚀 [CONVERSATION] Sending message:', text);
@@ -51,7 +60,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
           {/* AI Auto-Reply Toggle */}
           <AutoReplyToggle 
             conversationId={conversationId}
-            initialEnabled={true}
+            initialEnabled={conversation?.ai_autoreply_enabled ?? true}
             className="ml-auto"
           />
         </div>

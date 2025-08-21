@@ -75,6 +75,7 @@ export const ConversationSchema = z.object({
   tags: z.array(TagDenormalizedSchema).default([]),
   last_message: LastMessageSchema.optional(),
   unread_count: z.number().default(0),
+  ai_autoreply_enabled: z.boolean().default(true), // AI auto-reply setting per conversation
   created_at: z.string(),
   updated_at: z.string(),
   closed_at: z.string().optional(),

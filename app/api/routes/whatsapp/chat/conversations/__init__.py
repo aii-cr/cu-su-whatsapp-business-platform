@@ -27,6 +27,7 @@ from .archive.archive_conversation import router as archive_conversation_router
 from .archive.restore_conversation import router as restore_conversation_router
 from .archive.purge_conversation import router as purge_conversation_router
 from .claim_conversation import router as claim_conversation_router
+from .toggle_ai_autoreply import router as toggle_ai_autoreply_router
 
 # Create main conversations router
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
@@ -57,3 +58,4 @@ router.include_router(archive_conversation_router)
 router.include_router(restore_conversation_router)
 router.include_router(purge_conversation_router)
 router.include_router(claim_conversation_router)
+router.include_router(toggle_ai_autoreply_router)

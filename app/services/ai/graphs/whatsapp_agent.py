@@ -317,16 +317,26 @@ class WhatsAppAgent:
             state["confidence"] = 0.5
         
         # Set handoff flag based on confidence
-        if state["confidence"] < ai_config.confidence_threshold:
-            state["requires_human_handoff"] = True
+        requires_handoff = state["confidence"] < ai_config.confidence_threshold
+        state["requires_human_handoff"] = requires_handoff
+        
+        # Debug confidence decision
+        logger.info(f"Confidence decision analysis:")
+        logger.info(f"  - Final confidence: {state['confidence']:.3f}")
+        logger.info(f"  - Threshold: {ai_config.confidence_threshold}")
+        logger.info(f"  - Requires handoff: {requires_handoff}")
+        logger.info(f"  - Intent: {state.get('intent', 'unknown')}")
         
         # Truncate response if too long
-        if len(state.get("reply", "")) > ai_config.max_response_length:
+        original_length = len(state.get("reply", ""))
+        if original_length > ai_config.max_response_length:
             state["reply"] = state["reply"][:ai_config.max_response_length - 3] + "..."
+            logger.info(f"Response truncated from {original_length} to {len(state['reply'])} chars")
         
         logger.info(
             f"Finalized response for conversation {state['conversation_id']}: "
-            f"confidence={state['confidence']}, handoff={state.get('requires_human_handoff', False)}"
+            f"confidence={state['confidence']:.3f}, handoff={requires_handoff}, "
+            f"response_length={len(state.get('reply', ''))}"
         )
         
         return state

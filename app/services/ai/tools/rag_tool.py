@@ -148,6 +148,16 @@ class RAGTool(BaseTool):
             # Calculate confidence based on retrieval scores and answer length
             confidence = self._calculate_confidence(retrieval_result, answer)
             
+            # Debug logging for confidence analysis
+            logger.info(f"RAG confidence analysis:")
+            logger.info(f"  - Query: {tool_input.query[:100]}...")
+            logger.info(f"  - Retrieved docs: {len(retrieval_result.documents)}")
+            logger.info(f"  - Avg retrieval score: {sum(retrieval_result.scores) / len(retrieval_result.scores) if retrieval_result.scores else 0:.3f}")
+            logger.info(f"  - Answer length: {len(answer)} chars")
+            logger.info(f"  - Final confidence: {confidence:.3f}")
+            logger.info(f"  - Threshold: {ai_config.confidence_threshold}")
+            logger.info(f"  - Above threshold: {confidence >= ai_config.confidence_threshold}")
+            
             # Prepare sources information
             sources = [
                 {
@@ -203,6 +213,7 @@ class RAGTool(BaseTool):
     def _calculate_confidence(self, retrieval_result: Any, answer: str) -> float:
         """Calculate confidence score based on retrieval and answer quality."""
         if not retrieval_result.documents:
+            logger.debug("Confidence: 0.0 (no documents retrieved)")
             return 0.0
         
         # Base confidence from retrieval scores
@@ -220,15 +231,24 @@ class RAGTool(BaseTool):
             "don't have", "can't find", "sorry", "not sure"
         ]
         
-        if any(phrase in answer.lower() for phrase in uncertainty_phrases):
-            uncertainty_penalty = -0.3
-        else:
-            uncertainty_penalty = 0.0
+        uncertainty_detected = any(phrase in answer.lower() for phrase in uncertainty_phrases)
+        uncertainty_penalty = -0.3 if uncertainty_detected else 0.0
         
         confidence = avg_score + doc_bonus + length_bonus + uncertainty_penalty
         
+        # Debug detailed confidence breakdown
+        logger.debug(f"Confidence calculation breakdown:")
+        logger.debug(f"  - Base score (avg retrieval): {avg_score:.3f}")
+        logger.debug(f"  - Doc count bonus ({len(retrieval_result.documents)} docs): +{doc_bonus:.3f}")
+        logger.debug(f"  - Length bonus ({len(answer)} chars): +{length_bonus:.3f}")
+        logger.debug(f"  - Uncertainty penalty (detected: {uncertainty_detected}): {uncertainty_penalty:.3f}")
+        logger.debug(f"  - Raw confidence: {confidence:.3f}")
+        
         # Clamp between 0.0 and 1.0
-        return max(0.0, min(1.0, confidence))
+        final_confidence = max(0.0, min(1.0, confidence))
+        logger.debug(f"  - Final confidence (clamped): {final_confidence:.3f}")
+        
+        return final_confidence
     
     def get_structured_tool(self):
         """Get the StructuredTool version of this tool."""

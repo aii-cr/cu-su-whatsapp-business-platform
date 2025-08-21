@@ -73,6 +73,7 @@ class ConversationService(BaseService):
             "metadata": metadata or {},
             "message_count": 0,
             "unread_count": 0,
+            "ai_autoreply_enabled": True,  # Default AI auto-reply to ON for new conversations
             "created_by": created_by,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
@@ -304,6 +305,68 @@ class ConversationService(BaseService):
             logger.error(f"Error updating conversation {conversation_id}: {str(e)}")
             return None
     
+    async def toggle_ai_autoreply(
+        self,
+        conversation_id: str,
+        enabled: bool,
+        updated_by: ObjectId = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Toggle AI auto-reply for a conversation.
+        
+        Args:
+            conversation_id: Conversation ID
+            enabled: Whether to enable or disable AI auto-reply
+            updated_by: User who made the change
+            
+        Returns:
+            Updated conversation document or None
+        """
+        try:
+            db = await self._get_db()
+            
+            # Log the toggle action
+            action = "enabled" if enabled else "disabled"
+            logger.info(f"AI auto-reply {action} for conversation {conversation_id}")
+            
+            # Update the conversation
+            update_data = {
+                "ai_autoreply_enabled": enabled,
+                "updated_at": datetime.now(timezone.utc)
+            }
+            if updated_by:
+                update_data["updated_by"] = updated_by
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"No conversation found with ID {conversation_id}")
+                return None
+            
+            # Return updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log the audit event
+            await audit_service.log_activity(
+                user_id=updated_by,
+                action="conversation.ai_autoreply.toggle",
+                entity_type="conversation",
+                entity_id=conversation_id,
+                details={
+                    "ai_autoreply_enabled": enabled,
+                    "previous_state": not enabled  # Assuming toggle from opposite state
+                }
+            )
+            
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error toggling AI auto-reply for conversation {conversation_id}: {str(e)}")
+            return None
+
     async def delete_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """
         Delete a conversation and all associated messages.

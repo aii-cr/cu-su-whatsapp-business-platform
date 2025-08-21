@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/Switch';
 import { Badge } from '@/components/ui/Badge';
 import { Bot, User } from 'lucide-react';
 import { toast } from '@/hooks/useToast';
+import { ConversationsApi } from '../api/conversationsApi';
 
 interface AutoReplyToggleProps {
   conversationId: string;
@@ -19,35 +20,6 @@ interface AutoReplyToggleProps {
 interface ToggleAutoReplyRequest {
   conversation_id: string;
   enabled: boolean;
-  user_id?: string;
-}
-
-interface ToggleAutoReplyResponse {
-  success: boolean;
-  message: string;
-  data: {
-    conversation_id: string;
-    ai_autoreply_enabled: boolean;
-    changed_by?: string;
-  };
-}
-
-// API function to toggle auto-reply
-async function toggleAutoReply(request: ToggleAutoReplyRequest): Promise<ToggleAutoReplyResponse> {
-  const response = await fetch('/api/v1/ai/autoreply/toggle', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to toggle auto-reply');
-  }
-
-  return response.json();
 }
 
 export function AutoReplyToggle({ 
@@ -59,7 +31,8 @@ export function AutoReplyToggle({
   const queryClient = useQueryClient();
 
   const toggleMutation = useMutation({
-    mutationFn: toggleAutoReply,
+    mutationFn: async (request: ToggleAutoReplyRequest) => 
+      ConversationsApi.toggleAIAutoReply(request.conversation_id, request.enabled),
     onMutate: async (variables) => {
       // Optimistic update
       setIsEnabled(variables.enabled);
@@ -94,7 +67,6 @@ export function AutoReplyToggle({
     toggleMutation.mutate({
       conversation_id: conversationId,
       enabled,
-      user_id: 'current_user', // TODO: Get from auth context
     });
   };
 
