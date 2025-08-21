@@ -71,6 +71,14 @@ const renderMarkdown = (text: string): React.ReactNode => {
   });
 };
 
+// AI Indicator component
+const AIIndicator = () => (
+  <div className="flex items-center space-x-1 text-xs text-blue-100/90 mb-1">
+    <span className="text-sm">🤖</span>
+    <span className="font-medium">AI Assistant</span>
+  </div>
+);
+
 export interface MessageBubbleProps {
   message: Message;
   isOwn?: boolean;
@@ -101,30 +109,20 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
         return () => clearTimeout(timer);
       }
     }, [message.status, previousStatus]);
+    
     const isSystem = message.sender_role === 'system';
     const isOutbound = message.direction === 'outbound'; // Agent message
     const isInbound = message.direction === 'inbound'; // Customer message
+    const isAI = message.sender_role === 'ai_assistant'; // AI assistant message
     
     // Override isOwn based on direction for correct alignment
     const shouldAlignRight = isOutbound; // Agent messages go right
 
     // Status icon and timestamp based on message status
     const StatusIcon = () => {
-      // For outbound messages, show status
-      if (!shouldAlignRight) return null;
-      
-      const iconClass = shouldAlignRight ? 'text-white/90' : 'text-slate-500 dark:text-slate-400';
-      const readIconClass = shouldAlignRight ? 'text-white' : 'text-blue-500';
-      const failedIconClass = shouldAlignRight ? 'text-red-200' : 'text-red-500';
-      
-      // Determine animation class based on status - only animate during transitions
-      const getAnimationClass = () => {
-        if (isOptimistic) return 'animate-pulse';
-        if (shouldAnimateStatus && (message.status === 'delivered' || message.status === 'read')) {
-          return 'animate-status-check';
-        }
-        return '';
-      };
+      const iconClass = shouldAlignRight ? 'text-white/70' : 'text-slate-400';
+      const readIconClass = shouldAlignRight ? 'text-blue-300' : 'text-blue-500';
+      const failedIconClass = shouldAlignRight ? 'text-red-300' : 'text-red-500';
       
       switch (message.status) {
         case 'sending':
@@ -133,18 +131,11 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
               <ClockIcon className={`w-3 h-3 ${iconClass} animate-pulse`} />
             </div>
           );
-        case 'pending':
-          return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'sent':
-          return (
-            <div className={cn('flex items-center', getAnimationClass())}>
-              <CheckIcon className={`w-3 h-3 ${iconClass}`} />
-            </div>
-          );
+          return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
         case 'delivered':
           return (
-            <div className={cn('flex', getAnimationClass())}>
-              <CheckIcon className={`w-3 h-3 ${iconClass} -mr-1`} />
+            <div className={cn('flex items-center', getAnimationClass())}>
               <CheckIcon className={`w-3 h-3 ${iconClass}`} />
             </div>
           );
@@ -271,10 +262,17 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           )}
           
           {/* Sender info for outbound business messages */}
-          {shouldAlignRight && message.direction === 'outbound' && message.sender_name && (
+          {shouldAlignRight && message.direction === 'outbound' && message.sender_name && !isAI && (
             <p className="text-xs text-muted-foreground mb-1 text-right mr-1">
               Sent by {message.sender_name}
             </p>
+          )}
+
+          {/* AI Indicator for AI messages */}
+          {isAI && shouldAlignRight && (
+            <div className="text-right mr-1 mb-1">
+              <AIIndicator />
+            </div>
           )}
 
           {/* Message bubble */}
@@ -340,7 +338,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           <div className="ml-2 flex-shrink-0">
             <Avatar
               size="sm"
-              fallback={message.sender_name?.charAt(0) || 'A'}
+              fallback={isAI ? '🤖' : (message.sender_name?.charAt(0) || 'A')}
               className="mt-1"
             />
           </div>

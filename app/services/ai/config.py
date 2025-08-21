@@ -35,7 +35,7 @@ class AIConfig(BaseModel):
     max_context_tokens: int = 4000
     
     # WhatsApp Configuration
-    max_response_length: int = 700
+    max_response_length: int = 1500
     default_language: str = "es"  # Spanish for Costa Rica
     supported_languages: list[str] = ["es", "en"]
     
