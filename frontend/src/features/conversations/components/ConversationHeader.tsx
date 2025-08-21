@@ -172,6 +172,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
           <AutoReplyToggle 
             conversationId={String(conversation._id)}
             initialEnabled={conversation.ai_autoreply_enabled ?? true}
+            currentEnabled={conversation.ai_autoreply_enabled ?? true}
             className="mr-2"
           />
           

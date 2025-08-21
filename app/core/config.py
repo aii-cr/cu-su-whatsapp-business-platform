@@ -159,7 +159,7 @@ class Settings(BaseSettings):
     # CORS Settings
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://your-frontend-domain.com"]
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]
     
     model_config = SettingsConfigDict(

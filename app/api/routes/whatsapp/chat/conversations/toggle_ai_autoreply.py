@@ -5,7 +5,7 @@ from typing import Dict, Any
 from app.schemas import SuccessResponse, ErrorResponse
 from app.services.auth import require_permissions, check_user_permission
 from app.db.models.auth import User
-from app.services.whatsapp.conversation import conversation_service
+from app.services import conversation_service
 from app.core.logger import logger
 from app.core.middleware import get_correlation_id
 
@@ -24,11 +24,7 @@ class ToggleAIAutoreplyResponse(BaseModel):
     updated_at: str
 
 
-@router.options("/{conversation_id}/ai-autoreply")
-async def options_ai_autoreply(conversation_id: str):
-    """Handle OPTIONS request for CORS preflight."""
-    logger.info(f"🔧 [CORS] OPTIONS request received for conversation {conversation_id}")
-    return {"message": "OK"}
+
 
 @router.patch("/{conversation_id}/ai-autoreply")
 async def toggle_ai_autoreply(
@@ -106,8 +102,8 @@ async def toggle_ai_autoreply(
         
         # Send WebSocket notification about the toggle
         try:
-            from app.services import websocket_service
-            await websocket_service.notify_autoreply_toggled(
+            from app.services.websocket.websocket_service import WebSocketService
+            await WebSocketService.notify_autoreply_toggled(
                 conversation_id=conversation_id,
                 enabled=request.enabled,
                 changed_by=current_user.email
@@ -118,11 +114,11 @@ async def toggle_ai_autoreply(
             # Don't fail the entire flow if WebSocket notification fails
         
         # Prepare response
-        response_data = ToggleAIAutoreplyResponse(
-            conversation_id=str(updated_conversation["_id"]),
-            ai_autoreply_enabled=updated_conversation["ai_autoreply_enabled"],
-            updated_at=updated_conversation["updated_at"].isoformat()
-        )
+        response_data = {
+            "conversation_id": str(updated_conversation["_id"]),
+            "ai_autoreply_enabled": updated_conversation["ai_autoreply_enabled"],
+            "updated_at": updated_conversation["updated_at"].isoformat()
+        }
         
         return SuccessResponse(
             message=f"AI auto-reply {action} successfully",
@@ -147,11 +143,7 @@ async def toggle_ai_autoreply(
         )
 
 
-@router.options("/{conversation_id}/ai-autoreply/status")
-async def options_ai_autoreply_status(conversation_id: str):
-    """Handle OPTIONS request for CORS preflight."""
-    logger.info(f"🔧 [CORS] OPTIONS status request received for conversation {conversation_id}")
-    return {"message": "OK"}
+
 
 @router.get("/{conversation_id}/ai-autoreply/status")
 async def get_ai_autoreply_status(

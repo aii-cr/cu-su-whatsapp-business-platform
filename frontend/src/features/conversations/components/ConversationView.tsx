@@ -61,6 +61,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
           <AutoReplyToggle 
             conversationId={conversationId}
             initialEnabled={conversation?.ai_autoreply_enabled ?? true}
+            currentEnabled={conversation?.ai_autoreply_enabled ?? true}
             className="ml-auto"
           />
         </div>

@@ -325,9 +325,17 @@ class ConversationService(BaseService):
         try:
             db = await self._get_db()
             
+            # Get current conversation to check current state
+            current_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not current_conversation:
+                logger.warning(f"No conversation found with ID {conversation_id}")
+                return None
+            
+            current_state = current_conversation.get("ai_autoreply_enabled", True)
+            
             # Log the toggle action
             action = "enabled" if enabled else "disabled"
-            logger.info(f"AI auto-reply {action} for conversation {conversation_id}")
+            logger.info(f"AI auto-reply {action} for conversation {conversation_id} (was: {current_state})")
             
             # Update the conversation
             update_data = {
@@ -350,14 +358,13 @@ class ConversationService(BaseService):
             updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
             
             # Log the audit event
-            await audit_service.log_activity(
-                user_id=updated_by,
+            await audit_service.log_event(
                 action="conversation.ai_autoreply.toggle",
-                entity_type="conversation",
-                entity_id=conversation_id,
-                details={
+                actor_id=str(updated_by) if updated_by else None,
+                conversation_id=conversation_id,
+                payload={
                     "ai_autoreply_enabled": enabled,
-                    "previous_state": not enabled  # Assuming toggle from opposite state
+                    "previous_state": current_state
                 }
             )
             

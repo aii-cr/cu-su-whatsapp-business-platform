@@ -203,13 +203,9 @@ export class ConversationsApi {
    * Toggle AI auto-reply for a conversation
    */
   static async toggleAIAutoReply(conversationId: string, enabled: boolean): Promise<{
-    success: boolean;
-    message: string;
-    data: {
-      conversation_id: string;
-      ai_autoreply_enabled: boolean;
-      updated_at: string;
-    };
+    conversation_id: string;
+    ai_autoreply_enabled: boolean;
+    updated_at: string;
   }> {
     try {
       const response = await httpClient.patch(`/conversations/${conversationId}/ai-autoreply`, {
@@ -225,13 +221,9 @@ export class ConversationsApi {
    * Get AI auto-reply status for a conversation
    */
   static async getAIAutoReplyStatus(conversationId: string): Promise<{
-    success: boolean;
-    message: string;
-    data: {
-      conversation_id: string;
-      ai_autoreply_enabled: boolean;
-      updated_at: string;
-    };
+    conversation_id: string;
+    ai_autoreply_enabled: boolean;
+    updated_at: string;
   }> {
     try {
       const response = await httpClient.get(`/conversations/${conversationId}/ai-autoreply/status`);

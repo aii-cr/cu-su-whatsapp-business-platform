@@ -117,9 +117,9 @@ class AgentService:
             
             # Send real-time notification via WebSocket
             try:
+                # Use service singletons from the centralized services module
                 from app.services import websocket_service
-                from app.services.whatsapp.message import message_service
-                
+
                 # Get the full message data for WebSocket notification
                 ai_message = await message_service.get_message(ai_message_id)
                 if ai_message:
@@ -166,8 +166,7 @@ class AgentService:
             # Send real-time notification for fallback response
             try:
                 from app.services import websocket_service
-                from app.services.whatsapp.message import message_service
-                
+
                 # Get the full message data for WebSocket notification
                 ai_message = await message_service.get_message(ai_message_id)
                 if ai_message:
