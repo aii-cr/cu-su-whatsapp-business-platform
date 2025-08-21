@@ -29,6 +29,7 @@ import { useAuthStore } from '@/lib/store';
 import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '@/features/conversations/api/conversationsApi';
 import { useQueryClient } from '@tanstack/react-query';
+import { AutoReplyToggle } from './AutoReplyToggle';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -167,6 +168,13 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
 
         {/* Action buttons */}
         <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+          {/* AI Auto-Reply Toggle */}
+          <AutoReplyToggle 
+            conversationId={String(conversation._id)}
+            initialEnabled={conversation.ai_autoreply_enabled ?? true}
+            className="mr-2"
+          />
+          
           {/* Claim button for unassigned conversations */}
           {!conversation.assigned_agent_id && user && (
             <Button 

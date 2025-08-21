@@ -8,7 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/Switch';
 import { Badge } from '@/components/ui/Badge';
 import { Bot, User } from 'lucide-react';
-import { toast } from '@/hooks/useToast';
+import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '../api/conversationsApi';
 
 interface AutoReplyToggleProps {
@@ -38,13 +38,10 @@ export function AutoReplyToggle({
       setIsEnabled(variables.enabled);
     },
     onSuccess: (data) => {
-      toast({
-        title: data.data.ai_autoreply_enabled ? 'AI Assistant Enabled' : 'AI Assistant Disabled',
-        description: data.data.ai_autoreply_enabled 
-          ? 'AI will automatically respond to customer messages'
-          : 'Human agents will handle all responses manually',
-        variant: 'default',
-      });
+      toast.success(data.data.ai_autoreply_enabled 
+        ? 'AI Assistant Enabled - AI will automatically respond to customer messages'
+        : 'AI Assistant Disabled - Human agents will handle all responses manually'
+      );
 
       // Invalidate conversation queries to update the conversation data
       queryClient.invalidateQueries({ 
@@ -55,11 +52,7 @@ export function AutoReplyToggle({
       // Revert optimistic update
       setIsEnabled(!variables.enabled);
       
-      toast({
-        title: 'Failed to Update AI Assistant',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error(`Failed to Update AI Assistant: ${error.message}`);
     },
   });
 

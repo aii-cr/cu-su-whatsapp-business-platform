@@ -115,12 +115,22 @@ class AgentService:
                 customer_phone=customer_phone
             )
             
-            # Send real-time notification (simplified for now)
-            # TODO: Implement WebSocket notification when available
-            # await WebSocketService.notify_ai_response(
-            #     conversation_id=conversation_id,
-            #     message_data={"id": ai_message_id, "text": agent_result["reply"]}
-            # )
+            # Send real-time notification via WebSocket
+            try:
+                from app.services import websocket_service
+                from app.services.whatsapp.message import message_service
+                
+                # Get the full message data for WebSocket notification
+                ai_message = await message_service.get_message(ai_message_id)
+                if ai_message:
+                    await websocket_service.notify_ai_response(
+                        conversation_id=conversation_id,
+                        message_data=ai_message
+                    )
+                    logger.info(f"🤖 [WS] Sent AI response notification for conversation {conversation_id}")
+            except Exception as ws_error:
+                logger.warning(f"⚠️ [WS] Failed to send AI response notification: {str(ws_error)}")
+                # Don't fail the entire flow if WebSocket notification fails
             
             # Update conversation metadata
             await self._update_conversation_metadata(
@@ -152,6 +162,23 @@ class AgentService:
                 metadata={"error": str(e), "fallback": True},
                 customer_phone=customer_phone
             )
+            
+            # Send real-time notification for fallback response
+            try:
+                from app.services import websocket_service
+                from app.services.whatsapp.message import message_service
+                
+                # Get the full message data for WebSocket notification
+                ai_message = await message_service.get_message(ai_message_id)
+                if ai_message:
+                    await websocket_service.notify_ai_response(
+                        conversation_id=conversation_id,
+                        message_data=ai_message
+                    )
+                    logger.info(f"🤖 [WS] Sent fallback AI response notification for conversation {conversation_id}")
+            except Exception as ws_error:
+                logger.warning(f"⚠️ [WS] Failed to send fallback AI response notification: {str(ws_error)}")
+                # Don't fail the entire flow if WebSocket notification fails
             
             return {
                 "success": False,
@@ -242,9 +269,10 @@ class AgentService:
                 "ai_requires_handoff": agent_result.get("requires_human_handoff", False)
             }
             
-            await conversation_service.update_conversation_metadata(
+            await conversation_service.update_conversation(
                 conversation_id=conversation_id,
-                metadata=metadata_update
+                update_data=metadata_update,
+                updated_by=None  # System update
             )
             
         except Exception as e:
