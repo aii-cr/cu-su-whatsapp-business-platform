@@ -120,9 +120,12 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
 
     // Status icon and timestamp based on message status
     const StatusIcon = () => {
-      const iconClass = shouldAlignRight ? 'text-white/70' : 'text-slate-400';
-      const readIconClass = shouldAlignRight ? 'text-blue-300' : 'text-blue-500';
-      const failedIconClass = shouldAlignRight ? 'text-red-300' : 'text-red-500';
+      // Only show status for outbound messages (agent/AI messages)
+      if (!shouldAlignRight) return null;
+      
+      const iconClass = 'text-white/70';
+      const readIconClass = 'text-blue-300';
+      const failedIconClass = 'text-red-300';
       
       switch (message.status) {
         case 'sending':

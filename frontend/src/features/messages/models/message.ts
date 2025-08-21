@@ -28,6 +28,7 @@ export enum MessageStatus {
 export enum SenderType {
   CUSTOMER = 'customer',
   AGENT = 'agent',
+  AI_ASSISTANT = 'ai_assistant',
   SYSTEM = 'system',
 }
 
@@ -39,7 +40,7 @@ export const MessageSchema = z.object({
   type: z.string(), // Backend uses "type" instead of "message_type"
   message_type: z.string().optional(), // Frontend compatibility field
   direction: z.enum(['inbound', 'outbound']), // Backend field for direction
-  sender_role: z.enum(['customer', 'agent', 'system']), // Backend field
+  sender_role: z.enum(['customer', 'agent', 'ai_assistant', 'system']), // Backend field
   sender_id: z.string().optional(),
   sender_name: z.string().optional(),
   sender_phone: z.string().optional(),
