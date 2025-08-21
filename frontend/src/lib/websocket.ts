@@ -302,7 +302,7 @@ export class MessagingWebSocketClient extends WebSocketClient {
           setTimeout(() => {
             (window as any).updateOptimisticMessage(optimisticId, message);
             console.log('🔔 [WEBSOCKET] Updated optimistic message after delay');
-          }, 500); // 500ms delay to show loading state
+          }, 1200); // 1.2s delay to ensure user perceives sending state
           
           return; // Don't add duplicate, we handled it manually
         } else {

@@ -47,8 +47,10 @@ export function useMessages(conversationId: string, limit: number = 50) {
     getNextPageParam: (lastPage) => {
       return lastPage.has_more ? lastPage.next_cursor : undefined;
     },
-    staleTime: 0, // Disable stale caching for messages
-    gcTime: 0, // Disable garbage collection caching for messages
+    staleTime: 60 * 1000, // Keep data fresh for 1 min to avoid flicker during optimistic flow
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     enabled: !!conversationId,
     initialPageParam: undefined, // Start with no cursor to get latest messages
   });
@@ -73,65 +75,89 @@ export function useSendMessage() {
     mutationFn: (data: SendMessageRequest) => MessagesApi.sendMessage(data),
     onMutate: async (variables) => {
       const conversationId = variables.conversation_id;
-      
-      if (!conversationId) {
-        throw new Error('Conversation ID is required');
-      }
-      
-      console.log('🚀 [OPTIMISTIC] Starting optimistic update for conversation:', conversationId);
-      
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      if (!conversationId) throw new Error('Conversation ID missing');
+
       await queryClient.cancelQueries({
         queryKey: messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
       });
 
-      // Snapshot the previous value
-      const previousMessages = queryClient.getQueryData(
+      const previousData = queryClient.getQueryData(
         messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
       );
 
-      // Note: Optimistic message is now handled by VirtualizedMessageList component
-      // to avoid conflicts and ensure smooth UX
-      console.log('🚀 [OPTIMISTIC] Optimistic message handled by VirtualizedMessageList');
-      
-      // Return a context object with the snapshotted value
-      return { previousMessages };
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticMessage: Message = {
+        _id: optimisticId,
+        conversation_id: conversationId,
+        type: 'text',
+        direction: 'outbound',
+        sender_role: 'agent',
+        sender_id: user?._id ?? 'me',
+        sender_name: user?.first_name ?? user?.email ?? 'Me',
+        text_content: variables.text_content,
+        status: 'sending',
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as unknown as Message;
+
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+        (old: any) => {
+          if (!old) {
+            return {
+              pages: [{
+                messages: [optimisticMessage],
+                next_cursor: null,
+                has_more: false,
+                anchor: 'latest',
+                cache_hit: false
+              }],
+            };
+          }
+          const newPages = [...old.pages];
+          newPages[0] = {
+            ...newPages[0],
+            messages: [...newPages[0].messages, optimisticMessage],
+          };
+          return { ...old, pages: newPages };
+        }
+      );
+
+      return { previousData, optimisticId };
     },
     onSuccess: (response, variables, context) => {
       const conversationId = variables.conversation_id;
-      const sentMessage = response.message; // Extract message from response
-      
-      if (!conversationId) {
-        console.error('No conversation ID available in success callback');
-        return;
-      }
-      
-      console.log('✅ [MESSAGE] Message sent successfully:', sentMessage._id);
-      console.log('✅ [MESSAGE] Real message data:', sentMessage);
-      
-      // Note: Optimistic message update is now handled by the conversation page
-      // which calls updateOptimisticMessage on the VirtualizedMessageList
-      console.log('✅ [MESSAGE] Optimistic message update handled by conversation page');
+      if (!conversationId) return;
+
+      const realMessage = response.message;
+
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+        (old: any) => {
+          if (!old) return old;
+          const newPages = old.pages.map((page: any, idx: number) => {
+            if (idx !== 0) return page;
+            return {
+              ...page,
+              messages: page.messages.map((msg: any) =>
+                msg._id === context?.optimisticId ? realMessage : msg
+              ),
+            };
+          });
+          return { ...old, pages: newPages };
+        }
+      );
     },
     onError: (error, variables, context) => {
       const conversationId = variables.conversation_id;
-      
-      if (!conversationId) {
-        handleError(error);
-        return;
-      }
-      
-      console.error('❌ [MESSAGE] Message send failed:', error);
-      
-      // If the mutation fails, use the context returned from onMutate to roll back
-      if (context?.previousMessages) {
-        queryClient.setQueryData(
-          messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-          context.previousMessages
-        );
-        console.log('❌ [OPTIMISTIC] Rolled back optimistic message due to error');
-      }
-      
+      if (!conversationId) return handleError(error);
+
+      // Rollback optimistic update
+      queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+        context?.previousData ?? null
+      );
       handleError(error);
     },
     onSettled: (data, error, variables) => {

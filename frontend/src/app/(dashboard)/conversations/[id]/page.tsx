@@ -22,7 +22,6 @@ import { useSendMessage } from '@/features/messages/hooks/useMessages';
 import { useConversation, conversationQueryKeys } from '@/features/conversations/hooks/useConversations';
 import { useConversationWebSocket } from '@/hooks/useWebSocket';
 import { useUnreadMessages } from '@/features/conversations/hooks/useUnreadMessages';
-import { useQueryClient } from '@tanstack/react-query';
 import { Message } from '@/features/messages/models/message';
 import { isSameDay } from '@/lib/utils';
 import { 
@@ -70,51 +69,19 @@ export default function ConversationDetailsPage() {
   });
 
   const sendMessageMutation = useSendMessage();
-  const queryClient = useQueryClient();
 
   // Handle sending messages with optimistic updates
   const handleSendMessage = (text: string) => {
     console.log('📤 [SEND] User clicked send message:', text);
     console.log('📤 [SEND] Conversation ID:', conversationId);
     
-    // Add optimistic message immediately for smooth UX
-    const optimisticId = (window as any).addOptimisticMessage?.(text);
-    console.log('🚀 [SEND] Added optimistic message with ID:', optimisticId);
-    
-    // Send the actual message
+    // Mutate with built-in optimistic update
     sendMessageMutation.mutate({
       conversation_id: conversationId,
       text_content: text,
     }, {
-      onSuccess: (response) => {
-        console.log('✅ [SEND] Message sent successfully:', response);
-        
-        // Update optimistic message with real data
-        if (optimisticId && response) {
-          // The response contains a 'message' property with the actual message data
-          const messageData = response.message || response;
-          console.log('🔄 [SEND] Updating optimistic message:', optimisticId, 'with real message:', messageData._id);
-          (window as any).updateOptimisticMessage?.(optimisticId, messageData);
-        } else {
-          console.warn('⚠️ [SEND] Missing optimisticId or response:', { optimisticId, response });
-        }
-        
-        // Hide banner for immediate feedback and mark as replied
+      onSuccess: () => {
         hideBanner();
-        // Mark that we've replied to unread messages
-        if (hasRepliedToUnread === false) {
-          // This will be handled by the useUnreadMessages hook
-          console.log('✅ [SEND] Agent replied to unread messages');
-        }
-      },
-      onError: (error) => {
-        console.error('❌ [SEND] Failed to send message:', error);
-        
-        // Remove optimistic message on error
-        if (optimisticId) {
-          console.log('🗑️ [SEND] Removing failed optimistic message:', optimisticId);
-          (window as any).removeOptimisticMessage?.(optimisticId);
-        }
       }
     });
   };
