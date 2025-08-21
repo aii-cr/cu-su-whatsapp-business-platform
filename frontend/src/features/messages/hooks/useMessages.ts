@@ -28,7 +28,7 @@ export const messageQueryKeys = {
  */
 export function useMessages(conversationId: string, limit: number = 50) {
   const handleError = createApiErrorHandler((msg: string) => toast.error(msg));
-
+  
   const query = useInfiniteQuery<{
     messages: Message[];
     next_cursor: string | null;

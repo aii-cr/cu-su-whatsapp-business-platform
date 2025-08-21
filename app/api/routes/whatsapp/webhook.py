@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from typing import Dict, Any, List
+import asyncio
 import hashlib
 import hmac
 import json
@@ -21,6 +22,7 @@ from app.services import automation_service
 from app.services import message_service, conversation_service
 from app.services import websocket_service
 from app.services.websocket.websocket_service import manager
+from app.services.ai.agent_service import agent_service
 from app.core.error_handling import handle_database_error
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])
@@ -328,6 +330,26 @@ async def process_incoming_message(
     # Process automation
     await automation_service.process_incoming_message(message)
     
+    # ===== AI AGENT PROCESSING =====
+    # Check if AI auto-reply is enabled for this conversation
+    ai_autoreply_enabled = conversation.get("ai_autoreply_enabled", True)
+    
+    if ai_autoreply_enabled and incoming_msg.text and incoming_msg.text.body:
+        logger.info(f"🤖 [AI] Triggering AI agent processing for conversation {conversation['_id']}")
+        
+        # Process with AI agent in background
+        asyncio.create_task(
+            process_with_ai_agent(
+                conversation_id=str(conversation["_id"]),
+                message_id=str(message["_id"]),
+                user_text=incoming_msg.text.body,
+                customer_phone=phone_number,
+                is_first_message=is_new_conversation
+            )
+        )
+    else:
+        logger.info(f"🚫 [AI] Skipping AI processing (autoreply: {ai_autoreply_enabled}, has_text: {bool(incoming_msg.text and incoming_msg.text.body)})")
+
     # ===== SINGLE WEBSOCKET NOTIFICATION =====
     # Send a single notification that will trigger all necessary updates
     await websocket_service.notify_incoming_message_processed(
@@ -566,4 +588,54 @@ async def debug_webhook_signature():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Webhook debug failed: {str(e)}"
-        ) 
+        )
+
+
+async def process_with_ai_agent(
+    conversation_id: str,
+    message_id: str,
+    user_text: str,
+    customer_phone: str,
+    is_first_message: bool = False
+):
+    """
+    Process customer message with AI agent and generate automatic response.
+    
+    Args:
+        conversation_id: Conversation identifier
+        message_id: Incoming message identifier
+        user_text: Customer message text
+        customer_phone: Customer phone number
+        is_first_message: Whether this is the first message in conversation
+    """
+    try:
+        logger.info(f"🤖 [AI] Starting AI agent processing for conversation {conversation_id}")
+        
+        # Process message through AI agent
+        result = await agent_service.process_whatsapp_message(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            user_text=user_text,
+            customer_phone=customer_phone,
+            ai_autoreply_enabled=True,
+            is_first_message=is_first_message
+        )
+        
+        if result["success"] and result["ai_response_sent"]:
+            logger.info(
+                f"✅ [AI] AI response sent successfully for conversation {conversation_id} "
+                f"(message_id: {result['ai_message_id']}, confidence: {result.get('confidence', 0):.2f})"
+            )
+            
+            # TODO: Send WhatsApp API message here if implementing outbound messaging
+            # For now, the response is stored and broadcasted via WebSocket
+            
+        elif result["success"] and not result["ai_response_sent"]:
+            logger.info(f"🚫 [AI] No AI response generated for conversation {conversation_id}: {result.get('reason', 'unknown')}")
+            
+        else:
+            logger.error(f"❌ [AI] AI processing failed for conversation {conversation_id}: {result.get('error', 'unknown error')}")
+            
+    except Exception as e:
+        logger.error(f"💥 [AI] Unexpected error in AI agent processing: {str(e)}")
+        # Don't raise - AI processing failure shouldn't break webhook processing 

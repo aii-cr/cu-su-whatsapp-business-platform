@@ -6,6 +6,7 @@
 import React from 'react';
 import { MessageList } from '@/features/messages/components/MessageList';
 import { MessageComposer } from '@/features/conversations/components/MessageComposer';
+import { AutoReplyToggle } from '@/features/conversations/components/AutoReplyToggle';
 import { useSendMessage } from '@/features/messages/hooks/useMessages';
 import { ConversationTagManager } from '@/features/tags';
 
@@ -42,9 +43,18 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="border-b border-border px-4 py-3 space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">
-          Conversation
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-foreground">
+            Conversation
+          </h2>
+          
+          {/* AI Auto-Reply Toggle */}
+          <AutoReplyToggle 
+            conversationId={conversationId}
+            initialEnabled={true}
+            className="ml-auto"
+          />
+        </div>
         
         {/* Tags Manager */}
         <ConversationTagManager 

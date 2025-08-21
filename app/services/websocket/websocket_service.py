@@ -486,6 +486,53 @@ class WebSocketService:
         logger.info(f"Sent unread count update to user {user_id} for conversation {conversation_id}: {count}")
     
     @staticmethod
+    async def notify_ai_response(conversation_id: str, message_data: dict):
+        """Notify about AI-generated response."""
+        # Serialize message data for JSON compatibility
+        serialized_message = {}
+        for key, value in message_data.items():
+            if key == '_id' or key == 'conversation_id':
+                serialized_message[key] = str(value)
+            elif key == 'timestamp' or key == 'created_at':
+                # Handle datetime serialization
+                if hasattr(value, 'isoformat'):
+                    serialized_message[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_message[key] = value
+                else:
+                    serialized_message[key] = datetime.now(timezone.utc).isoformat()
+            elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                serialized_message[key] = value.isoformat()
+            else:
+                serialized_message[key] = value
+        
+        notification = {
+            "type": "ai_response",
+            "conversation_id": str(conversation_id),
+            "message": serialized_message,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Broadcasted AI response notification for conversation {conversation_id}")
+    
+    @staticmethod
+    async def notify_autoreply_toggled(conversation_id: str, enabled: bool, changed_by: str = None):
+        """Notify about auto-reply toggle changes."""
+        notification = {
+            "type": "autoreply_toggled",
+            "conversation_id": str(conversation_id),
+            "ai_autoreply_enabled": enabled,
+            "changed_by": changed_by,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🔔 [WS] Broadcasted auto-reply toggle notification for conversation {conversation_id}: {enabled}")
+    
+    @staticmethod
     async def reset_unread_count_for_user(user_id: str, conversation_id: str):
         """Reset unread count when user reads messages."""
         manager.reset_unread_count(user_id, conversation_id)

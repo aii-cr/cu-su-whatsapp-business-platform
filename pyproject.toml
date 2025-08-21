@@ -255,6 +255,7 @@ dependencies = [
     "nltk>=3.8.1",
     "numpy>=2.2.2",
     "tiktoken>=0.9.0",
+    "langgraph>=0.6.6",
 ]
 
 [dependency-groups]

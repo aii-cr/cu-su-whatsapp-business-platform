@@ -54,6 +54,21 @@ export interface WebSocketMessageData {
     activity: 'typing_start' | 'typing_stop' | 'online' | 'offline';
     timestamp: string;
   };
+  
+  // AI-generated response
+  ai_response: {
+    conversation_id: string;
+    message: Record<string, unknown>; // AI response message object
+    timestamp: string;
+  };
+  
+  // Auto-reply toggle notification
+  autoreply_toggled: {
+    conversation_id: string;
+    ai_autoreply_enabled: boolean;
+    changed_by?: string;
+    timestamp: string;
+  };
 }
 
 export class MessagingWebSocketClient extends WebSocketClient {
@@ -181,6 +196,26 @@ export class MessagingWebSocketClient extends WebSocketClient {
         case 'user_activity':
           console.log('🔔 [WEBSOCKET] Handling user activity');
           this.handleUserActivity(data.data || data);
+          break;
+          
+        case 'ai_response':
+          console.log('🤖 [WEBSOCKET] Handling AI response');
+          console.log('🤖 [WEBSOCKET] AI message data:', data.message);
+          this.handleAIResponse({
+            conversation_id: data.conversation_id,
+            message: data.message,
+            timestamp: data.timestamp
+          });
+          break;
+          
+        case 'autoreply_toggled':
+          console.log('🔔 [WEBSOCKET] Handling auto-reply toggle');
+          this.handleAutoReplyToggle({
+            conversation_id: data.conversation_id,
+            ai_autoreply_enabled: data.ai_autoreply_enabled,
+            changed_by: data.changed_by,
+            timestamp: data.timestamp
+          });
           break;
           
         case 'messages_read':
@@ -664,6 +699,42 @@ export class MessagingWebSocketClient extends WebSocketClient {
         this.handleIncomingMessage(event);
       };
     }
+  }
+
+  /**
+   * Handle AI-generated response message
+   */
+  private handleAIResponse(data: WebSocketMessageData['ai_response']) {
+    console.log('🤖 [WEBSOCKET] handleAIResponse called with data:', data);
+    
+    // Treat AI responses the same as new messages for UI updates
+    this.handleNewMessage({
+      conversation_id: data.conversation_id,
+      message: data.message
+    });
+
+    // Show specific toast for AI response
+    toast.info('🤖 AI Assistant responded');
+  }
+
+  /**
+   * Handle auto-reply toggle notification
+   */
+  private handleAutoReplyToggle(data: WebSocketMessageData['autoreply_toggled']) {
+    console.log('🔔 [WEBSOCKET] handleAutoReplyToggle called with data:', data);
+    
+    const { conversation_id, ai_autoreply_enabled, changed_by } = data;
+
+    // Invalidate conversation queries to refresh the toggle state
+    this.queryClient.invalidateQueries({
+      queryKey: ['conversation', conversation_id],
+    });
+
+    // Show notification about the change
+    const action = ai_autoreply_enabled ? 'enabled' : 'disabled';
+    const actor = changed_by || 'An agent';
+    
+    toast.info(`AI Auto-reply ${action}: ${actor} ${action} AI automatic responses`);
   }
 
   /**
