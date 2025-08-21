@@ -27,9 +27,18 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
         # Initialize RAG tool
         rag_tool = RAGTool()
         
-        # Execute RAG search
+        # Enhance query with conversation context
+        enhanced_query = _enhance_query_with_context(
+            state["user_text"], 
+            state.get("conversation_history", []),
+            state.get("conversation_summary", "")
+        )
+        
+        logger.info(f"Enhanced query: '{enhanced_query[:100]}...'")
+        
+        # Execute RAG search with enhanced query
         rag_result = await rag_tool.execute_with_timeout(
-            query=state["user_text"],
+            query=enhanced_query,
             tenant_id="default",  # TODO: Extract from conversation metadata
             locale=state.get("customer_language", "es"),
             max_context_length=ai_config.max_context_tokens
@@ -41,8 +50,15 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
             confidence = rag_result.data["confidence"]
             sources = rag_result.data["sources"]
             
+            # Post-process answer based on conversation context
+            processed_answer = _post_process_answer(
+                answer, 
+                state.get("conversation_history", []),
+                state.get("intent", "faq")
+            )
+            
             # Update state
-            state["reply"] = answer
+            state["reply"] = processed_answer
             state["confidence"] = confidence
             state["tool_result"] = rag_result.data
             state["context_docs"] = sources
@@ -81,3 +97,85 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
         state["tool_result"] = {"error": str(e)}
     
     return state
+
+
+def _enhance_query_with_context(
+    user_text: str, 
+    conversation_history: list, 
+    conversation_summary: str
+) -> str:
+    """
+    Enhance the user query with conversation context.
+    
+    Args:
+        user_text: Current user message
+        conversation_history: Previous conversation messages
+        conversation_summary: Summary of conversation so far
+        
+    Returns:
+        Enhanced query with context
+    """
+    enhanced_parts = [user_text]
+    
+    # Add conversation summary if available
+    if conversation_summary:
+        enhanced_parts.append(f"Contexto de la conversación: {conversation_summary}")
+    
+    # Add recent user messages for context (last 2)
+    recent_user_messages = [
+        msg["content"] for msg in conversation_history[-4:] 
+        if msg.get("role") == "user"
+    ][-2:]  # Last 2 user messages
+    
+    if recent_user_messages:
+        context_messages = "; ".join(recent_user_messages)
+        enhanced_parts.append(f"Mensajes recientes del usuario: {context_messages}")
+    
+    return " | ".join(enhanced_parts)
+
+
+def _post_process_answer(
+    answer: str, 
+    conversation_history: list, 
+    intent: str
+) -> str:
+    """
+    Post-process the RAG answer based on conversation context.
+    
+    Args:
+        answer: Raw RAG answer
+        conversation_history: Previous conversation messages
+        intent: Current intent
+        
+    Returns:
+        Processed answer
+    """
+    # Remove redundant information if already mentioned
+    if conversation_history:
+        recent_ai_messages = [
+            msg["content"] for msg in conversation_history[-4:] 
+            if msg.get("role") == "assistant"
+        ]
+        
+        # Check if we're repeating information
+        for recent_msg in recent_ai_messages:
+            # Simple check for significant overlap
+            recent_words = set(recent_msg.lower().split())
+            answer_words = set(answer.lower().split())
+            
+            if len(recent_words.intersection(answer_words)) > len(answer_words) * 0.7:
+                # High overlap, try to make answer more concise
+                logger.info("Detected potential repetition, making answer more concise")
+                # Could implement more sophisticated deduplication here
+    
+    # Add context-aware transitions
+    if intent == "continue" and conversation_history:
+        # Check if this is a follow-up to a previous question
+        if any(word in answer.lower() for word in ["además", "también", "así mismo"]):
+            # Already has transition, keep as is
+            pass
+        else:
+            # Could add subtle transition if needed
+            pass
+    
+    return answer

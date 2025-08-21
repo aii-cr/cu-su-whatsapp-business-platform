@@ -12,6 +12,7 @@ from app.core.logger import logger
 from app.services.ai.config import ai_config
 from app.services.ai.graphs.whatsapp_agent import WhatsAppAgent, AgentState
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
+from app.services.ai.memory_service import memory_service
 from app.services import message_service, conversation_service
 from app.services.websocket.websocket_service import manager, WebSocketService
 
@@ -352,10 +353,14 @@ class AgentService:
             # Check collection health
             collection_health = await check_collection_health()
             
+            # Get memory service statistics
+            memory_stats = memory_service.get_memory_stats()
+            
             return {
                 "status": "healthy" if agent_health["status"] == "healthy" else "unhealthy",
                 "agent": agent_health,
                 "knowledge_base": collection_health,
+                "memory_service": memory_stats,
                 "initialized": self._initialized,
                 "config": {
                     "model": ai_config.openai_model,
@@ -372,6 +377,63 @@ class AgentService:
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
+    
+    async def get_conversation_context(self, conversation_id: str) -> Dict[str, Any]:
+        """
+        Get conversation context and memory information.
+        
+        Args:
+            conversation_id: Conversation identifier
+            
+        Returns:
+            Conversation context information
+        """
+        try:
+            return memory_service.get_conversation_context(conversation_id)
+        except Exception as e:
+            logger.error(f"Error getting conversation context: {str(e)}")
+            return {"error": str(e)}
+    
+    async def clear_conversation_memory(self, conversation_id: str) -> Dict[str, Any]:
+        """
+        Clear conversation memory and session data.
+        
+        Args:
+            conversation_id: Conversation identifier
+            
+        Returns:
+            Result of the clear operation
+        """
+        try:
+            memory_service.clear_conversation_memory(conversation_id)
+            
+            logger.info(f"Cleared conversation memory for {conversation_id}")
+            
+            return {
+                "success": True,
+                "conversation_id": conversation_id,
+                "message": "Conversation memory cleared successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error clearing conversation memory: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def get_memory_statistics(self) -> Dict[str, Any]:
+        """
+        Get memory service statistics.
+        
+        Returns:
+            Memory statistics
+        """
+        try:
+            return memory_service.get_memory_stats()
+        except Exception as e:
+            logger.error(f"Error getting memory statistics: {str(e)}")
+            return {"error": str(e)}
     
     async def toggle_autoreply(
         self,

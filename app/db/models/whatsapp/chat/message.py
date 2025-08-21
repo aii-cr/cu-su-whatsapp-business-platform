@@ -41,6 +41,7 @@ class SenderRole(str, Enum):
     """Message sender role."""
     CUSTOMER = "customer"
     AGENT = "agent"
+    AI_ASSISTANT = "ai_assistant"
     BOT = "bot"
     SYSTEM = "system"
 

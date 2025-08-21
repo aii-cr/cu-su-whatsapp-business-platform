@@ -15,6 +15,7 @@ import { MessageComposer } from '@/features/conversations/components/MessageComp
 import { ConversationHeader } from '@/features/conversations/components/ConversationHeader';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
 import { UnreadMessagesBanner } from '@/features/conversations/components/UnreadMessagesBanner';
+import { ConversationContext } from '@/features/conversations/components/ConversationContext';
 import { VirtualizedMessageList } from '@/features/messages/components/VirtualizedMessageList';
 
 import { useAuthStore } from '@/lib/store';
@@ -163,8 +164,6 @@ export default function ConversationDetailsPage() {
         />
       )}
 
-
-
       {/* Debug button - remove this after testing */}
       {process.env.NODE_ENV === 'development' && (
         <div className="p-2 bg-yellow-100 dark:bg-yellow-900 border-b">
@@ -208,26 +207,39 @@ export default function ConversationDetailsPage() {
         </div>
       )}
 
-      {/* Messages area with virtualized infinite scroll */}
-      <VirtualizedMessageList 
-        conversationId={conversationId}
-        className="flex-1"
-      />
+      {/* Main content area */}
+      <div className="flex-1 flex">
+        {/* Messages area with virtualized infinite scroll */}
+        <div className="flex-1 flex flex-col">
+          <VirtualizedMessageList 
+            conversationId={conversationId}
+            className="flex-1"
+          />
 
-      {/* Message composer */}
-      <MessageComposer
-        onSendMessage={handleSendMessage}
-        onSendMedia={handleSendMedia}
-        disabled={conversation.status === 'closed'}
-        loading={sendMessageMutation.isPending}
-        placeholder={
-          conversation.status === 'closed' 
-            ? "This conversation is closed" 
-            : "Type a message..."
-        }
-        onTypingStart={sendTypingStart}
-        onTypingStop={sendTypingStop}
-      />
+          {/* Message composer */}
+          <MessageComposer
+            onSendMessage={handleSendMessage}
+            onSendMedia={handleSendMedia}
+            disabled={conversation.status === 'closed'}
+            loading={sendMessageMutation.isPending}
+            placeholder={
+              conversation.status === 'closed' 
+                ? "This conversation is closed" 
+                : "Type a message..."
+            }
+            onTypingStart={sendTypingStart}
+            onTypingStop={sendTypingStop}
+          />
+        </div>
+
+        {/* AI Context Sidebar */}
+        <div className="w-80 border-l border-border bg-muted/20 p-4 overflow-y-auto">
+          <ConversationContext 
+            conversationId={conversationId}
+            className="h-full"
+          />
+        </div>
+      </div>
     </div>
   );
 }

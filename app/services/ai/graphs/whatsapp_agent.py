@@ -10,12 +10,15 @@ from datetime import datetime
 from langgraph.graph import StateGraph, END
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
 from app.services.ai.tools.rag_tool import RAGTool
 from app.services.ai.graphs.subgraphs.faq_rag_flow import run_rag_flow
 from app.services.ai.graphs.subgraphs.language_detection import detect_language_and_greeting
+from app.services.ai.memory_service import memory_service
 
 
 class AgentState(TypedDict, total=False):
@@ -34,6 +37,12 @@ class AgentState(TypedDict, total=False):
     customer_language: str
     is_first_message: bool
     ai_autoreply_enabled: bool
+    
+    # Conversation memory and context
+    conversation_history: List[Dict[str, Any]]  # Previous messages in this conversation
+    conversation_summary: str  # Compressed summary of conversation so far
+    memory_key: str  # Key for memory retrieval
+    session_id: str  # Unique session identifier
     
     # RAG context
     context_docs: List[Dict[str, Any]]
@@ -87,6 +96,7 @@ class WhatsAppAgent:
         
         # Add nodes
         workflow.add_node("start_processing", self._start_processing)
+        workflow.add_node("initialize_context", self._initialize_conversation_context)
         workflow.add_node("detect_language", detect_language_and_greeting)
         workflow.add_node("detect_intent", self._detect_intent)
         workflow.add_node("check_autoreply", self._check_autoreply)
@@ -100,7 +110,8 @@ class WhatsAppAgent:
         workflow.set_entry_point("start_processing")
         
         # Add edges
-        workflow.add_edge("start_processing", "detect_language")
+        workflow.add_edge("start_processing", "initialize_context")
+        workflow.add_edge("initialize_context", "detect_language")
         workflow.add_edge("detect_language", "check_autoreply")
         
         # Conditional edge from check_autoreply
@@ -120,7 +131,9 @@ class WhatsAppAgent:
                 "faq": "faq_rag",
                 "booking": "booking_flow", 
                 "payment": "payment_flow",
-                "fallback": "fallback_flow"
+                "fallback": "fallback_flow",
+                "greeting": "faq_rag",  # Handle greeting through FAQ flow
+                "continue": "faq_rag"   # Continue conversation through FAQ flow
             }
         )
         
@@ -158,7 +171,12 @@ class WhatsAppAgent:
         Returns:
             Final agent state with response
         """
-        # Initialize state
+        # Load conversation history and create session
+        conversation_history = await memory_service.load_conversation_history(conversation_id)
+        conversation_summary = memory_service.create_conversation_summary(conversation_history)
+        session_id = f"{conversation_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Initialize state with conversation context
         initial_state: AgentState = {
             "user_text": user_text,
             "conversation_id": conversation_id,
@@ -166,15 +184,30 @@ class WhatsAppAgent:
             "message_id": message_id,
             "ai_autoreply_enabled": ai_autoreply_enabled,
             "is_first_message": is_first_message,
+            "conversation_history": conversation_history,
+            "conversation_summary": conversation_summary,
+            "memory_key": "conversation_history",
+            "session_id": session_id,
             "processing_start_time": datetime.now().isoformat(),
             "node_history": []
         }
         
-        logger.info(f"Processing message for conversation {conversation_id}: '{user_text[:100]}...'")
+        logger.info(
+            f"Processing message for conversation {conversation_id} "
+            f"(history: {len(conversation_history)} messages, "
+            f"summary: {conversation_summary[:100]}...): '{user_text[:100]}...'"
+        )
         
         try:
             # Run the graph
             final_state = await self.graph.ainvoke(initial_state)
+            
+            # Update conversation memory with this interaction
+            memory_service.add_interaction_to_memory(
+                conversation_id=conversation_id,
+                user_message=user_text,
+                ai_response=final_state.get("reply", "")
+            )
             
             processing_time = (
                 datetime.now() - datetime.fromisoformat(initial_state["processing_start_time"])
@@ -207,11 +240,49 @@ class WhatsAppAgent:
         logger.info(f"Starting processing for conversation {state['conversation_id']}")
         return state
     
+    async def _initialize_conversation_context(self, state: AgentState) -> AgentState:
+        """Initialize conversation context and determine if greeting is needed."""
+        state["node_history"] = state.get("node_history", []) + ["initialize_context"]
+        
+        conversation_history = state.get("conversation_history", [])
+        is_first_message = state.get("is_first_message", False)
+        
+        # Determine if this is truly the first interaction
+        if is_first_message or len(conversation_history) == 0:
+            state["intent"] = "greeting"
+            logger.info(f"First message detected for conversation {state['conversation_id']}")
+        else:
+            # Check if we should continue the conversation naturally
+            state["intent"] = "continue"
+            logger.info(
+                f"Continuing conversation {state['conversation_id']} "
+                f"with {len(conversation_history)} previous messages"
+            )
+        
+        return state
+    
     async def _detect_intent(self, state: AgentState) -> AgentState:
         """Detect user intent from the message."""
         state["node_history"] = state.get("node_history", []) + ["detect_intent"]
         
         user_text = state["user_text"].lower()
+        conversation_history = state.get("conversation_history", [])
+        current_intent = state.get("intent", "continue")
+        
+        # If this is a greeting or first message, keep that intent
+        if current_intent == "greeting":
+            return state
+        
+        # Check if this is a continuation of previous conversation
+        if current_intent == "continue" and conversation_history:
+            # Analyze recent conversation context
+            recent_messages = conversation_history[-4:]  # Last 4 messages
+            context_keywords = self._extract_context_keywords(recent_messages)
+            
+            # If context suggests ongoing topic, maintain that context
+            if context_keywords:
+                logger.info(f"Detected conversation context: {context_keywords}")
+                # Continue with the same intent as before, but analyze current message
         
         # Simple keyword-based intent detection
         # In production, you might use a more sophisticated classifier
@@ -226,15 +297,50 @@ class WhatsAppAgent:
             "tarjeta", "card", "transfer", "paypal"
         ]
         
+        # Check for follow-up questions or clarifications
+        clarification_keywords = [
+            "qué", "que", "what", "cómo", "como", "how", "cuándo", "cuando", "when",
+            "dónde", "donde", "where", "por qué", "porque", "why", "más", "more"
+        ]
+        
         if any(keyword in user_text for keyword in booking_keywords):
             state["intent"] = "booking"
         elif any(keyword in user_text for keyword in payment_keywords):
             state["intent"] = "payment"
+        elif any(keyword in user_text for keyword in clarification_keywords):
+            # This might be a follow-up question, treat as FAQ
+            state["intent"] = "faq"
         else:
             state["intent"] = "faq"  # Default to FAQ/information
         
         logger.info(f"Detected intent: {state['intent']} for message: '{user_text[:50]}...'")
         return state
+    
+    def _extract_context_keywords(self, recent_messages: List[Dict[str, Any]]) -> List[str]:
+        """
+        Extract context keywords from recent conversation history.
+        
+        Args:
+            recent_messages: Recent conversation messages
+            
+        Returns:
+            List of context keywords
+        """
+        keywords = []
+        
+        for msg in recent_messages:
+            content = msg.get("content", "").lower()
+            
+            if any(word in content for word in ["reserva", "booking", "cita"]):
+                keywords.append("booking")
+            elif any(word in content for word in ["pago", "payment", "precio", "price"]):
+                keywords.append("payment")
+            elif any(word in content for word in ["horario", "schedule", "disponibilidad"]):
+                keywords.append("scheduling")
+            elif any(word in content for word in ["información", "information", "ayuda", "help"]):
+                keywords.append("information")
+        
+        return list(set(keywords))  # Remove duplicates
     
     async def _check_autoreply(self, state: AgentState) -> AgentState:
         """Check if auto-reply is enabled."""
@@ -308,9 +414,20 @@ class WhatsAppAgent:
         state["node_history"] = state.get("node_history", []) + ["finalize_response"]
         
         # Add greeting if first message
-        if state.get("is_first_message") and state.get("reply") != "NO_REPLY":
+        if state.get("intent") == "greeting" and state.get("reply") != "NO_REPLY":
             greeting = self._get_greeting(state.get("customer_language", "es"))
             state["reply"] = f"{greeting}\n\n{state.get('reply', '')}"
+        
+        # Add context-aware response for continuing conversations
+        elif state.get("intent") == "continue" and state.get("reply") != "NO_REPLY":
+            # Check if we need to acknowledge the continuation
+            conversation_history = state.get("conversation_history", [])
+            if len(conversation_history) > 0:
+                # Add a subtle acknowledgment if appropriate
+                current_reply = state.get("reply", "")
+                if not any(word in current_reply.lower() for word in ["perfecto", "perfect", "entendido", "understood"]):
+                    # Don't add acknowledgment if already present
+                    pass
         
         # Ensure confidence is set
         if "confidence" not in state:
@@ -361,7 +478,7 @@ class WhatsAppAgent:
         """Route to appropriate flow based on intent."""
         intent = state.get("intent", "fallback")
         
-        if intent in ["faq", "booking", "payment", "fallback"]:
+        if intent in ["faq", "booking", "payment", "fallback", "greeting", "continue"]:
             return intent
         else:
             return "fallback"

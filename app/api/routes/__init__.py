@@ -22,6 +22,7 @@ from .whatsapp.chat.messages import router as messages_router
 from .whatsapp.chat.tags import router as tags_router
 from .whatsapp.webhook import router as webhook_router
 from .business import router as business_router
+from .ai.memory import router as ai_memory_router
 
 # Create main API router
 api_router = APIRouter()
@@ -41,6 +42,9 @@ api_router.include_router(tags_router)
 
 # Include business routes
 api_router.include_router(business_router)
+
+# Include AI routes
+api_router.include_router(ai_memory_router)
 
 # Include WebSocket routes
 api_router.include_router(websocket_router)
