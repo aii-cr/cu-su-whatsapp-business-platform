@@ -193,6 +193,10 @@ export class MessagingWebSocketClient extends WebSocketClient {
         case 'message_status':
         case 'message_status_update':
           console.log('🔔 [WEBSOCKET] Handling message status update');
+          console.log('🔔 [WEBSOCKET] Raw status update data:', data);
+          console.log('🔔 [WEBSOCKET] Message ID:', data.message_id);
+          console.log('🔔 [WEBSOCKET] Status:', data.status);
+          console.log('🔔 [WEBSOCKET] Message data:', data.message_data);
           this.handleMessageStatus({
             conversation_id: data.conversation_id,
             message_id: data.message_id,
@@ -378,81 +382,15 @@ export class MessagingWebSocketClient extends WebSocketClient {
     const isFromCurrentUser = message.sender_id === currentUser?._id;
     console.log('🔔 [WEBSOCKET] Is from current user:', isFromCurrentUser);
     
-    if (isFromCurrentUser) {
-      console.log('🔔 [WEBSOCKET] Message is from current user, checking for optimistic message to update');
-      
-      // Try to update optimistic message using the window function from VirtualizedMessageList
-      if ((window as any).updateOptimisticMessage) {
-        // Find the optimistic message ID by matching text content and timestamp
-        const optimisticId = this.findOptimisticMessageId(conversation_id, message);
-        if (optimisticId) {
-          console.log('🔔 [WEBSOCKET] Found optimistic message to update:', optimisticId);
-          
-          // Add a small delay to ensure the optimistic message is visible with loading state
-          setTimeout(() => {
-            (window as any).updateOptimisticMessage(optimisticId, message);
-            console.log('🔔 [WEBSOCKET] Updated optimistic message after delay');
-          }, 1200); // 1.2s delay to ensure user perceives sending state
-          
-          return; // Don't add duplicate, we handled it manually
-        } else {
-          console.log('⚠️ [WEBSOCKET] No optimistic message found to update, will add to query normally');
-        }
-      } else {
-        console.log('⚠️ [WEBSOCKET] updateOptimisticMessage function not available, using fallback');
-        // Fallback to direct cache update
-        const updated = this.updateOptimisticMessageInCache(conversation_id, message);
-        if (updated) {
-          console.log('🔔 [WEBSOCKET] Successfully updated optimistic message with real data (fallback)');
-          return; // Don't add duplicate, we handled it manually
-        }
-      }
-    }
+    // SIMPLE APPROACH: Just invalidate the query for all messages
+    // This ensures we always have the latest data from the server
     
-    // For messages from other users or if no optimistic message found, add to query manually
-    console.log('🔔 [WHATSAPP_UX] Adding new message to infinite query smoothly...');
+    // SIMPLE APPROACH: Just invalidate the query and let it refetch fresh data
+    console.log('🔔 [WEBSOCKET] Invalidating query to refresh messages after new message');
     
-    // Update the infinite query directly for WhatsApp-style smooth experience
-    this.queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-      (oldData: any) => {
-        if (!oldData) {
-          console.log('⚠️ [WEBSOCKET] No existing query data, creating new structure');
-          return {
-            pages: [{
-              messages: [message],
-              next_cursor: null,
-              has_more: false,
-              anchor: 'latest',
-              cache_hit: false
-            }]
-          };
-        }
-        
-        console.log('🔔 [WEBSOCKET] Updating existing query data');
-        // Add to the first page (latest messages)
-        const updatedPages = [...oldData.pages];
-        if (updatedPages[0]) {
-          // Check if message already exists to avoid duplicates
-          const existingMessage = updatedPages[0].messages.find((m: any) => m._id === message._id);
-          if (!existingMessage) {
-            console.log('✅ [WHATSAPP_UX] Adding new message to query data directly');
-            updatedPages[0] = {
-              ...updatedPages[0],
-              messages: [...updatedPages[0].messages, message]
-            };
-          } else {
-            console.log('⚠️ [WHATSAPP_UX] Message already exists in query, skipping duplicate');
-            return oldData; // Return unchanged data to prevent unnecessary re-renders
-          }
-        }
-        
-        return {
-          ...oldData,
-          pages: updatedPages
-        };
-      }
-    );
+    this.queryClient.invalidateQueries({
+      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+    });
 
     // Minimal invalidation - only mark conversation list as stale (no refetch)
     this.queryClient.invalidateQueries({
@@ -469,116 +407,22 @@ export class MessagingWebSocketClient extends WebSocketClient {
     }
   }
 
-  private findOptimisticMessageId(conversationId: string, realMessage: any): string | null {
-    // Get current query data to find optimistic message
-    const queryData = this.queryClient.getQueryData(
-      messageQueryKeys.conversationMessages(conversationId, { limit: 50 })
-    ) as any;
-    
-    if (!queryData?.pages) return null;
-    
-    // Look for optimistic message with matching text content
-    for (const page of queryData.pages) {
-      for (const msg of page.messages) {
-        if (msg._id?.startsWith('optimistic-') && 
-            msg.text_content === realMessage.text_content &&
-            msg.direction === realMessage.direction) {
-          console.log('🔍 [WEBSOCKET] Found matching optimistic message:', msg._id);
-          return msg._id;
-        }
-      }
-    }
-    
-    return null;
-  }
+  // REMOVED: Complex optimistic message handling - using simple query invalidation instead
 
-  private updateOptimisticMessageInCache(conversationId: string, realMessage: unknown): boolean {
-    console.log('🔔 [WEBSOCKET] Attempting to update optimistic message in cache for:', realMessage);
-    
-    const realMessageData = realMessage as any;
-    
-    // Try to find and update optimistic message in the query cache
-    const updated = this.queryClient.setQueryData(
-      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-      (oldData: any) => {
-        if (!oldData) return oldData;
-        
-        const updatedPages = oldData.pages.map((page: any) => {
-          // Check if the real message already exists to prevent duplicates
-          const existingMessage = page.messages.find((msg: any) => msg._id === realMessageData._id);
-          if (existingMessage) {
-            console.log('✅ [WEBSOCKET] Real message already exists, skipping duplicate');
-            return page;
-          }
-          
-          // Replace optimistic message with real message
-          const updatedMessages = page.messages.map((msg: any) => {
-            if (msg._id?.startsWith('optimistic-')) {
-              console.log('✅ [WEBSOCKET] Replacing optimistic message with real message');
-              return { ...realMessageData, _id: realMessageData._id };
-            }
-            return msg;
-          });
-          
-          return {
-            ...page,
-            messages: updatedMessages
-          };
-        });
-        
-        return {
-          ...oldData,
-          pages: updatedPages
-        };
-      }
-    );
-    
-    return !!updated;
-  }
-
-  private handleMessageStatus(data: WebSocketMessageData['message_status'] & { message_data?: any }) {
+    private handleMessageStatus(data: WebSocketMessageData['message_status'] & { message_data?: any }) {
     console.log('🔔 [WEBSOCKET] Frontend received message status update:', data);
     const { conversation_id, message_id, status, message_data } = data;
     
-    if (message_data) {
-      // Optimized update: directly update the message in the query cache
-      console.log(`🔔 [WEBSOCKET] Optimized status update: ${message_id} -> ${status}`);
-      
-      this.queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) return oldData;
-          
-          const updatedPages = oldData.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: any) => 
-              msg._id === message_id 
-                ? { ...msg, ...message_data, status }
-                : msg
-            )
-          }));
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-      
-      console.log('🔔 [WEBSOCKET] Optimized status update applied - no query invalidation needed');
-    } else {
-      // Fallback: invalidate queries if no message data provided
-      console.log(`🔔 [WEBSOCKET] Fallback status update: ${message_id} -> ${status}, invalidating queries...`);
-      
-      this.queryClient.invalidateQueries({
-        queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-      });
-    }
-
-    // Show notification for status updates (optional)
-    if (status === 'delivered' || status === 'read') {
-      console.log(`🔔 [WEBSOCKET] Message ${message_id} status updated to: ${status}`);
-    }
+    console.log(`🔔 [WEBSOCKET] Processing status update: ${message_id} -> ${status}`);
+    
+    // SIMPLE APPROACH: Just invalidate the query and let it refetch fresh data
+    console.log(`🔄 [WEBSOCKET] Invalidating query for conversation ${conversation_id} to refresh message status`);
+    
+    this.queryClient.invalidateQueries({
+      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+    });
+    
+    console.log(`✅ [WEBSOCKET] Query invalidated successfully for status update: ${message_id} -> ${status}`);
   }
 
   private handleConversationUpdate(data: WebSocketMessageData['conversation_update']) {

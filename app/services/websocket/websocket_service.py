@@ -338,6 +338,9 @@ class WebSocketService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        logger.info(f"🔔 [WEBSOCKET] Broadcasting status update notification: {notification}")
+        logger.info(f"🔔 [WEBSOCKET] Message data in notification: {serialized_message_data}")
+        
         await manager.broadcast_to_conversation(notification, str(conversation_id))
         logger.info(f"Broadcasted optimized status update for message {message_id} in conversation {conversation_id}")
     

@@ -411,6 +411,9 @@ async def process_message_status(
     # Get updated message data for optimized notification
     updated_message = await message_service.get_message(str(message["_id"]))
     
+    logger.info(f"🔍 [STATUS] Updated message data: {updated_message}")
+    logger.info(f"🔍 [STATUS] Message status in updated data: {updated_message.get('status') if updated_message else 'None'}")
+    
     # Serialize the message data to handle ObjectId fields
     if updated_message:
         serialized_message = {}
@@ -431,6 +434,9 @@ async def process_message_status(
                 serialized_message[key] = value.isoformat()
             else:
                 serialized_message[key] = value
+        
+        logger.info(f"🔍 [STATUS] Serialized message data: {serialized_message}")
+        logger.info(f"🔍 [STATUS] Status in serialized data: {serialized_message.get('status')}")
     else:
         serialized_message = None
     

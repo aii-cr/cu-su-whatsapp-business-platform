@@ -49,16 +49,7 @@ export function VirtualizedMessageList({
   const [lastSeenMessageCount, setLastSeenMessageCount] = useState(0);
   const [isAITyping, setIsAITyping] = useState(false);
   
-  // Optimistic messages state for immediate rendering
-  const [optimisticMessages, setOptimisticMessages] = useState<Map<string, any>>(new Map());
-  
-  // Ref for optimistic messages to avoid dependency issues
-  const optimisticMessagesRef = useRef<Map<string, any>>(new Map());
-  
-  // Keep ref in sync with state
-  useEffect(() => {
-    optimisticMessagesRef.current = optimisticMessages;
-  }, [optimisticMessages]);
+  // REMOVED: Complex optimistic message handling - using simple query invalidation instead
   
   // Refs for tracking messages and animations
   const previousMessageIds = useRef<Set<string>>(new Set());
@@ -186,20 +177,15 @@ export function VirtualizedMessageList({
   // Flatten messages from all pages and sort chronologically (oldest to newest)
   const messages = messagesData?.pages.flatMap((page) => page.messages) || [];
   
-  // Add optimistic messages to the messages array
-  const optimisticMessagesArray = Array.from(optimisticMessages.values());
-  const allMessages = [...messages, ...optimisticMessagesArray];
-  
-  const sortedMessages = [...allMessages].sort(
+  const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
   
-  // Determine if we have any messages at all (including optimistic ones)
+  // Determine if we have any messages at all
   const hasAnyMessages = sortedMessages.length > 0;
   
   // Debug logging
   console.log('🔍 [MESSAGES] Total messages loaded:', sortedMessages.length);
-  console.log('🔍 [MESSAGES] Optimistic messages:', optimisticMessagesArray.length);
   if (sortedMessages.length > 0) {
     console.log('🔍 [MESSAGES] Latest message:', sortedMessages[sortedMessages.length - 1]);
     console.log('🔍 [MESSAGES] Message IDs:', sortedMessages.map(m => m._id));
@@ -210,20 +196,9 @@ export function VirtualizedMessageList({
     console.log('🔍 [MESSAGES] Messages updated:', {
       count: sortedMessages.length,
       ids: sortedMessages.map(m => m._id),
-      latest: sortedMessages[sortedMessages.length - 1]?.text_content,
-      optimisticCount: optimisticMessagesArray.length,
-      optimisticIds: optimisticMessagesArray.map(m => m._id)
+      latest: sortedMessages[sortedMessages.length - 1]?.text_content
     });
-  }, [sortedMessages, optimisticMessagesArray]);
-
-  // Debug: Log optimistic messages state changes
-  useEffect(() => {
-    console.log('🔍 [OPTIMISTIC_STATE] Optimistic messages state changed:', {
-      count: optimisticMessages.size,
-      ids: Array.from(optimisticMessages.keys()),
-      messages: Array.from(optimisticMessages.values()).map(m => ({ id: m._id, text: m.text_content }))
-    });
-  }, [optimisticMessages]);
+  }, [sortedMessages]);
 
   // Add test function to window for debugging
   React.useEffect(() => {
@@ -233,233 +208,7 @@ export function VirtualizedMessageList({
       console.log('🧪 [TEST] User:', user);
     };
     
-    // Add test function to manually add a message to the query cache
-    (window as any).testAddMessage = () => {
-      const testMessage = {
-        _id: `test-${Date.now()}`,
-        conversation_id: conversationId,
-        message_type: 'text',
-        direction: 'outbound',
-        sender_role: 'agent',
-        sender_id: user?._id || 'test-user',
-        sender_name: user?.first_name || 'Test User',
-        text_content: `Test message ${Date.now()}`,
-        status: 'sent',
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        type: 'text',
-      };
-      
-      console.log('🧪 [TEST] Adding test message:', testMessage);
-      
-      // Update the query cache directly
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) {
-            return {
-              pages: [{
-                messages: [testMessage],
-                next_cursor: null,
-                has_more: false,
-                anchor: 'latest',
-                cache_hit: false
-              }]
-            };
-          }
-          
-          const updatedPages = [...oldData.pages];
-          if (updatedPages[0]) {
-            updatedPages[0] = {
-              ...updatedPages[0],
-              messages: [...updatedPages[0].messages, testMessage]
-            };
-          }
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-      
-      console.log('🧪 [TEST] Test message added to query cache');
-    };
-
-    // Add test function to manually trigger optimistic message
-    (window as any).testOptimisticMessage = () => {
-      console.log('🧪 [TEST] Testing optimistic message flow');
-      console.log('🧪 [TEST] Current optimistic messages state:', optimisticMessagesRef.current.size);
-      
-      const optimisticId = (window as any).addOptimisticMessage?.('Test optimistic message');
-      console.log('🧪 [TEST] Optimistic message ID:', optimisticId);
-      
-      // Check state after adding
-      setTimeout(() => {
-        console.log('🧪 [TEST] Optimistic messages state after adding:', optimisticMessagesRef.current.size);
-        console.log('🧪 [TEST] Optimistic messages:', Array.from(optimisticMessagesRef.current.values()).map(m => ({ id: m._id, text: m.text_content })));
-      }, 100);
-      
-      // Simulate real message after 2 seconds
-      setTimeout(() => {
-        const realMessage = {
-          _id: `real-${Date.now()}`,
-          conversation_id: conversationId,
-          message_type: 'text',
-          direction: 'outbound',
-          sender_role: 'agent',
-          sender_id: user?._id || 'test-user',
-          sender_name: user?.first_name || 'Test User',
-          text_content: 'Test optimistic message',
-          status: 'sent',
-          timestamp: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          type: 'text',
-        };
-        
-        console.log('🧪 [TEST] Updating optimistic message with real message');
-        (window as any).updateOptimisticMessage?.(optimisticId, realMessage);
-      }, 2000);
-    };
-
-    // Add optimistic message functions to window for external access
-    (window as any).addOptimisticMessage = (text: string) => {
-      const optimisticMessage = {
-        _id: `optimistic-${Date.now()}-${Math.random()}`,
-        conversation_id: conversationId,
-        message_type: 'text',
-        direction: 'outbound',
-        sender_role: 'agent',
-        sender_id: user?._id || 'current-user',
-        sender_name: user?.first_name || user?.email || 'You',
-        text_content: text,
-        status: 'sending',
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        type: 'text',
-      };
-      
-      console.log('🚀 [OPTIMISTIC] Adding optimistic message:', optimisticMessage._id);
-      console.log('🚀 [OPTIMISTIC] Current optimistic messages count:', optimisticMessagesRef.current.size);
-      
-      // Add to optimistic messages state for immediate rendering
-      setOptimisticMessages(prev => {
-        const newMap = new Map(prev);
-        newMap.set(optimisticMessage._id, optimisticMessage);
-        console.log('🚀 [OPTIMISTIC] Updated optimistic messages state, new count:', newMap.size);
-        return newMap;
-      });
-      
-      // Also update the query cache for consistency
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) {
-            return {
-              pages: [{
-                messages: [optimisticMessage],
-                next_cursor: null,
-                has_more: false,
-                anchor: 'latest',
-                cache_hit: false
-              }]
-            };
-          }
-          
-          const updatedPages = [...oldData.pages];
-          if (updatedPages[0]) {
-            updatedPages[0] = {
-              ...updatedPages[0],
-              messages: [...updatedPages[0].messages, optimisticMessage]
-            };
-          }
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-      
-      // Force a re-render by updating the previous message IDs tracking
-      // This ensures the optimistic message is detected as new
-      setTimeout(() => {
-        previousMessageIds.current = new Set([...previousMessageIds.current, optimisticMessage._id]);
-        console.log('🔄 [OPTIMISTIC] Updated previousMessageIds to include optimistic message');
-      }, 0);
-      
-      // Scroll to bottom immediately for smooth UX
-      scrollToBottomSmooth();
-      
-      return optimisticMessage._id;
-    };
-
-    (window as any).updateOptimisticMessage = (optimisticId: string, realMessage: any) => {
-      console.log('🔄 [OPTIMISTIC] Updating optimistic message:', optimisticId, 'with real message:', realMessage._id);
-      
-      // Remove from optimistic messages state
-      setOptimisticMessages(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(optimisticId);
-        return newMap;
-      });
-      
-      // Update the query cache
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) return oldData;
-          
-          const updatedPages = oldData.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: any) => {
-              if (msg._id === optimisticId) {
-                console.log('✅ [OPTIMISTIC] Replacing optimistic message with real message');
-                return { ...realMessage, _id: realMessage._id };
-              }
-              return msg;
-            })
-          }));
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-    };
-
-    (window as any).removeOptimisticMessage = (optimisticId: string) => {
-      console.log('🗑️ [OPTIMISTIC] Removing optimistic message:', optimisticId);
-      
-      // Remove from optimistic messages state
-      setOptimisticMessages(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(optimisticId);
-        return newMap;
-      });
-      
-      // Remove from query cache
-      queryClient.setQueryData(
-        messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        (oldData: any) => {
-          if (!oldData) return oldData;
-          
-          const updatedPages = oldData.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.filter((msg: any) => msg._id !== optimisticId)
-          }));
-          
-          return {
-            ...oldData,
-            pages: updatedPages
-          };
-        }
-      );
-    };
+    // REMOVED: Complex optimistic message handling - using simple query invalidation instead
     
     return () => {
       delete (window as any).testMessageFlow;

@@ -71,6 +71,8 @@ export default function ConversationDetailsPage() {
   });
 
   const sendMessageMutation = useSendMessage();
+  
+  // REMOVED: Query client exposure - using simple query invalidation approach
 
   // Handle sending messages with optimistic updates
   const handleSendMessage = (text: string) => {
@@ -166,48 +168,7 @@ export default function ConversationDetailsPage() {
         />
       )}
 
-      {/* Debug button - remove this after testing */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="p-2 bg-yellow-100 dark:bg-yellow-900 border-b">
-          <button
-            onClick={() => {
-              console.log('🔧 [DEBUG] Manual mark as read triggered');
-              markMessagesAsRead();
-            }}
-            className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
-          >
-            🔧 Debug: Mark as Read
-          </button>
-          <button
-            onClick={() => {
-              console.log('🔧 [DEBUG] Direct WebSocket test');
-              console.log('WebSocket client:', webSocket.client);
-              console.log('WebSocket connected:', webSocket.client?.isConnected);
-              if (webSocket.client?.isConnected) {
-                webSocket.client.markMessagesAsRead(conversationId);
-                console.log('✅ Direct WebSocket message sent');
-              } else {
-                console.log('❌ WebSocket not connected');
-              }
-            }}
-            className="px-3 py-1 bg-green-500 text-white rounded text-sm ml-2"
-          >
-            🔧 Direct WS Test
-          </button>
-          <button
-            onClick={() => {
-              console.log('🔧 [DEBUG] Testing optimistic message flow');
-              (window as any).testOptimisticMessage?.();
-            }}
-            className="px-3 py-1 bg-purple-500 text-white rounded text-sm ml-2"
-          >
-            🔧 Test Optimistic
-          </button>
-          <span className="ml-2 text-sm">
-            DB Unread: {unreadCount} | Banner Unread: {bannerUnreadCount} | Banner: {isUnreadBannerVisible ? 'Visible' : 'Hidden'} | Replied: {hasRepliedToUnread ? 'Yes' : 'No'} | Marked: {hasMarkedAsRead ? 'Yes' : 'No'} | WS: {isConnected ? 'Connected' : 'Disconnected'} | Viewing: {isCurrentlyViewing ? 'Yes' : 'No'}
-          </span>
-        </div>
-      )}
+      {/* Debug section removed - using simple query invalidation approach */}
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
