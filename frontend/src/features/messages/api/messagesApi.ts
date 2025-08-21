@@ -69,6 +69,7 @@ export class MessagesApi {
         anchor: string;
         cache_hit: boolean;
       }>(`/messages/cursor?${params.toString()}`);
+      
       return response;
     } catch (error) {
       handleApiError(error);

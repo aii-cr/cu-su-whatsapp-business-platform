@@ -3,17 +3,17 @@ WebSocket routes for real-time messaging updates.
 Handles WebSocket connections and subscriptions for live chat functionality.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, status, Request, Depends
 from typing import Optional
 import json
 from datetime import datetime, timezone
 
 from app.core.logger import logger
-from app.services.websocket.websocket_service import manager
-from app.services import websocket_service
-from app.core.error_handling import handle_external_api_error
+from app.services.websocket.websocket_service import manager, websocket_service
 from app.db.client import database
 from bson import ObjectId
+from app.services.auth.utils.session_auth import get_current_user
+from app.db.models.auth.user import User
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
@@ -513,3 +513,50 @@ async def calculate_unread_counts_from_database(user_id: str) -> dict:
     except Exception as e:
         logger.error(f"❌ [UNREAD] Error calculating unread counts for user {user_id}: {str(e)}")
         return {} 
+
+@router.post("/test/status-update")
+async def test_message_status_update(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Test endpoint to simulate a message status update for debugging.
+    """
+    try:
+        body = await request.json()
+        conversation_id = body.get("conversation_id")
+        message_id = body.get("message_id")
+        status = body.get("status", "delivered")
+        
+        if not conversation_id or not message_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="conversation_id and message_id are required"
+            )
+        
+        logger.info(f"🧪 [TEST] Simulating status update: {message_id} -> {status} in conversation {conversation_id}")
+        
+        # Send a test WebSocket notification
+        await websocket_service.notify_message_status_update_optimized(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            status=status,
+            message_data={
+                "_id": message_id,
+                "conversation_id": conversation_id,
+                "status": status,
+                "direction": "outbound",
+                "sender_role": "agent",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        )
+        
+        return {"success": True, "message": f"Status update test sent: {message_id} -> {status}"}
+        
+    except Exception as e:
+        logger.error(f"❌ [TEST] Error in status update test: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Test failed: {str(e)}"
+        ) 

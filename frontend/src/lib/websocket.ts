@@ -415,14 +415,89 @@ export class MessagingWebSocketClient extends WebSocketClient {
     
     console.log(`🔔 [WEBSOCKET] Processing status update: ${message_id} -> ${status}`);
     
-    // SIMPLE APPROACH: Just invalidate the query and let it refetch fresh data
-    console.log(`🔄 [WEBSOCKET] Invalidating query for conversation ${conversation_id} to refresh message status`);
+    // OPTIMISTIC UPDATE: Update the message status in the cache immediately
+    if (message_data) {
+      console.log(`🔄 [WEBSOCKET] Performing optimistic update with message data for message ${message_id}`);
+      
+      // Update the conversation messages query cache - use the correct query key structure
+      this.queryClient.setQueryData(
+        messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+        (old: unknown) => {
+          if (!old || typeof old !== 'object') return old;
+          const oldData = old as { pages: { messages: (unknown & { _id?: string; status?: string })[], total: number }[] };
+          
+          const newPages = [...oldData.pages];
+          let updated = false;
+          
+          // Update the message in all pages
+          for (let i = 0; i < newPages.length; i++) {
+            const messages = [...newPages[i].messages];
+            const messageIndex = messages.findIndex((msg: any) => msg._id === message_id);
+            
+            if (messageIndex !== -1) {
+              console.log(`✅ [WEBSOCKET] Found message ${message_id} in page ${i}, updating status to ${status}`);
+              messages[messageIndex] = {
+                ...messages[messageIndex],
+                ...message_data, // Use the complete message data from backend
+                status: status
+              };
+              newPages[i] = {
+                ...newPages[i],
+                messages: messages
+              };
+              updated = true;
+              break; // Found and updated, no need to check other pages
+            }
+          }
+          
+          if (updated) {
+            console.log(`✅ [WEBSOCKET] Successfully updated message ${message_id} status to ${status} in cache`);
+            return {
+              ...oldData,
+              pages: newPages
+            };
+          }
+          
+          return oldData; // Return old data if no update was made
+        }
+      );
+      
+      // Also update the conversation with messages query cache
+      this.queryClient.setQueryData(
+        ['conversations', 'detail', conversation_id, 'with-messages', 50, 0],
+        (old: unknown) => {
+          if (!old || typeof old !== 'object') return old;
+          const oldData = old as { messages: (unknown & { _id?: string; status?: string })[], messages_total: number };
+          
+          const messages = [...oldData.messages];
+          const messageIndex = messages.findIndex((msg: any) => msg._id === message_id);
+          
+          if (messageIndex !== -1) {
+            console.log(`✅ [WEBSOCKET] Found message ${message_id} in conversation detail, updating status to ${status}`);
+            messages[messageIndex] = {
+              ...messages[messageIndex],
+              ...message_data, // Use the complete message data from backend
+              status: status
+            };
+            
+            return {
+              ...oldData,
+              messages: messages
+            };
+          }
+          
+          return oldData;
+        }
+      );
+    } else {
+      // FALLBACK: If no message data provided, use simple invalidation
+      console.log(`🔄 [WEBSOCKET] No message data provided, falling back to query invalidation for message ${message_id}`);
+      this.queryClient.invalidateQueries({
+        queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
+      });
+    }
     
-    this.queryClient.invalidateQueries({
-      queryKey: messageQueryKeys.conversationMessages(conversation_id, { limit: 50 }),
-    });
-    
-    console.log(`✅ [WEBSOCKET] Query invalidated successfully for status update: ${message_id} -> ${status}`);
+    console.log(`✅ [WEBSOCKET] Message status update processed: ${message_id} -> ${status}`);
   }
 
   private handleConversationUpdate(data: WebSocketMessageData['conversation_update']) {
@@ -574,6 +649,41 @@ export class MessagingWebSocketClient extends WebSocketClient {
     });
     window.dispatchEvent(testEvent);
     console.log('🧪 [WEBSOCKET] Test event dispatched');
+  }
+
+  /**
+   * Test message status update handling
+   */
+  testMessageStatusUpdate(conversationId: string, messageId: string, status: string) {
+    console.log('🧪 [WEBSOCKET] Testing message status update...');
+    console.log(`🧪 [WEBSOCKET] Conversation: ${conversationId}, Message: ${messageId}, Status: ${status}`);
+    
+    // Simulate a WebSocket message status update
+    const testMessage = {
+      type: 'message_status_update',
+      conversation_id: conversationId,
+      message_id: messageId,
+      status: status,
+      message_data: {
+        _id: messageId,
+        conversation_id: conversationId,
+        status: status,
+        direction: 'outbound',
+        sender_role: 'agent',
+        timestamp: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('🧪 [WEBSOCKET] Simulating WebSocket message:', testMessage);
+    
+    // Process the test message
+    this.handleIncomingMessage({
+      data: JSON.stringify(testMessage)
+    } as MessageEvent);
+    
+    console.log('🧪 [WEBSOCKET] Test message status update completed');
   }
 
   /**
@@ -753,6 +863,14 @@ if (typeof window !== 'undefined') {
   (window as any).testWebSocket = () => {
     if (globalWebSocketClient) {
       globalWebSocketClient.testConnection();
+    } else {
+      console.log('❌ [WEBSOCKET] No global WebSocket client available');
+    }
+  };
+  
+  (window as any).testMessageStatus = (conversationId: string, messageId: string, status: string = 'delivered') => {
+    if (globalWebSocketClient) {
+      globalWebSocketClient.testMessageStatusUpdate(conversationId, messageId, status);
     } else {
       console.log('❌ [WEBSOCKET] No global WebSocket client available');
     }

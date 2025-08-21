@@ -99,17 +99,37 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
     useEffect(() => {
       if (message.status !== previousStatus) {
         console.log(`🔄 [MESSAGE_BUBBLE] Status changed for message ${message._id}: ${previousStatus} -> ${message.status}`);
+        console.log(`🔄 [MESSAGE_BUBBLE] Message direction: ${message.direction}, sender_role: ${message.sender_role}`);
+        console.log(`🔄 [MESSAGE_BUBBLE] Should show status: ${message.direction === 'outbound'}`);
+        
         setShouldAnimateStatus(true);
         setPreviousStatus(message.status);
         
         // Remove animation flag after animation completes
         const timer = setTimeout(() => {
           setShouldAnimateStatus(false);
-        }, 300);
+        }, 500); // Increased animation duration for better visibility
         
         return () => clearTimeout(timer);
       }
-    }, [message.status, previousStatus, message._id]);
+    }, [message.status, previousStatus, message._id, message.direction, message.sender_role]);
+    
+    // Log initial status for debugging
+    useEffect(() => {
+      if (message.direction === 'outbound') {
+        console.log(`🔍 [MESSAGE_BUBBLE] Initial status for outbound message ${message._id}: ${message.status}`);
+        console.log(`🔍 [MESSAGE_BUBBLE] Full message data:`, {
+          _id: message._id,
+          status: message.status,
+          direction: message.direction,
+          sender_role: message.sender_role,
+          sent_at: message.sent_at,
+          delivered_at: message.delivered_at,
+          read_at: message.read_at,
+          timestamp: message.timestamp
+        });
+      }
+    }, [message._id, message.status, message.direction, message.sender_role, message.sent_at, message.delivered_at, message.read_at, message.timestamp]);
     
     const isSystem = message.sender_role === 'system';
     const isOutbound = message.direction === 'outbound'; // Agent message
@@ -129,6 +149,9 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       const failedIconClass = 'text-red-300';
       
       console.log(`🔍 [STATUS_ICON] Message ${message._id} status: ${message.status}, direction: ${message.direction}, sender_role: ${message.sender_role}`);
+      console.log(`🔍 [STATUS_ICON] Message should align right: ${shouldAlignRight}`);
+      console.log(`🔍 [STATUS_ICON] Message is outbound: ${isOutbound}`);
+      console.log(`🔍 [STATUS_ICON] Status field type: ${typeof message.status}, value: "${message.status}"`);
       
       switch (message.status) {
         case 'sending':
@@ -139,17 +162,22 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
             </div>
           );
         case 'sent':
-          console.log(`📤 [STATUS_ICON] Showing sent status for message ${message._id}`);
-          return <ClockIcon className={`w-3 h-3 ${iconClass}`} />;
-        case 'delivered':
-          console.log(`✅ [STATUS_ICON] Showing delivered status (single check) for message ${message._id}`);
+          console.log(`📤 [STATUS_ICON] Showing sent status (single check) for message ${message._id}`);
           return (
             <div className={cn('flex items-center', getAnimationClass())}>
               <CheckIcon className={`w-3 h-3 ${iconClass}`} />
             </div>
           );
+        case 'delivered':
+          console.log(`✅ [STATUS_ICON] Showing delivered status (double check) for message ${message._id}`);
+          return (
+            <div className={cn('flex', getAnimationClass())}>
+              <CheckIcon className={`w-3 h-3 ${iconClass} -mr-1`} />
+              <CheckIcon className={`w-3 h-3 ${iconClass}`} />
+            </div>
+          );
         case 'read':
-          console.log(`👁️ [STATUS_ICON] Showing read status (double check) for message ${message._id}`);
+          console.log(`👁️ [STATUS_ICON] Showing read status (blue double check) for message ${message._id}`);
           return (
             <div className={cn('flex', getAnimationClass())}>
               <CheckIcon className={`w-3 h-3 ${readIconClass} -mr-1`} />
@@ -161,6 +189,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           return <ExclamationTriangleIcon className={`w-3 h-3 ${failedIconClass}`} />;
         default:
           console.log(`❓ [STATUS_ICON] Unknown status "${message.status}" for message ${message._id}`);
+          console.log(`❓ [STATUS_ICON] Available status values: sending, sent, delivered, read, failed`);
           return null;
       }
     };

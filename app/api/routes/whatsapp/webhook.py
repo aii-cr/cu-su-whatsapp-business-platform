@@ -441,12 +441,19 @@ async def process_message_status(
         serialized_message = None
     
     # Send optimized WebSocket notification for status update
+    logger.info(f"🔔 [WEBHOOK] Sending WebSocket notification for status update: {whatsapp_message_id} -> {status_obj.status}")
+    logger.info(f"🔔 [WEBHOOK] Conversation ID: {message['conversation_id']}")
+    logger.info(f"🔔 [WEBHOOK] Message ID: {message['_id']}")
+    logger.info(f"🔔 [WEBHOOK] Serialized message data available: {serialized_message is not None}")
+    
     await websocket_service.notify_message_status_update_optimized(
         conversation_id=str(message["conversation_id"]),
         message_id=str(message["_id"]),  # Use internal message ID for consistency
         status=status_obj.status,
         message_data=serialized_message
     )
+    
+    logger.info(f"✅ [WEBHOOK] WebSocket notification sent successfully for status update: {whatsapp_message_id} -> {status_obj.status}")
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """

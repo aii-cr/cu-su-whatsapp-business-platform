@@ -124,13 +124,20 @@ class ConnectionManager:
     async def broadcast_to_conversation(self, message: dict, conversation_id: str):
         """Broadcast a message to all users subscribed to a conversation."""
         logger.info(f"🔔 [WEBSOCKET] Broadcasting to conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Message type: {message.get('type', 'unknown')}")
         logger.info(f"🔔 [WEBSOCKET] Available conversation subscribers: {list(self.conversation_subscribers.keys())}")
         logger.info(f"🔔 [WEBSOCKET] Active connections: {list(self.active_connections.keys())}")
         
         if conversation_id in self.conversation_subscribers:
             subscribers = self.conversation_subscribers[conversation_id]
             logger.info(f"🔔 [WEBSOCKET] Found {len(subscribers)} subscribers for conversation {conversation_id}: {list(subscribers)}")
+            
+            if len(subscribers) == 0:
+                logger.warning(f"⚠️ [WEBSOCKET] No active subscribers for conversation {conversation_id}")
+                return
+                
             for user_id in subscribers:
+                logger.info(f"🔔 [WEBSOCKET] Sending message to user {user_id} for conversation {conversation_id}")
                 await self.send_personal_message(message, user_id)
         else:
             logger.warning(f"❌ [WEBSOCKET] No subscribers found for conversation {conversation_id}")

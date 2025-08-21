@@ -109,6 +109,7 @@ async def get_messages_cursor(
             user_id=str(current_user.id)
         )
         
+
         # Set cache headers for the latest messages (without before cursor)
         if not before and result.get("cache_hit"):
             response.headers["Cache-Control"] = "private, max-age=30, must-revalidate"
@@ -126,8 +127,20 @@ async def get_messages_cursor(
             }
         )
         
+        # Transform messages through the MessageResponse schema
+        transformed_messages = []
+        for message_data in result["messages"]:
+            try:
+                # Transform the message data through the schema
+                message_response = MessageResponse(**message_data)
+                transformed_messages.append(message_response)
+            except Exception as e:
+                logger.warning(f"⚠️ [GET_MESSAGES_CURSOR] Failed to transform message {message_data.get('_id', 'unknown')}: {str(e)}")
+                # Include the raw message if transformation fails
+                transformed_messages.append(message_data)
+        
         return MessagesCursorResponse(
-            messages=result["messages"],
+            messages=transformed_messages,
             next_cursor=result["next_cursor"],
             has_more=result["has_more"],
             anchor="desc",
@@ -231,8 +244,20 @@ async def get_messages_around(
             }
         )
         
+        # Transform messages through the MessageResponse schema
+        transformed_messages = []
+        for message_data in result["messages"]:
+            try:
+                # Transform the message data through the schema
+                message_response = MessageResponse(**message_data)
+                transformed_messages.append(message_response)
+            except Exception as e:
+                logger.warning(f"⚠️ [GET_MESSAGES_AROUND] Failed to transform message {message_data.get('_id', 'unknown')}: {str(e)}")
+                # Include the raw message if transformation fails
+                transformed_messages.append(message_data)
+        
         return MessagesCursorResponse(
-            messages=result["messages"],
+            messages=transformed_messages,
             next_cursor=result["next_cursor"],
             has_more=result["has_more"],
             anchor="desc",
