@@ -18,17 +18,18 @@ import {
   TrashIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
+import styles from './ConversationContext.module.scss';
 
 interface ConversationContextProps {
   conversationId: string;
   className?: string;
+  variant?: 'sidebar' | 'modal';
 }
-
-
 
 export const ConversationContext: React.FC<ConversationContextProps> = ({
   conversationId,
-  className = ''
+  className = '',
+  variant = 'sidebar'
 }) => {
   const { context, loading, error, refreshContext, clearMemory, isClearing } = useConversationContext(conversationId);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -43,34 +44,32 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
 
   if (loading && !context) {
     return (
-      <Card className={`${className}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner size="sm" text="Loading context..." />
-          </div>
-        </CardContent>
-      </Card>
+      <div className={`${styles.contextContainer} ${className}`}>
+        <div className={styles.loadingContainer}>
+          <LoadingSpinner size="sm" text="Loading context..." />
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card className={`${className}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-2 text-error">
-            <InformationCircleIcon className="w-5 h-5" />
-            <span className="text-sm">{error}</span>
+      <div className={`${styles.contextContainer} ${className}`}>
+        <div className={styles.errorContainer}>
+          <div className={styles.errorContent}>
+            <InformationCircleIcon className={styles.errorIcon} />
+            <span className={styles.errorText}>{error}</span>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={refreshContext}
-              className="ml-auto"
+              className={styles.retryButton}
             >
               Retry
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -96,21 +95,23 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
   };
 
   return (
-    <Card className={`${className}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <CpuChipIcon className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">AI Context</CardTitle>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Badge variant="outline" className="text-xs">
+    <div className={`${styles.contextContainer} ${className}`} data-variant={variant}>
+      {/* Header */}
+      <div className={styles.header}>
+        <div className={styles.headerContent}>
+          <div className={styles.titleSection}>
+            <CpuChipIcon className={styles.titleIcon} />
+            <h3 className={styles.title}>AI Context</h3>
+            <Badge variant="outline" className={styles.messageCount}>
               {context.memory_size} messages
             </Badge>
+          </div>
+          <div className={styles.headerActions}>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
+              className={styles.expandButton}
             >
               {isExpanded ? 'Collapse' : 'Expand'}
             </Button>
@@ -119,45 +120,49 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
               size="sm"
               onClick={handleClearMemory}
               disabled={isClearing}
-              className="text-error hover:text-error"
+              className={styles.clearButton}
+              title="Clear AI memory"
             >
-              <TrashIcon className="w-4 h-4" />
+              <TrashIcon className={styles.clearIcon} />
             </Button>
           </div>
         </div>
-      </CardHeader>
+      </div>
       
-      <CardContent className="space-y-4">
+      {/* Content */}
+      <div className={styles.content}>
         {/* Summary */}
         {context.summary && (
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-sm font-medium">
-              <ChatBubbleLeftRightIcon className="w-4 h-4" />
-              <span>Conversation Summary</span>
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <ChatBubbleLeftRightIcon className={styles.sectionIcon} />
+              <span className={styles.sectionTitle}>Conversation Summary</span>
             </div>
-            <p className="text-sm text-muted-foreground bg-muted p-2 rounded">
+            <div className={styles.summaryContent}>
               {context.summary}
-            </p>
+            </div>
           </div>
         )}
 
         {/* Last Activity */}
         {context.last_activity && (
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <ClockIcon className="w-4 h-4" />
-            <span>Last activity: {formatTimestamp(context.last_activity)}</span>
+          <div className={styles.lastActivity}>
+            <ClockIcon className={styles.activityIcon} />
+            <span className={styles.activityText}>
+              Last activity: {formatTimestamp(context.last_activity)}
+            </span>
           </div>
         )}
 
         {/* Session Data */}
         {Object.keys(context.session_data).length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Session Data</div>
-            <div className="text-xs space-y-1">
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>Session Data</div>
+            <div className={styles.sessionData}>
               {Object.entries(context.session_data).map(([key, value]) => (
-                <div key={key} className="flex justify-between">
-                  <span className="text-muted-foreground">{key}:</span>
-                  <span>{String(value)}</span>
+                <div key={key} className={styles.sessionItem}>
+                  <span className={styles.sessionKey}>{key}:</span>
+                  <span className={styles.sessionValue}>{String(value)}</span>
                 </div>
               ))}
             </div>
@@ -166,37 +171,37 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
 
         {/* Conversation History (Expandable) */}
         {isExpanded && context.history.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Recent History</div>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>Recent History</div>
+            <div className={styles.historyContainer}>
               {context.history.slice(-6).map((message, index) => (
                 <div 
                   key={`${message.message_id}-${index}`}
-                  className={`p-2 rounded text-xs ${
+                  className={`${styles.historyItem} ${
                     message.role === 'user' 
-                      ? 'bg-primary/10 border-l-2 border-primary' 
-                      : 'bg-muted border-l-2 border-muted-foreground'
+                      ? styles.userMessage 
+                      : styles.aiMessage
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className={styles.messageHeader}>
                     <Badge 
                       variant={message.role === 'user' ? 'default' : 'secondary'}
-                      className="text-xs"
+                      className={styles.roleBadge}
                     >
                       {message.role === 'user' ? 'User' : 'AI'}
                     </Badge>
-                    <span className="text-muted-foreground text-xs">
+                    <span className={styles.messageTime}>
                       {formatTimestamp(message.timestamp)}
                     </span>
                   </div>
-                  <p className="text-xs line-clamp-2">
+                  <p className={styles.messageContent}>
                     {message.content}
                   </p>
                   {message.role === 'user' && (
-                    <div className="mt-1">
+                    <div className={styles.intentBadge}>
                       <Badge 
                         variant="outline" 
-                        className="text-xs"
+                        className={styles.intentBadgeContent}
                       >
                         {getIntentFromContent(message.content)}
                       </Badge>
@@ -210,12 +215,12 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
 
         {/* Empty State */}
         {context.history.length === 0 && (
-          <div className="text-center py-4 text-muted-foreground">
-            <ChatBubbleLeftRightIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No conversation history yet</p>
+          <div className={styles.emptyState}>
+            <ChatBubbleLeftRightIcon className={styles.emptyIcon} />
+            <p className={styles.emptyText}>No conversation history yet</p>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };

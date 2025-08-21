@@ -30,6 +30,7 @@ import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '@/features/conversations/api/conversationsApi';
 import { useQueryClient } from '@tanstack/react-query';
 import { AutoReplyToggle } from './AutoReplyToggle';
+import { CpuChipIcon } from '@heroicons/react/24/outline';
 
 export interface ConversationHeaderProps {
   conversation: Conversation;
@@ -38,6 +39,7 @@ export interface ConversationHeaderProps {
   onVideoCall?: () => void;
   onMoreActions?: () => void;
   onViewInfo?: () => void;
+  onAIContext?: () => void;
   className?: string;
 }
 
@@ -49,6 +51,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
     onVideoCall, 
     onMoreActions, 
     onViewInfo,
+    onAIContext,
     className = ''
   }, ref) => {
     const { user } = useAuthStore();
@@ -265,6 +268,14 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
                 Edit Tags
               </div>
             </DropdownMenuItem>
+            {onAIContext && (
+              <DropdownMenuItem onClick={onAIContext}>
+                <div className="flex items-center gap-2">
+                  <CpuChipIcon className="h-4 w-4" />
+                  AI Context
+                </div>
+              </DropdownMenuItem>
+            )}
             {onMoreActions && (
               <DropdownMenuItem onClick={onMoreActions}>
                 More Options

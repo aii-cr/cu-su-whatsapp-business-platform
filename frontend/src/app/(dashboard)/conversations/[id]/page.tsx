@@ -12,10 +12,11 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { MessageBubble } from '@/features/conversations/components/MessageBubble';
 import { MessageComposer } from '@/features/conversations/components/MessageComposer';
-import { ConversationHeader } from '@/features/conversations/components/ConversationHeader';
+import { ConversationHeaderWithAI } from '@/features/conversations/components/ConversationHeaderWithAI';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
 import { UnreadMessagesBanner } from '@/features/conversations/components/UnreadMessagesBanner';
-import { ConversationContext } from '@/features/conversations/components/ConversationContext';
+import { AIContextSidebar } from '@/features/conversations/components/AIContextSidebar';
+import { AIContextProvider } from '@/features/conversations/context/AIContextProvider';
 import { VirtualizedMessageList } from '@/features/messages/components/VirtualizedMessageList';
 
 import { useAuthStore } from '@/lib/store';
@@ -151,10 +152,11 @@ export default function ConversationDetailsPage() {
 
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <AIContextProvider>
+      <div className="h-full flex flex-col bg-background">
       {/* Header */}
       {conversation && (
-        <ConversationHeader
+        <ConversationHeaderWithAI
           conversation={conversation}
           onBack={() => router.back()}
           onCall={() => console.log('Call customer')}
@@ -208,38 +210,35 @@ export default function ConversationDetailsPage() {
       )}
 
       {/* Main content area */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex flex-col">
         {/* Messages area with virtualized infinite scroll */}
-        <div className="flex-1 flex flex-col">
-          <VirtualizedMessageList 
-            conversationId={conversationId}
-            className="flex-1"
-          />
+        <VirtualizedMessageList 
+          conversationId={conversationId}
+          className="flex-1"
+        />
 
-          {/* Message composer */}
-          <MessageComposer
-            onSendMessage={handleSendMessage}
-            onSendMedia={handleSendMedia}
-            disabled={conversation.status === 'closed'}
-            loading={sendMessageMutation.isPending}
-            placeholder={
-              conversation.status === 'closed' 
-                ? "This conversation is closed" 
-                : "Type a message..."
-            }
-            onTypingStart={sendTypingStart}
-            onTypingStop={sendTypingStop}
-          />
-        </div>
-
-        {/* AI Context Sidebar */}
-        <div className="w-80 border-l border-border bg-muted/20 p-4 overflow-y-auto">
-          <ConversationContext 
-            conversationId={conversationId}
-            className="h-full"
-          />
-        </div>
+        {/* Message composer */}
+        <MessageComposer
+          onSendMessage={handleSendMessage}
+          onSendMedia={handleSendMedia}
+          disabled={conversation.status === 'closed'}
+          loading={sendMessageMutation.isPending}
+          placeholder={
+            conversation.status === 'closed' 
+              ? "This conversation is closed" 
+              : "Type a message..."
+          }
+          onTypingStart={sendTypingStart}
+          onTypingStop={sendTypingStop}
+        />
       </div>
-    </div>
+
+      {/* AI Context Modal - Hidden component that only provides modal functionality */}
+      <AIContextSidebar 
+        conversationId={conversationId}
+        className="hidden"
+      />
+      </div>
+    </AIContextProvider>
   );
 }
