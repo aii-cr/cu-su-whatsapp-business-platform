@@ -172,13 +172,16 @@ class AgentService:
                 customer_phone=customer_phone
             )
             
+            # Check if the message was actually sent to WhatsApp or just stored locally
+            ai_message = await message_service.get_message(ai_message_id)
+            whatsapp_sent = ai_message and ai_message.get("status") == "sent"
+            
             # Send real-time notification via WebSocket
             try:
                 # Use service singletons from the centralized services module
                 from app.services import websocket_service
 
-                # Get the full message data for WebSocket notification
-                ai_message = await message_service.get_message(ai_message_id)
+                # Send AI response notification if message exists
                 if ai_message:
                     await websocket_service.notify_ai_response(
                         conversation_id=conversation_id,
@@ -195,9 +198,16 @@ class AgentService:
                 agent_result=agent_result
             )
             
+            # Log the result based on whether WhatsApp sending succeeded
+            if whatsapp_sent:
+                logger.info(f"✅ [AI] AI response sent successfully via WhatsApp for conversation {conversation_id}")
+            else:
+                logger.warning(f"⚠️ [AI] AI response generated but WhatsApp sending failed for conversation {conversation_id}")
+            
             return {
                 "success": True,
-                "ai_response_sent": True,
+                "ai_response_sent": True,  # We generated and stored a response
+                "whatsapp_sent": whatsapp_sent,  # Whether it was actually sent via WhatsApp
                 "ai_message_id": ai_message_id,
                 "response_text": clean_response,
                 "confidence": agent_result.get("confidence", 0.0),
@@ -209,38 +219,15 @@ class AgentService:
         except Exception as e:
             logger.error(f"Error processing WhatsApp message: {str(e)}")
             
-            # Send fallback response
-            fallback_message = "Lo siento, ocurrió un error procesando tu mensaje. Un agente te contactará pronto."
-            
-            ai_message_id = await self._send_and_store_ai_response(
-                conversation_id=conversation_id,
-                response_text=fallback_message,
-                confidence=0.0,
-                metadata={"error": str(e), "fallback": True},
-                customer_phone=customer_phone
-            )
-            
-            # Send real-time notification for fallback response
-            try:
-                from app.services import websocket_service
-
-                # Get the full message data for WebSocket notification
-                ai_message = await message_service.get_message(ai_message_id)
-                if ai_message:
-                    await websocket_service.notify_ai_response(
-                        conversation_id=conversation_id,
-                        message_data=ai_message
-                    )
-                    logger.info(f"🤖 [WS] Sent fallback AI response notification for conversation {conversation_id}")
-            except Exception as ws_error:
-                logger.warning(f"⚠️ [WS] Failed to send fallback AI response notification: {str(ws_error)}")
-                # Don't fail the entire flow if WebSocket notification fails
-            
+            # For critical errors (like agent processing failures), 
+            # don't try to send a fallback WhatsApp message as it might also fail
+            # Just return the error state and let the webhook handler send completion notification
             return {
                 "success": False,
-                "ai_response_sent": True,
-                "ai_message_id": ai_message_id,
-                "response_text": fallback_message,
+                "ai_response_sent": False,
+                "whatsapp_sent": False,
+                "ai_message_id": None,
+                "response_text": None,
                 "error": str(e),
                 "requires_human_handoff": True
             }
@@ -270,16 +257,30 @@ class AgentService:
             # Send message via WhatsApp API
             from app.services import whatsapp_service
             
-            whatsapp_response = await whatsapp_service.send_text_message(
-                to_number=customer_phone,
-                text=response_text
-            )
-            
+            whatsapp_response = None
             whatsapp_message_id = None
-            if whatsapp_response and whatsapp_response.get("messages"):
-                whatsapp_message_id = whatsapp_response["messages"][0].get("id")
+            message_status = "failed"
+            
+            try:
+                whatsapp_response = await whatsapp_service.send_text_message(
+                    to_number=customer_phone,
+                    text=response_text
+                )
+                
+                if whatsapp_response and whatsapp_response.get("messages"):
+                    whatsapp_message_id = whatsapp_response["messages"][0].get("id")
+                    message_status = "sent"
+                    
+                logger.info(f"Successfully sent WhatsApp message for conversation {conversation_id}")
+                
+            except Exception as whatsapp_error:
+                logger.warning(f"⚠️ [WHATSAPP] Failed to send WhatsApp message: {str(whatsapp_error)}")
+                logger.info(f"📝 [AI] Will store AI response locally even though WhatsApp sending failed")
+                # Continue to store the message locally even if WhatsApp sending failed
+                whatsapp_response = {"error": str(whatsapp_error)}
             
             # Store message using the correct API (without metadata parameter)
+            # Always store the message, even if WhatsApp sending failed
             message = await message_service.create_message(
                 conversation_id=conversation_id,
                 message_type="text",
@@ -288,13 +289,13 @@ class AgentService:
                 text_content=response_text,
                 whatsapp_message_id=whatsapp_message_id,
                 whatsapp_data=whatsapp_response,
-                status="sent"
+                status=message_status
             )
             message_id = message["_id"]
             
             logger.info(
                 f"Stored AI response message {message_id} for conversation {conversation_id} "
-                f"(confidence: {confidence:.2f})"
+                f"(confidence: {confidence:.2f}, whatsapp_status: {message_status})"
             )
             
             return str(message_id)

@@ -531,6 +531,49 @@ class WebSocketService:
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
         logger.info(f"🔔 [WS] Broadcasted auto-reply toggle notification for conversation {conversation_id}: {enabled}")
+
+    @staticmethod
+    async def notify_ai_processing_started(conversation_id: str, message_id: str):
+        """Notify that AI agent has started processing a message."""
+        notification = {
+            "type": "ai_processing_started",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI processing started for conversation {conversation_id}")
+
+    @staticmethod
+    async def notify_ai_agent_activity(conversation_id: str, activity_type: str, activity_description: str, metadata: dict = None):
+        """Notify about AI agent activity during processing (e.g., using RAG, tools, etc.)."""
+        notification = {
+            "type": "ai_agent_activity",
+            "conversation_id": str(conversation_id),
+            "activity_type": activity_type,  # e.g., "rag_search", "tool_execution", "intent_detection"
+            "activity_description": activity_description,  # e.g., "Using internal knowledge", "Detecting intent"
+            "metadata": metadata or {},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI agent activity for conversation {conversation_id}: {activity_type} - {activity_description}")
+
+    @staticmethod
+    async def notify_ai_processing_completed(conversation_id: str, message_id: str, success: bool, response_sent: bool):
+        """Notify that AI agent has completed processing a message."""
+        notification = {
+            "type": "ai_processing_completed",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "success": success,
+            "response_sent": response_sent,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI processing completed for conversation {conversation_id}: success={success}, response_sent={response_sent}")
     
     @staticmethod
     async def reset_unread_count_for_user(user_id: str, conversation_id: str):

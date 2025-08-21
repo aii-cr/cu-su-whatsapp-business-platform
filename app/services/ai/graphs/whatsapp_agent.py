@@ -265,6 +265,17 @@ class WhatsAppAgent:
         """Detect user intent from the message."""
         state["node_history"] = state.get("node_history", []) + ["detect_intent"]
         
+        # Send activity notification for intent detection
+        try:
+            from app.services import websocket_service
+            await websocket_service.notify_ai_agent_activity(
+                conversation_id=state["conversation_id"],
+                activity_type="intent_detection",
+                activity_description="Analyzing message intent"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send intent detection activity notification: {str(e)}")
+        
         user_text = state["user_text"].lower()
         conversation_history = state.get("conversation_history", [])
         current_intent = state.get("intent", "continue")

@@ -1,0 +1,241 @@
+/**
+ * AI Typing Indicator SCSS Module
+ * Follows WhatsApp-style design with animations for AI assistant processing states
+ */
+
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.aiTypingIndicator {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem 1rem 1rem 0.25rem;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--border));
+  max-width: 80%;
+  position: relative;
+  animation: slideInLeft 0.3s ease-out;
+
+  @media (max-width: 768px) {
+    max-width: 90%;
+    padding: 0.625rem 0.875rem;
+  }
+}
+
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgb(var(--primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+
+  &::before {
+    content: '🤖';
+    font-size: 1rem;
+  }
+
+  // Subtle pulse animation for avatar
+  &::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: 50%;
+    border: 2px solid rgb(var(--primary) / 0.3);
+    animation: avatarPulse 2s infinite;
+  }
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mainText {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: rgb(var(--foreground));
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.dots {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: rgb(var(--primary));
+  animation: typingDots 1.4s infinite;
+
+  &:nth-child(1) {
+    animation-delay: 0s;
+  }
+
+  &:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  &:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+.activityText {
+  font-size: 0.8rem;
+  color: rgb(var(--muted-foreground));
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+  transition: opacity 0.2s ease;
+
+  &.updating {
+    opacity: 0.7;
+  }
+}
+
+.activityIcon {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: rgb(var(--primary) / 0.2);
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+// Animations
+@keyframes typingDots {
+  0%, 60%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  30% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+@keyframes avatarPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(0.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+// Dark theme adjustments
+:global(.dark) .aiTypingIndicator {
+  background: rgb(var(--surface) / 0.95);
+  border-color: rgb(var(--border) / 0.5);
+}
+
+:global(.dark) .avatar {
+  background: rgb(var(--primary) / 0.9);
+  
+  &::after {
+    border-color: rgb(var(--primary) / 0.4);
+  }
+}
+
+:global(.dark) .dot {
+  background: rgb(var(--primary) / 0.9);
+}
+
+:global(.dark) .activityIcon {
+  background: rgb(var(--primary) / 0.3);
+}
+
+// Accessibility
+@media (prefers-reduced-motion: reduce) {
+  .aiTypingIndicator {
+    animation: none;
+  }
+  
+  .dot {
+    animation: none;
+    opacity: 0.7;
+  }
+  
+  .avatar::after {
+    animation: none;
+    opacity: 0.3;
+  }
+  
+  .activityIcon {
+    animation: none;
+  }
+}
+
+// High contrast mode
+@media (prefers-contrast: high) {
+  .aiTypingIndicator {
+    border-width: 2px;
+    border-color: rgb(var(--foreground));
+  }
+  
+  .mainText {
+    font-weight: 600;
+  }
+  
+  .activityText {
+    font-weight: 500;
+  }
+}
+
+// Focus handling for accessibility
+.aiTypingIndicator {
+  &:focus-visible {
+    @include focus-ring;
+  }
+}

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { cn, isSameDay } from '@/lib/utils';
 import { useConversationWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/lib/store';
+import { AITypingIndicator } from '@/features/conversations/components/AITypingIndicator';
 
 interface VirtualizedMessageListProps {
   conversationId: string;
@@ -46,6 +47,7 @@ export function VirtualizedMessageList({
   const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
   const [hasShownUnreadMarker, setHasShownUnreadMarker] = useState(false);
   const [lastSeenMessageCount, setLastSeenMessageCount] = useState(0);
+  const [isAITyping, setIsAITyping] = useState(false);
   
   // Optimistic messages state for immediate rendering
   const [optimisticMessages, setOptimisticMessages] = useState<Map<string, any>>(new Map());
@@ -76,6 +78,79 @@ export function VirtualizedMessageList({
   // WebSocket integration
   const webSocket = useConversationWebSocket(conversationId);
 
+  // Debug test functions
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).testAITypingIndicator = () => {
+        console.log('🧪 [TEST] Testing AI typing indicator for conversation:', conversationId);
+        console.log('🧪 [TEST] Current isAITyping state:', isAITyping);
+        
+        // Test setting AI typing to true
+        setIsAITyping(true);
+        console.log('🧪 [TEST] Set isAITyping to true');
+        
+        // Test activity updates
+        setTimeout(() => {
+          const activityEvent = new CustomEvent('ai-agent-activity', {
+            detail: {
+              conversationId: conversationId,
+              activityType: 'rag_search',
+              activityDescription: 'Using internal knowledge',
+              timestamp: new Date().toISOString()
+            }
+          });
+          window.dispatchEvent(activityEvent);
+          console.log('🧪 [TEST] Dispatched AI agent activity event');
+        }, 1000);
+        
+        // Test completion
+        setTimeout(() => {
+          setIsAITyping(false);
+          console.log('🧪 [TEST] Set isAITyping to false');
+        }, 5000);
+      };
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).testAITypingIndicator;
+      }
+    };
+  }, [conversationId, isAITyping]);
+
+  // Handle AI typing indicator events
+  useEffect(() => {
+    const handleAIProcessingStarted = (event: CustomEvent) => {
+      const { conversationId: eventConversationId } = event.detail;
+      console.log('🤖 [MESSAGE_LIST] Received ai-processing-started event for conversation:', eventConversationId);
+      console.log('🤖 [MESSAGE_LIST] Current conversation ID:', conversationId);
+      if (eventConversationId === conversationId) {
+        console.log('🤖 [MESSAGE_LIST] AI processing started - setting isAITyping to true');
+        setIsAITyping(true);
+      }
+    };
+
+    const handleAIProcessingCompleted = (event: CustomEvent) => {
+      const { conversationId: eventConversationId } = event.detail;
+      console.log('🤖 [MESSAGE_LIST] Received ai-processing-completed event for conversation:', eventConversationId);
+      console.log('🤖 [MESSAGE_LIST] Current conversation ID:', conversationId);
+      if (eventConversationId === conversationId) {
+        console.log('🤖 [MESSAGE_LIST] AI processing completed - setting isAITyping to false');
+        setIsAITyping(false);
+      }
+    };
+
+    console.log('🤖 [MESSAGE_LIST] Setting up AI processing event listeners for conversation:', conversationId);
+    window.addEventListener('ai-processing-started', handleAIProcessingStarted as EventListener);
+    window.addEventListener('ai-processing-completed', handleAIProcessingCompleted as EventListener);
+
+    return () => {
+      console.log('🤖 [MESSAGE_LIST] Cleaning up AI processing event listeners for conversation:', conversationId);
+      window.removeEventListener('ai-processing-started', handleAIProcessingStarted as EventListener);
+      window.removeEventListener('ai-processing-completed', handleAIProcessingCompleted as EventListener);
+    };
+  }, [conversationId]);
+
   // Smooth scroll to bottom function
   const scrollToBottomSmooth = useCallback(() => {
     if (virtuosoRef.current) {
@@ -88,6 +163,16 @@ export function VirtualizedMessageList({
       });
     }
   }, []);
+
+  // Auto-scroll when AI typing starts (if at bottom)
+  useEffect(() => {
+    if (isAITyping && isAtBottom) {
+      // Small delay to ensure the typing indicator is rendered
+      setTimeout(() => {
+        scrollToBottomSmooth();
+      }, 100);
+    }
+  }, [isAITyping, isAtBottom, scrollToBottomSmooth]);
 
   // Handle new message banner click
   const handleNewMessagesBannerClick = useCallback(() => {
@@ -534,7 +619,7 @@ export function VirtualizedMessageList({
 
   // Create items array with day banners and unread marker
   const items: Array<{
-    type: 'day-banner' | 'unread-marker' | 'message';
+    type: 'day-banner' | 'unread-marker' | 'message' | 'ai-typing';
     id: string;
     date?: string;
     count?: number;
@@ -589,6 +674,17 @@ export function VirtualizedMessageList({
     });
   });
 
+  // Add AI typing indicator at the end if AI is typing
+  if (isAITyping) {
+    console.log('🤖 [MESSAGE_LIST] Adding AI typing indicator to items array');
+    items.push({
+      type: 'ai-typing',
+      id: 'ai-typing-indicator'
+    });
+  } else {
+    console.log('🤖 [MESSAGE_LIST] AI is not typing, not adding indicator');
+  }
+
   console.log('🎯 [RENDER] Total items to render:', items.length, 'Optimistic messages:', items.filter(item => item.type === 'message' && item.message?._id?.startsWith('optimistic-')).length);
 
   return (
@@ -609,6 +705,14 @@ export function VirtualizedMessageList({
             return (
               <div className="px-4 py-1">
                 <UnreadMessageMarker count={item.count!} />
+              </div>
+            );
+          }
+
+          if (item.type === 'ai-typing') {
+            return (
+              <div className="px-4 py-1">
+                <AITypingIndicator conversationId={conversationId} />
               </div>
             );
           }

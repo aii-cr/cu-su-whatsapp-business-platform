@@ -24,6 +24,17 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Running RAG flow for query: '{state['user_text'][:50]}...'")
     
     try:
+        # Send activity notification for RAG search
+        try:
+            from app.services import websocket_service
+            await websocket_service.notify_ai_agent_activity(
+                conversation_id=state["conversation_id"],
+                activity_type="rag_search",
+                activity_description="Using internal knowledge"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send RAG activity notification: {str(e)}")
+        
         # Initialize RAG tool
         rag_tool = RAGTool()
         
@@ -45,6 +56,17 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
         )
         
         if rag_result.status == "success":
+            # Send activity notification for response generation
+            try:
+                from app.services import websocket_service
+                await websocket_service.notify_ai_agent_activity(
+                    conversation_id=state["conversation_id"],
+                    activity_type="response_generation",
+                    activity_description="Generating response"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send response generation activity notification: {str(e)}")
+            
             # Extract results
             answer = rag_result.data["answer"]
             confidence = rag_result.data["confidence"]

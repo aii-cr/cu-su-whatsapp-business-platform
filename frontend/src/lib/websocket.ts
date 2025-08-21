@@ -69,6 +69,29 @@ export interface WebSocketMessageData {
     changed_by?: string;
     timestamp: string;
   };
+
+  // AI processing status notifications
+  ai_processing_started: {
+    conversation_id: string;
+    message_id: string;
+    timestamp: string;
+  };
+
+  ai_agent_activity: {
+    conversation_id: string;
+    activity_type: string; // e.g., "rag_search", "intent_detection", "response_generation"
+    activity_description: string; // e.g., "Using internal knowledge", "Analyzing message intent"
+    metadata: Record<string, unknown>;
+    timestamp: string;
+  };
+
+  ai_processing_completed: {
+    conversation_id: string;
+    message_id: string;
+    success: boolean;
+    response_sent: boolean;
+    timestamp: string;
+  };
 }
 
 export class MessagingWebSocketClient extends WebSocketClient {
@@ -134,11 +157,12 @@ export class MessagingWebSocketClient extends WebSocketClient {
   }
 
   /**
-   * Handle incoming WebSocket messages
+   * Handle incoming WebSocket messages with enhanced logging
    */
   protected handleIncomingMessage(event: MessageEvent) {
     try {
       const data = JSON.parse(event.data);
+      console.log('🔔 [WEBSOCKET] Received message:', data.type, data);
       console.log('📨 [WEBSOCKET] Frontend received message:', data);
       console.log('📨 [WEBSOCKET] Message type:', data.type);
       console.log('📨 [WEBSOCKET] Conversation ID:', data.conversation_id);
@@ -225,6 +249,37 @@ export class MessagingWebSocketClient extends WebSocketClient {
             message_ids: data.message_ids,
             read_by_user_id: data.read_by_user_id,
             read_by_user_name: data.read_by_user_name,
+            timestamp: data.timestamp
+          });
+          break;
+
+        case 'ai_processing_started':
+          console.log('🤖 [WEBSOCKET] Handling AI processing started');
+          this.handleAIProcessingStarted({
+            conversation_id: data.conversation_id,
+            message_id: data.message_id,
+            timestamp: data.timestamp
+          });
+          break;
+
+        case 'ai_agent_activity':
+          console.log('🤖 [WEBSOCKET] Handling AI agent activity');
+          this.handleAIAgentActivity({
+            conversation_id: data.conversation_id,
+            activity_type: data.activity_type,
+            activity_description: data.activity_description,
+            metadata: data.metadata || {},
+            timestamp: data.timestamp
+          });
+          break;
+
+        case 'ai_processing_completed':
+          console.log('🤖 [WEBSOCKET] Handling AI processing completed');
+          this.handleAIProcessingCompleted({
+            conversation_id: data.conversation_id,
+            message_id: data.message_id,
+            success: data.success,
+            response_sent: data.response_sent,
             timestamp: data.timestamp
           });
           break;
@@ -652,6 +707,32 @@ export class MessagingWebSocketClient extends WebSocketClient {
   }
 
   /**
+   * Test WebSocket connection and message handling
+   */
+  testConnection() {
+    console.log('🧪 [WEBSOCKET] Testing WebSocket connection...');
+    console.log('🧪 [WEBSOCKET] Active connections:', (this as any).active_connections);
+    console.log('🧪 [WEBSOCKET] Subscriptions:', this.subscriptions);
+    
+    // Test if we can send a message
+    this.send({
+      type: 'ping',
+      data: { test: true, timestamp: Date.now() }
+    });
+    
+    // Test custom event dispatching
+    console.log('🧪 [WEBSOCKET] Testing custom event dispatching...');
+    const testEvent = new CustomEvent('ai-processing-started', {
+      detail: {
+        conversationId: 'test-conversation',
+        timestamp: new Date().toISOString()
+      }
+    });
+    window.dispatchEvent(testEvent);
+    console.log('🧪 [WEBSOCKET] Test event dispatched');
+  }
+
+  /**
    * Connect with user authentication and set up message handling
    */
   connectWithAuth(): Promise<void> {
@@ -738,6 +819,70 @@ export class MessagingWebSocketClient extends WebSocketClient {
   }
 
   /**
+   * Handle AI processing started notification
+   */
+  private handleAIProcessingStarted(data: WebSocketMessageData['ai_processing_started']) {
+    console.log('🤖 [WEBSOCKET] handleAIProcessingStarted called with data:', data);
+    console.log('🤖 [WEBSOCKET] Dispatching ai-processing-started event for conversation:', data.conversation_id);
+    
+    const { conversation_id } = data;
+
+    // Trigger AI typing indicator by dispatching a custom event
+    const event = new CustomEvent('ai-processing-started', {
+      detail: {
+        conversationId: conversation_id,
+        timestamp: data.timestamp
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('🤖 [WEBSOCKET] ai-processing-started event dispatched');
+  }
+
+  /**
+   * Handle AI agent activity notification
+   */
+  private handleAIAgentActivity(data: WebSocketMessageData['ai_agent_activity']) {
+    console.log('🤖 [WEBSOCKET] handleAIAgentActivity called with data:', data);
+    console.log('🤖 [WEBSOCKET] Dispatching ai-agent-activity event for conversation:', data.conversation_id);
+    
+    const { conversation_id, activity_type, activity_description } = data;
+
+    // Trigger AI activity update by dispatching a custom event
+    const event = new CustomEvent('ai-agent-activity', {
+      detail: {
+        conversationId: conversation_id,
+        activityType: activity_type,
+        activityDescription: activity_description,
+        timestamp: data.timestamp
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('🤖 [WEBSOCKET] ai-agent-activity event dispatched');
+  }
+
+  /**
+   * Handle AI processing completed notification
+   */
+  private handleAIProcessingCompleted(data: WebSocketMessageData['ai_processing_completed']) {
+    console.log('🤖 [WEBSOCKET] handleAIProcessingCompleted called with data:', data);
+    console.log('🤖 [WEBSOCKET] Dispatching ai-processing-completed event for conversation:', data.conversation_id);
+    
+    const { conversation_id, success, response_sent } = data;
+
+    // Trigger AI processing completed by dispatching a custom event
+    const event = new CustomEvent('ai-processing-completed', {
+      detail: {
+        conversationId: conversation_id,
+        success,
+        responseSent: response_sent,
+        timestamp: data.timestamp
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('🤖 [WEBSOCKET] ai-processing-completed event dispatched');
+  }
+
+  /**
    * Clean up subscriptions on disconnect
    */
   disconnect() {
@@ -758,3 +903,52 @@ export const getWebSocketClient = (queryClient: ReturnType<typeof useQueryClient
   }
   return globalWebSocketClient;
 };
+
+// Add global test function for debugging
+if (typeof window !== 'undefined') {
+  (window as any).testWebSocket = () => {
+    if (globalWebSocketClient) {
+      globalWebSocketClient.testConnection();
+    } else {
+      console.log('❌ [WEBSOCKET] No global WebSocket client available');
+    }
+  };
+  
+  (window as any).testAITyping = () => {
+    console.log('🧪 [TEST] Testing AI typing indicator...');
+    const testEvent = new CustomEvent('ai-processing-started', {
+      detail: {
+        conversationId: 'test-conversation',
+        timestamp: new Date().toISOString()
+      }
+    });
+    window.dispatchEvent(testEvent);
+    console.log('🧪 [TEST] AI processing started event dispatched');
+    
+    setTimeout(() => {
+      const activityEvent = new CustomEvent('ai-agent-activity', {
+        detail: {
+          conversationId: 'test-conversation',
+          activityType: 'rag_search',
+          activityDescription: 'Using internal knowledge',
+          timestamp: new Date().toISOString()
+        }
+      });
+      window.dispatchEvent(activityEvent);
+      console.log('🧪 [TEST] AI agent activity event dispatched');
+    }, 1000);
+    
+    setTimeout(() => {
+      const completedEvent = new CustomEvent('ai-processing-completed', {
+        detail: {
+          conversationId: 'test-conversation',
+          success: true,
+          responseSent: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+      window.dispatchEvent(completedEvent);
+      console.log('🧪 [TEST] AI processing completed event dispatched');
+    }, 3000);
+  };
+}

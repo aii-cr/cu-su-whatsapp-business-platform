@@ -47,13 +47,9 @@ export function AutoReplyToggle({
       setIsEnabled(variables.enabled);
     },
     onSuccess: (data) => {
-      // Show success message based on the response
-      // The httpClient returns data.data, so we access ai_autoreply_enabled directly
+      // Show single success message with green check for both actions
       const isEnabled = data.ai_autoreply_enabled;
-      toast.success(isEnabled 
-        ? 'AI Assistant Enabled - AI will automatically respond to customer messages'
-        : 'AI Assistant Disabled - Human agents will handle all responses manually'
-      );
+      toast.success(`✅ AI Assistant ${isEnabled ? 'Enabled' : 'Disabled'} Successfully`);
 
       // Invalidate conversation queries to update the conversation data
       queryClient.invalidateQueries({ 

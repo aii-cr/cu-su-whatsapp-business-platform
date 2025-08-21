@@ -337,6 +337,12 @@ async def process_incoming_message(
     if ai_autoreply_enabled and incoming_msg.text and incoming_msg.text.body:
         logger.info(f"🤖 [AI] Triggering AI agent processing for conversation {conversation['_id']}")
         
+        # Send immediate notification that AI processing has started
+        await websocket_service.notify_ai_processing_started(
+            conversation_id=str(conversation["_id"]),
+            message_id=str(message["_id"])
+        )
+        
         # Process with AI agent in background
         asyncio.create_task(
             process_with_ai_agent(
@@ -627,15 +633,51 @@ async def process_with_ai_agent(
                 f"(message_id: {result['ai_message_id']}, confidence: {result.get('confidence', 0):.2f})"
             )
             
+            # Notify that AI processing completed successfully
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=True,
+                response_sent=True
+            )
+            
             # TODO: Send WhatsApp API message here if implementing outbound messaging
             # For now, the response is stored and broadcasted via WebSocket
             
         elif result["success"] and not result["ai_response_sent"]:
             logger.info(f"🚫 [AI] No AI response generated for conversation {conversation_id}: {result.get('reason', 'unknown')}")
             
+            # Notify that AI processing completed but no response was sent
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=True,
+                response_sent=False
+            )
+            
         else:
             logger.error(f"❌ [AI] AI processing failed for conversation {conversation_id}: {result.get('error', 'unknown error')}")
             
+            # Notify that AI processing failed
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=False,
+                response_sent=False
+            )
+            
     except Exception as e:
         logger.error(f"💥 [AI] Unexpected error in AI agent processing: {str(e)}")
+        
+        # Always send completion notification even on error
+        try:
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=False,
+                response_sent=False
+            )
+        except Exception as ws_error:
+            logger.warning(f"⚠️ [WS] Failed to send error completion notification: {str(ws_error)}")
+        
         # Don't raise - AI processing failure shouldn't break webhook processing 
