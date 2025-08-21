@@ -354,7 +354,7 @@ class AgentService:
             collection_health = await check_collection_health()
             
             # Get memory service statistics
-            memory_stats = memory_service.get_memory_stats()
+            memory_stats = await memory_service.get_memory_stats()
             
             return {
                 "status": "healthy" if agent_health["status"] == "healthy" else "unhealthy",
@@ -389,10 +389,20 @@ class AgentService:
             Conversation context information
         """
         try:
-            return memory_service.get_conversation_context(conversation_id)
+            context = await memory_service.get_conversation_context(conversation_id)
+            logger.info(f"Retrieved conversation context for {conversation_id}: {len(context.get('history', []))} messages")
+            return context
         except Exception as e:
             logger.error(f"Error getting conversation context: {str(e)}")
-            return {"error": str(e)}
+            return {
+                "conversation_id": conversation_id,
+                "history": [],
+                "summary": "",
+                "session_data": {},
+                "last_activity": None,
+                "memory_size": 0,
+                "error": str(e)
+            }
     
     async def clear_conversation_memory(self, conversation_id: str) -> Dict[str, Any]:
         """
@@ -405,7 +415,7 @@ class AgentService:
             Result of the clear operation
         """
         try:
-            memory_service.clear_conversation_memory(conversation_id)
+            await memory_service.clear_conversation_memory(conversation_id)
             
             logger.info(f"Cleared conversation memory for {conversation_id}")
             
@@ -430,7 +440,7 @@ class AgentService:
             Memory statistics
         """
         try:
-            return memory_service.get_memory_stats()
+            return await memory_service.get_memory_stats()
         except Exception as e:
             logger.error(f"Error getting memory statistics: {str(e)}")
             return {"error": str(e)}

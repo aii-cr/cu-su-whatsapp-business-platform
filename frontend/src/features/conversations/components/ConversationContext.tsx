@@ -10,9 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
-import { useConversationContext } from '@/features/conversations/hooks/useConversationContext';
+import { useConversationContext } from '@/features/ai/hooks/useConversationContext';
 import { 
-  BrainIcon, 
+  CpuChipIcon, 
   ClockIcon, 
   ChatBubbleLeftRightIcon,
   TrashIcon,
@@ -24,19 +24,7 @@ interface ConversationContextProps {
   className?: string;
 }
 
-interface ConversationContext {
-  conversation_id: string;
-  history: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: string;
-    message_id: string;
-  }>;
-  summary: string;
-  session_data: Record<string, any>;
-  last_activity?: string;
-  memory_size: number;
-}
+
 
 export const ConversationContext: React.FC<ConversationContextProps> = ({
   conversationId,
@@ -112,7 +100,7 @@ export const ConversationContext: React.FC<ConversationContextProps> = ({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <BrainIcon className="w-5 h-5 text-primary" />
+            <CpuChipIcon className="w-5 h-5 text-primary" />
             <CardTitle className="text-lg">AI Context</CardTitle>
           </div>
           <div className="flex items-center space-x-2">

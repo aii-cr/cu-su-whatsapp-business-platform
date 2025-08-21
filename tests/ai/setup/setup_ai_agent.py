@@ -9,8 +9,9 @@ import subprocess
 import sys
 import os
 
-# Add the app directory to Python path to import config
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+# Add the project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, project_root)
 
 def activate_venv():
     """Activate the virtual environment if it exists."""

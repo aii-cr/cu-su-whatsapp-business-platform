@@ -36,7 +36,7 @@ class ConversationMemoryService:
                 # No running event loop, will start when service is used
                 pass
     
-    def get_conversation_memory(self, conversation_id: str) -> ConversationBufferMemory:
+    async def get_conversation_memory(self, conversation_id: str) -> ConversationBufferMemory:
         """
         Get or create conversation memory for a specific conversation.
         
@@ -188,7 +188,7 @@ class ConversationMemoryService:
             logger.error(f"Error creating conversation summary: {str(e)}")
             return ""
     
-    def add_interaction_to_memory(
+    async def add_interaction_to_memory(
         self, 
         conversation_id: str, 
         user_message: str, 
@@ -203,7 +203,7 @@ class ConversationMemoryService:
             ai_response: AI's response
         """
         try:
-            memory = self.get_conversation_memory(conversation_id)
+            memory = await self.get_conversation_memory(conversation_id)
             
             # Add the interaction to memory
             memory.chat_memory.add_user_message(user_message)
@@ -214,7 +214,7 @@ class ConversationMemoryService:
         except Exception as e:
             logger.error(f"Error updating conversation memory: {str(e)}")
     
-    def get_conversation_context(self, conversation_id: str) -> Dict[str, Any]:
+    async def get_conversation_context(self, conversation_id: str) -> Dict[str, Any]:
         """
         Get comprehensive conversation context.
         
@@ -224,40 +224,59 @@ class ConversationMemoryService:
         Returns:
             Context dictionary with history, summary, and session data
         """
-        memory = self.get_conversation_memory(conversation_id)
-        session_data = self.get_session_data(conversation_id)
-        
-        # Get memory messages
-        memory_messages = memory.chat_memory.messages if memory.chat_memory.messages else []
-        
-        # Convert to our format
-        history = []
-        for msg in memory_messages:
-            if isinstance(msg, HumanMessage):
-                history.append({
-                    "role": "user",
-                    "content": msg.content,
-                    "timestamp": datetime.now().isoformat()
-                })
-            elif isinstance(msg, AIMessage):
-                history.append({
-                    "role": "assistant",
-                    "content": msg.content,
-                    "timestamp": datetime.now().isoformat()
-                })
-        
-        summary = self.create_conversation_summary(history)
-        
-        return {
-            "conversation_id": conversation_id,
-            "history": history,
-            "summary": summary,
-            "session_data": session_data,
-            "last_activity": self.last_activity.get(conversation_id),
-            "memory_size": len(memory_messages)
-        }
+        try:
+            memory = await self.get_conversation_memory(conversation_id)
+            session_data = self.get_session_data(conversation_id)
+            
+            # Get memory messages
+            memory_messages = memory.chat_memory.messages if memory.chat_memory.messages else []
+            
+            # Convert to our format
+            history = []
+            for msg in memory_messages:
+                if isinstance(msg, HumanMessage):
+                    history.append({
+                        "role": "user",
+                        "content": msg.content,
+                        "timestamp": datetime.now().isoformat(),
+                        "message_id": f"memory_{len(history)}"
+                    })
+                elif isinstance(msg, AIMessage):
+                    history.append({
+                        "role": "assistant",
+                        "content": msg.content,
+                        "timestamp": datetime.now().isoformat(),
+                        "message_id": f"memory_{len(history)}"
+                    })
+            
+            summary = self.create_conversation_summary(history)
+            
+            # Format last_activity for JSON serialization
+            last_activity = self.last_activity.get(conversation_id)
+            if last_activity:
+                last_activity = last_activity.isoformat()
+            
+            return {
+                "conversation_id": conversation_id,
+                "history": history,
+                "summary": summary,
+                "session_data": session_data,
+                "last_activity": last_activity,
+                "memory_size": len(memory_messages)
+            }
+        except Exception as e:
+            logger.error(f"Error getting conversation context for {conversation_id}: {str(e)}")
+            # Return a default context structure
+            return {
+                "conversation_id": conversation_id,
+                "history": [],
+                "summary": "",
+                "session_data": {},
+                "last_activity": None,
+                "memory_size": 0
+            }
     
-    def clear_conversation_memory(self, conversation_id: str):
+    async def clear_conversation_memory(self, conversation_id: str):
         """
         Clear conversation memory and session data.
         
@@ -298,7 +317,7 @@ class ConversationMemoryService:
                 logger.error(f"Error in session cleanup: {str(e)}")
                 await asyncio.sleep(3600)  # Continue despite errors
     
-    def get_memory_stats(self) -> Dict[str, Any]:
+    async def get_memory_stats(self) -> Dict[str, Any]:
         """
         Get memory service statistics.
         

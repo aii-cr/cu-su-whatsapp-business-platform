@@ -203,7 +203,7 @@ class WhatsAppAgent:
             final_state = await self.graph.ainvoke(initial_state)
             
             # Update conversation memory with this interaction
-            memory_service.add_interaction_to_memory(
+            await memory_service.add_interaction_to_memory(
                 conversation_id=conversation_id,
                 user_message=user_text,
                 ai_response=final_state.get("reply", "")
@@ -413,21 +413,17 @@ class WhatsAppAgent:
         """Finalize the response and add metadata."""
         state["node_history"] = state.get("node_history", []) + ["finalize_response"]
         
-        # Add greeting if first message
-        if state.get("intent") == "greeting" and state.get("reply") != "NO_REPLY":
+        # Only add greeting if this is truly the first message and intent is greeting
+        if (state.get("intent") == "greeting" and 
+            state.get("is_first_message", False) and 
+            state.get("reply") != "NO_REPLY"):
             greeting = self._get_greeting(state.get("customer_language", "es"))
             state["reply"] = f"{greeting}\n\n{state.get('reply', '')}"
         
-        # Add context-aware response for continuing conversations
+        # For continuing conversations, don't add any additional greetings
         elif state.get("intent") == "continue" and state.get("reply") != "NO_REPLY":
-            # Check if we need to acknowledge the continuation
-            conversation_history = state.get("conversation_history", [])
-            if len(conversation_history) > 0:
-                # Add a subtle acknowledgment if appropriate
-                current_reply = state.get("reply", "")
-                if not any(word in current_reply.lower() for word in ["perfecto", "perfect", "entendido", "understood"]):
-                    # Don't add acknowledgment if already present
-                    pass
+            # Just use the reply as-is, no additional greetings
+            pass
         
         # Ensure confidence is set
         if "confidence" not in state:

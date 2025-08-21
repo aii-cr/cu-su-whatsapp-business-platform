@@ -33,6 +33,11 @@ pytest --cov=app
 
 # Stop on first failure
 pytest --maxfail=1
+
+# Run AI tests specifically
+python tests/ai/run_all_tests.py
+python tests/ai/test_ai_agent.py
+python tests/ai/test_conversation_context.py
 ```
 
 ## Database Fixes
@@ -58,6 +63,7 @@ See `tests/db_fixes/README.md` for detailed information about each fix.
 - `test_main.py` - Basic API health checks
 - `test_whatsapp_send.py` - WhatsApp message sending functionality
 - `db_fixes/` - Database schema fix scripts
+- `ai/` - AI agent tests and setup scripts
 
 ## Environment Variables
 

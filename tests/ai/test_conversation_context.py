@@ -8,7 +8,8 @@ import sys
 import os
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
 async def test_conversation_context():
     """Test the conversation context functionality."""
@@ -50,15 +51,15 @@ async def test_conversation_context():
         print(f"✅ Conversation summary created: {summary}")
         
         # Test conversation context
-        context = memory_service.get_conversation_context(test_conversation_id)
+        context = await memory_service.get_conversation_context(test_conversation_id)
         print(f"✅ Conversation context retrieved: {context['memory_size']} messages")
         
         # Test memory statistics
-        stats = memory_service.get_memory_stats()
+        stats = await memory_service.get_memory_stats()
         print(f"✅ Memory statistics: {stats['active_conversations']} active conversations")
         
         # Test memory clearing
-        memory_service.clear_conversation_memory(test_conversation_id)
+        await memory_service.clear_conversation_memory(test_conversation_id)
         print("✅ Conversation memory cleared successfully")
         
         print("\n🎉 All conversation context tests passed!")

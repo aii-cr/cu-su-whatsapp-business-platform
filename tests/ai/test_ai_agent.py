@@ -8,8 +8,9 @@ import asyncio
 import sys
 import os
 
-# Add the app directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+# Add the project root to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
 from app.services.ai.agent_service import agent_service
 from app.services.ai.rag.ingest import check_collection_health, ingest_documents
