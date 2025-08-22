@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
-from app.services.ai.shared.base_tools import BaseAgentTool as BaseTool
+from app.services.ai.agents.whatsapp.tools.base import BaseTool
 from app.services.ai.rag.retriever import build_retriever
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
 
@@ -51,6 +51,8 @@ class RAGTool(BaseTool):
         # Create the RAG chain
         self._rag_chain = self._prompt_template | self._llm
     
+
+    
     def _load_rag_prompt(self) -> ChatPromptTemplate:
         """Load the RAG prompt template from file."""
         try:
@@ -71,20 +73,6 @@ class RAGTool(BaseTool):
             If you cannot answer based on the context, say you don't have that information.
             """
             return ChatPromptTemplate.from_template(fallback_prompt)
-    
-    async def _arun(self, *args, **kwargs) -> str:
-        """
-        Async implementation of the tool.
-        
-        Args:
-            *args: Positional arguments
-            **kwargs: Keyword arguments
-            
-        Returns:
-            String representation of the result
-        """
-        result = await self._execute(**kwargs)
-        return result.get("answer", "No answer generated")
     
     async def _execute(self, **kwargs) -> Dict[str, Any]:
         """
@@ -212,11 +200,18 @@ class RAGTool(BaseTool):
         context_parts = []
         
         for doc in documents[:4]:  # Limit to top 4 documents
-            # Extract metadata
-            source = getattr(doc, 'source', 'unknown')
-            section = getattr(doc, 'section', 'general')
-            updated_at = getattr(doc, 'updated_at', 'unknown')
-            content = getattr(doc, 'content', '')
+            # Extract metadata - handle both DocumentChunk objects and dict-like objects
+            if hasattr(doc, 'source'):
+                source = doc.source
+                section = getattr(doc, 'section', 'general')
+                updated_at = getattr(doc, 'updated_at', 'unknown')
+                content = doc.content
+            else:
+                # Handle dict-like objects
+                source = doc.get('source', 'unknown')
+                section = doc.get('section', 'general')
+                updated_at = doc.get('updated_at', 'unknown')
+                content = doc.get('content', '')
             
             # Format as specified in prompt
             formatted_doc = f"[{source} | {section} | {updated_at}] {content}"
@@ -264,6 +259,4 @@ class RAGTool(BaseTool):
         
         return final_confidence
     
-    def get_structured_tool(self):
-        """Get the StructuredTool version of this tool."""
-        return self.to_structured_tool(RAGToolInput)
+
