@@ -176,7 +176,8 @@
 .sentimentSection,
 .topicsSection,
 .keyPointsSection,
-.mainSummary {
+.mainSummary,
+.agentsSection {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -383,6 +384,51 @@
     border-top: 1px solid rgb(var(--border));
     margin: 2rem 0;
   }
+}
+
+.agentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.agentItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: rgb(var(--muted) / 0.2);
+  border-radius: 0.375rem;
+  border-left: 3px solid rgb(var(--primary));
+}
+
+.agentName {
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  font-size: 0.875rem;
+}
+
+.agentEmail {
+  font-size: 0.75rem;
+  color: rgb(var(--muted-foreground));
+}
+
+.sentimentDisplay {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sentimentEmoji {
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: rgb(var(--muted) / 0.2);
+  border-radius: 50%;
+  border: 2px solid rgb(var(--border));
 }
 
 // Responsive design

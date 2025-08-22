@@ -17,6 +17,9 @@ from app.services.ai.agents.conversation_summarizer.schemas import (
 from app.schemas import SuccessResponse
 from app.core.error_handling import handle_database_error
 from app.config.error_codes import get_error_response, ErrorCode
+from app.api.dependencies import get_authenticated_user
+from app.db.models.auth import User
+
 
 router = APIRouter(prefix="/ai/summarizer", tags=["AI Summarizer"])
 
@@ -44,19 +47,24 @@ class CacheStatsResponse(BaseModel):
 
 
 @router.post("/summarize", response_model=SummarizeResponse)
-async def summarize_conversation(request: SummarizeRequest):
+async def summarize_conversation(
+    request: SummarizeRequest,
+    current_user: User = Depends(get_authenticated_user)
+):
     """
     Generate a summary for a conversation.
     Uses AI to analyze and summarize the conversation content.
+    Requires authentication.
     """
     try:
-        logger.info(f"Generating summary for conversation {request.conversation_id}")
+        logger.info(f"Generating summary for conversation {request.conversation_id} by user {current_user.id}")
         
-        # Create summarization request
+        # Create summarization request with user context
         summary_request = ConversationSummaryRequest(
             conversation_id=request.conversation_id,
             include_metadata=request.include_metadata,
-            summary_type=request.summary_type
+            summary_type=request.summary_type,
+            user_id=str(current_user.id)
         )
         
         # Generate summary
@@ -81,6 +89,69 @@ async def summarize_conversation(request: SummarizeRequest):
         return SummarizeResponse(
             success=False,
             error=f"Error generating summary: {str(e)}",
+            processing_time=0.0
+        )
+
+
+@router.get("/conversations/{conversation_id}/summary", response_model=SummarizeResponse)
+async def get_conversation_summary(
+    conversation_id: str,
+    summary_type: str = "general",
+    include_metadata: bool = True,
+    current_user: User = Depends(get_authenticated_user)
+):
+    """
+    Get summary for a specific conversation.
+    First tries to get stored summary, then generates new one if needed.
+    Requires authentication.
+    """
+    try:
+        logger.info(f"Getting summary for conversation {conversation_id} by user {current_user.id}")
+        
+        # First try to get stored summary
+        stored_summary = await summarizer_service.get_stored_summary(conversation_id)
+        
+        if stored_summary:
+            logger.info(f"Returning stored summary for conversation {conversation_id}")
+            return SummarizeResponse(
+                success=True,
+                summary=stored_summary,
+                processing_time=0.0
+            )
+        
+        # If no stored summary, generate new one
+        logger.info(f"No stored summary found, generating new summary for conversation {conversation_id}")
+        
+        # Create summarization request
+        summary_request = ConversationSummaryRequest(
+            conversation_id=conversation_id,
+            include_metadata=include_metadata,
+            summary_type=summary_type,
+            user_id=str(current_user.id)
+        )
+        
+        # Generate summary
+        result = await summarizer_service.summarize_conversation(summary_request)
+        
+        if result.success:
+            return SummarizeResponse(
+                success=True,
+                summary=result.summary,
+                processing_time=result.processing_time
+            )
+        else:
+            logger.error(f"Failed to get summary: {result.error}")
+            return SummarizeResponse(
+                success=False,
+                error=result.error,
+                processing_time=result.processing_time
+            )
+            
+    except Exception as e:
+        logger.error(f"Error getting conversation summary: {str(e)}")
+        return SummarizeResponse(
+            success=False,
+            error=f"Error getting summary: {str(e)}",
             processing_time=0.0
         )
 
@@ -154,50 +225,4 @@ async def clear_cache(conversation_id: Optional[str] = None):
         return get_error_response(
             ErrorCode.INTERNAL_SERVER_ERROR,
             f"Error clearing cache: {str(e)}"
-        )
-
-
-@router.get("/conversations/{conversation_id}/summary", response_model=SummarizeResponse)
-async def get_conversation_summary(
-    conversation_id: str,
-    summary_type: str = "general",
-    include_metadata: bool = True
-):
-    """
-    Get summary for a specific conversation.
-    Convenience endpoint for getting conversation summaries.
-    """
-    try:
-        logger.info(f"Getting summary for conversation {conversation_id}")
-        
-        # Create summarization request
-        summary_request = ConversationSummaryRequest(
-            conversation_id=conversation_id,
-            include_metadata=include_metadata,
-            summary_type=summary_type
-        )
-        
-        # Generate summary
-        result = await summarizer_service.summarize_conversation(summary_request)
-        
-        if result.success:
-            return SummarizeResponse(
-                success=True,
-                summary=result.summary,
-                processing_time=result.processing_time
-            )
-        else:
-            logger.error(f"Failed to get summary: {result.error}")
-            return SummarizeResponse(
-                success=False,
-                error=result.error,
-                processing_time=0.0
-            )
-            
-    except Exception as e:
-        logger.error(f"Error getting conversation summary: {str(e)}")
-        return SummarizeResponse(
-            success=False,
-            error=f"Error getting summary: {str(e)}",
-            processing_time=0.0
         )

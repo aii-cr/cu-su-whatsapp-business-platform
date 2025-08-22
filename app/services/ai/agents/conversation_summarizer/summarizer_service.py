@@ -6,6 +6,7 @@ Main service for generating conversation summaries using LangChain.
 import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from bson import ObjectId
 
 from app.core.logger import logger
 from app.services.ai.agents.conversation_summarizer.chains.summarization_chains import SummarizationChains
@@ -15,19 +16,22 @@ from app.services.ai.agents.conversation_summarizer.schemas import (
     ConversationData,
     MessageData,
     SummarizationConfig,
-    SummarizationResult
+    SummarizationResult,
+    StoredConversationSummary
 )
 from app.services.ai.shared.base_tools import validate_conversation_id
-from app.services import conversation_service, cursor_message_service
+from app.services import conversation_service, cursor_message_service, audit_service
+from app.services.base_service import BaseService
 
 
-class ConversationSummarizerService:
+class ConversationSummarizerService(BaseService):
     """
     Service for generating conversation summaries using AI.
     """
     
     def __init__(self):
         """Initialize the summarizer service."""
+        super().__init__()
         self.chains = SummarizationChains()
         self._cache: Dict[str, ConversationSummaryResponse] = {}
         self._cache_ttl = 3600  # 1 hour cache TTL
@@ -87,8 +91,17 @@ class ConversationSummarizerService:
             # Generate summary
             result = await self.chains.generate_summary(conversation_data, config)
             
-            # Cache successful results
             if result.success and result.summary:
+                # Set the user who generated the summary
+                result.summary.generated_by = request.user_id
+                
+                # Store summary in MongoDB
+                await self._store_summary(request.conversation_id, result.summary, request.user_id)
+                
+                # Log audit event
+                await self._log_summary_generation(request.conversation_id, request.user_id, result.summary)
+                
+                # Cache successful results
                 self._cache_summary(cache_key, result.summary)
             
             return result
@@ -100,6 +113,115 @@ class ConversationSummarizerService:
                 error=f"Summarization failed: {str(e)}",
                 processing_time=0.0
             )
+    
+    async def get_stored_summary(self, conversation_id: str) -> Optional[ConversationSummaryResponse]:
+        """
+        Get stored summary from MongoDB.
+        
+        Args:
+            conversation_id: Conversation ID
+            
+        Returns:
+            Stored summary or None
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get the latest summary for this conversation
+            stored_summary = await db.conversation_summaries.find_one(
+                {"conversation_id": conversation_id},
+                sort=[("created_at", -1)]
+            )
+            
+            if stored_summary:
+                # Convert to response format
+                summary_data = stored_summary.get("summary_data", {})
+                return ConversationSummaryResponse(**summary_data)
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting stored summary: {str(e)}")
+            return None
+    
+    async def _store_summary(
+        self, 
+        conversation_id: str, 
+        summary: ConversationSummaryResponse, 
+        user_id: Optional[str] = None
+    ):
+        """
+        Store summary in MongoDB.
+        
+        Args:
+            conversation_id: Conversation ID
+            summary: Summary to store
+            user_id: User who generated the summary
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current version
+            current_summary = await db.conversation_summaries.find_one(
+                {"conversation_id": conversation_id},
+                sort=[("version", -1)]
+            )
+            
+            version = 1
+            if current_summary:
+                version = current_summary.get("version", 0) + 1
+            
+            # Create stored summary document
+            stored_summary = StoredConversationSummary(
+                conversation_id=conversation_id,
+                summary_data=summary,
+                created_by=user_id,
+                version=version
+            )
+            
+            # Insert into database
+            await db.conversation_summaries.insert_one(stored_summary.model_dump())
+            
+            logger.info(f"Stored summary version {version} for conversation {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"Error storing summary: {str(e)}")
+    
+    async def _log_summary_generation(
+        self, 
+        conversation_id: str, 
+        user_id: Optional[str], 
+        summary: ConversationSummaryResponse
+    ):
+        """
+        Log summary generation in audit service.
+        
+        Args:
+            conversation_id: Conversation ID
+            user_id: User who generated the summary
+            summary: Generated summary
+        """
+        try:
+            await audit_service.log_event(
+                action="conversation_summary_generated",
+                actor_id=user_id,
+                conversation_id=conversation_id,
+                payload={
+                    "summary_length": len(summary.summary),
+                    "message_count": summary.message_count,
+                    "ai_message_count": summary.ai_message_count,
+                    "sentiment": summary.sentiment,
+                    "sentiment_emoji": summary.sentiment_emoji,
+                    "key_points_count": len(summary.key_points),
+                    "topics_count": len(summary.topics),
+                    "human_agents_count": len(summary.human_agents)
+                }
+            )
+            
+            logger.info(f"Logged summary generation for conversation {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"Error logging summary generation: {str(e)}")
     
     async def _load_conversation_data(self, conversation_id: str) -> Optional[ConversationData]:
         """
@@ -130,6 +252,9 @@ class ConversationSummarizerService:
                 logger.warning(f"No messages found for conversation {conversation_id}")
                 return None
             
+            # Extract human agents from messages
+            human_agents = self._extract_human_agents(messages)
+            
             # Convert to MessageData objects
             message_data_list = []
             for msg in messages:
@@ -138,11 +263,15 @@ class ConversationSummarizerService:
                 role = msg.get("sender_role", "user")
                 timestamp = msg.get("timestamp", datetime.now())
                 message_type = msg.get("type", "text")
+                sender_name = msg.get("sender_name")
+                sender_email = msg.get("sender_email")
                 
                 message_data = MessageData(
                     message_id=str(msg.get("_id")),
                     content=content,
                     role=role,
+                    sender_name=sender_name,
+                    sender_email=sender_email,
                     timestamp=timestamp,
                     message_type=message_type,
                     metadata=msg.get("metadata", {})
@@ -162,6 +291,7 @@ class ConversationSummarizerService:
                 conversation_id=conversation_id,
                 messages=message_data_list,
                 participants=conversation.get("participants", []),
+                human_agents=human_agents,
                 start_time=start_time,
                 end_time=end_time,
                 metadata=conversation.get("metadata", {})
@@ -173,6 +303,34 @@ class ConversationSummarizerService:
         except Exception as e:
             logger.error(f"Error loading conversation data: {str(e)}")
             return None
+    
+    def _extract_human_agents(self, messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        """
+        Extract human agents from messages.
+        
+        Args:
+            messages: List of message dictionaries
+            
+        Returns:
+            List of human agents with name and email
+        """
+        human_agents = {}
+        
+        for msg in messages:
+            role = msg.get("sender_role", "user")
+            
+            # Only include human agents (not AI assistant or customer)
+            if role not in ["assistant", "user"]:
+                sender_name = msg.get("sender_name")
+                sender_email = msg.get("sender_email")
+                
+                if sender_name and sender_name not in human_agents:
+                    human_agents[sender_name] = {
+                        "name": sender_name,
+                        "email": sender_email or "No email"
+                    }
+        
+        return list(human_agents.values())
     
     def _get_cached_summary(self, cache_key: str) -> Optional[ConversationSummaryResponse]:
         """

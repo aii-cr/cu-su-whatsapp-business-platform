@@ -184,6 +184,11 @@ export function ConversationSummaryModal({
                   <span>{summary.message_count} messages</span>
                 </div>
                 
+                <div className={styles.metadataItem}>
+                  <SparklesIcon className="w-4 h-4" />
+                  <span>{summary.ai_message_count} AI messages</span>
+                </div>
+                
                 {summary.duration_minutes && (
                   <div className={styles.metadataItem}>
                     <ClockIcon className="w-4 h-4" />
@@ -201,13 +206,33 @@ export function ConversationSummaryModal({
 
               <div className={styles.separator} />
 
+              {/* Human Agents */}
+              {summary.human_agents && summary.human_agents.length > 0 && (
+                <div className={styles.agentsSection}>
+                  <h4 className={styles.sectionTitle}>Human Agents</h4>
+                  <div className={styles.agentsList}>
+                    {summary.human_agents.map((agent, index) => (
+                      <div key={index} className={styles.agentItem}>
+                        <span className={styles.agentName}>{agent.name}</span>
+                        <span className={styles.agentEmail}>{agent.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Sentiment */}
               {summary.sentiment && (
                 <div className={styles.sentimentSection}>
-                  <h4 className={styles.sectionTitle}>Sentiment</h4>
-                  <Badge variant={getSentimentColor(summary.sentiment)}>
-                    {summary.sentiment}
-                  </Badge>
+                  <h4 className={styles.sectionTitle}>Customer Sentiment</h4>
+                  <div className={styles.sentimentDisplay}>
+                    {summary.sentiment_emoji && (
+                      <span className={styles.sentimentEmoji}>{summary.sentiment_emoji}</span>
+                    )}
+                    <Badge variant={getSentimentColor(summary.sentiment)}>
+                      {summary.sentiment}
+                    </Badge>
+                  </div>
                 </div>
               )}
 

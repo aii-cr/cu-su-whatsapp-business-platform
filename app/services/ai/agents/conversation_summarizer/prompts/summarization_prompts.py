@@ -8,14 +8,21 @@ from langchain_core.output_parsers import StrOutputParser
 
 # Main summarization prompt
 CONVERSATION_SUMMARY_PROMPT = PromptTemplate(
-    input_variables=["conversation_text", "summary_style", "max_length"],
+    input_variables=["conversation_text", "summary_style", "max_length", "human_agents", "ai_message_count"],
     template="""You are an expert conversation analyst. Your task is to create a comprehensive summary of a WhatsApp conversation.
+
+CONVERSATION PARTICIPANTS:
+{human_agents}
+
+AI ASSISTANT MESSAGES: {ai_message_count} messages were sent by the AI assistant.
 
 CONVERSATION:
 {conversation_text}
 
 INSTRUCTIONS:
 - Create a {summary_style} summary of the conversation
+- Start with a clear list of all human agents involved (full names and emails)
+- Include the AI assistant message count as the first insight
 - Focus on the main topics, key decisions, and important information exchanged
 - Include relevant context and background information
 - Keep the summary under {max_length} words
@@ -30,8 +37,9 @@ SUMMARY:"""
 
 # Key points extraction prompt
 KEY_POINTS_PROMPT = PromptTemplate(
-    input_variables=["conversation_text"],
+    input_variables=["conversation_text", "ai_message_count"],
     template="""Extract the key points from this conversation. Focus on:
+- AI assistant involvement ({ai_message_count} messages sent)
 - Main topics discussed
 - Important decisions made
 - Action items or next steps
@@ -46,14 +54,15 @@ KEY POINTS:
 )
 
 
-# Sentiment analysis prompt
+# Sentiment analysis prompt with emoji
 SENTIMENT_ANALYSIS_PROMPT = PromptTemplate(
     input_variables=["conversation_text"],
-    template="""Analyze the overall sentiment of this conversation. Consider:
-- Tone of messages
+    template="""Analyze the overall sentiment of this conversation from the customer's perspective. Consider:
+- Tone of customer messages
 - Emotional expressions
 - Customer satisfaction indicators
 - Frustration or satisfaction levels
+- Overall mood throughout the conversation
 
 CONVERSATION:
 {conversation_text}
@@ -61,6 +70,7 @@ CONVERSATION:
 SENTIMENT ANALYSIS:
 Overall sentiment: [positive/neutral/negative]
 Confidence: [high/medium/low]
+Sentiment emoji: [Choose the most appropriate emoji: 😊😐😞😤😡🤔😌😰😍😔]
 Key indicators: [list specific phrases or behaviors that indicate sentiment]
 """
 )
@@ -98,11 +108,10 @@ ANALYSIS TYPE: {analysis_type}
 Please provide a comprehensive analysis focusing on:
 - Main themes and patterns
 - Customer needs and pain points
-- Service quality indicators
-- Opportunities for improvement
-- Key insights and recommendations
-
-DETAILED ANALYSIS:"""
+- Agent performance and response quality
+- Resolution effectiveness
+- Areas for improvement
+"""
 )
 
 
@@ -168,25 +177,9 @@ CUSTOMER SERVICE SUMMARY:"""
 )
 
 
-def get_summary_prompt(summary_type: str = "general") -> PromptTemplate:
-    """
-    Get the appropriate prompt template based on summary type.
-    
-    Args:
-        summary_type: Type of summary to generate
-        
-    Returns:
-        PromptTemplate for the specified summary type
-    """
-    prompts = {
-        "general": CONVERSATION_SUMMARY_PROMPT,
-        "executive": EXECUTIVE_SUMMARY_PROMPT,
-        "technical": TECHNICAL_SUMMARY_PROMPT,
-        "customer_service": CUSTOMER_SERVICE_SUMMARY_PROMPT,
-        "detailed": DETAILED_ANALYSIS_PROMPT
-    }
-    
-    return prompts.get(summary_type, CONVERSATION_SUMMARY_PROMPT)
+def get_summary_prompt() -> PromptTemplate:
+    """Get the main summary prompt."""
+    return CONVERSATION_SUMMARY_PROMPT
 
 
 def get_key_points_prompt() -> PromptTemplate:
@@ -202,3 +195,8 @@ def get_sentiment_prompt() -> PromptTemplate:
 def get_topics_prompt() -> PromptTemplate:
     """Get the topic extraction prompt."""
     return TOPIC_EXTRACTION_PROMPT
+
+
+def get_detailed_analysis_prompt() -> PromptTemplate:
+    """Get the detailed analysis prompt."""
+    return DETAILED_ANALYSIS_PROMPT

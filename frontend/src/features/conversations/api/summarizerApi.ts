@@ -15,10 +15,17 @@ export interface ConversationSummaryResponse {
   summary: string;
   key_points: string[];
   sentiment?: string;
+  sentiment_emoji?: string;
   topics: string[];
   metadata: Record<string, any>;
   generated_at: string;
+  generated_by?: string;
   message_count: number;
+  ai_message_count: number;
+  human_agents: Array<{
+    name: string;
+    email: string;
+  }>;
   duration_minutes?: number;
 }
 

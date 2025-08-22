@@ -12,6 +12,7 @@ class ConversationSummaryRequest(BaseModel):
     conversation_id: str = Field(..., description="Conversation ID to summarize")
     include_metadata: bool = Field(True, description="Whether to include metadata in summary")
     summary_type: str = Field("general", description="Type of summary to generate")
+    user_id: Optional[str] = Field(None, description="User ID who requested the summary")
 
 
 class ConversationSummaryResponse(BaseModel):
@@ -20,10 +21,14 @@ class ConversationSummaryResponse(BaseModel):
     summary: str = Field(..., description="Generated summary in markdown format")
     key_points: List[str] = Field(default_factory=list, description="Key points from conversation")
     sentiment: Optional[str] = Field(None, description="Overall sentiment of conversation")
+    sentiment_emoji: Optional[str] = Field(None, description="Emoji representing customer sentiment")
     topics: List[str] = Field(default_factory=list, description="Main topics discussed")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     generated_at: datetime = Field(default_factory=datetime.now, description="When summary was generated")
+    generated_by: Optional[str] = Field(None, description="User ID who generated the summary")
     message_count: int = Field(..., description="Number of messages processed")
+    ai_message_count: int = Field(0, description="Number of AI assistant messages")
+    human_agents: List[Dict[str, str]] = Field(default_factory=list, description="Human agents in conversation")
     duration_minutes: Optional[float] = Field(None, description="Duration of conversation in minutes")
 
 
@@ -32,6 +37,8 @@ class MessageData(BaseModel):
     message_id: str = Field(..., description="Message ID")
     content: str = Field(..., description="Message content")
     role: str = Field(..., description="Message role (user/assistant)")
+    sender_name: Optional[str] = Field(None, description="Sender name")
+    sender_email: Optional[str] = Field(None, description="Sender email")
     timestamp: datetime = Field(..., description="Message timestamp")
     message_type: str = Field("text", description="Type of message")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Message metadata")
@@ -42,6 +49,7 @@ class ConversationData(BaseModel):
     conversation_id: str = Field(..., description="Conversation ID")
     messages: List[MessageData] = Field(..., description="List of messages")
     participants: List[str] = Field(default_factory=list, description="Participant IDs")
+    human_agents: List[Dict[str, str]] = Field(default_factory=list, description="Human agents in conversation")
     start_time: Optional[datetime] = Field(None, description="Conversation start time")
     end_time: Optional[datetime] = Field(None, description="Conversation end time")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Conversation metadata")
@@ -64,3 +72,13 @@ class SummarizationResult(BaseModel):
     error: Optional[str] = Field(None, description="Error message if failed")
     processing_time: float = Field(..., description="Time taken to process in seconds")
     tokens_used: Optional[int] = Field(None, description="Number of tokens used")
+
+
+class StoredConversationSummary(BaseModel):
+    """Stored conversation summary in MongoDB."""
+    conversation_id: str = Field(..., description="Conversation ID")
+    summary_data: ConversationSummaryResponse = Field(..., description="Summary data")
+    created_at: datetime = Field(default_factory=datetime.now, description="When summary was created")
+    updated_at: datetime = Field(default_factory=datetime.now, description="When summary was last updated")
+    created_by: Optional[str] = Field(None, description="User ID who created the summary")
+    version: int = Field(1, description="Summary version number")

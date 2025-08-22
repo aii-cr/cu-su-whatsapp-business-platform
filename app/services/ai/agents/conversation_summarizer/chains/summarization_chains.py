@@ -63,21 +63,26 @@ class SummarizationChains:
             
         llm = self._get_llm()
         
-        # Main summarization chain
+        # Main summarization chain with updated prompt
         self._chains['summary'] = (
             {
                 "conversation_text": itemgetter("conversation_text"),
                 "summary_style": itemgetter("summary_style"),
-                "max_length": itemgetter("max_length")
+                "max_length": itemgetter("max_length"),
+                "human_agents": itemgetter("human_agents"),
+                "ai_message_count": itemgetter("ai_message_count")
             }
             | get_summary_prompt()
             | llm
             | StrOutputParser()
         )
         
-        # Key points extraction chain
+        # Key points extraction chain with updated prompt
         self._chains['key_points'] = (
-            {"conversation_text": itemgetter("conversation_text")}
+            {
+                "conversation_text": itemgetter("conversation_text"),
+                "ai_message_count": itemgetter("ai_message_count")
+            }
             | get_key_points_prompt()
             | llm
             | StrOutputParser()
@@ -104,7 +109,9 @@ class SummarizationChains:
             {
                 "conversation_text": itemgetter("conversation_text"),
                 "summary_style": itemgetter("summary_style"),
-                "max_length": itemgetter("max_length")
+                "max_length": itemgetter("max_length"),
+                "human_agents": itemgetter("human_agents"),
+                "ai_message_count": itemgetter("ai_message_count")
             }
             | get_summary_prompt()
             | llm
@@ -112,7 +119,10 @@ class SummarizationChains:
         )
         
         key_points_chain = (
-            {"conversation_text": itemgetter("conversation_text")}
+            {
+                "conversation_text": itemgetter("conversation_text"),
+                "ai_message_count": itemgetter("ai_message_count")
+            }
             | get_key_points_prompt()
             | llm
             | StrOutputParser()
@@ -137,7 +147,9 @@ class SummarizationChains:
             {
                 "conversation_text": itemgetter("conversation_text"),
                 "summary_style": itemgetter("summary_style"),
-                "max_length": itemgetter("max_length")
+                "max_length": itemgetter("max_length"),
+                "human_agents": itemgetter("human_agents"),
+                "ai_message_count": itemgetter("ai_message_count")
             }
             | {
                 "summary": summary_chain,
@@ -212,11 +224,19 @@ class SummarizationChains:
                     processing_time=(datetime.now() - start_time).total_seconds()
                 )
             
+            # Count AI messages
+            ai_message_count = sum(1 for msg in conversation_data.messages if msg.role == "assistant")
+            
+            # Prepare human agents information
+            human_agents_text = self._prepare_human_agents_text(conversation_data.human_agents)
+            
             # Prepare chain inputs
             chain_inputs = {
                 "conversation_text": conversation_text,
                 "summary_style": config.style,
-                "max_length": config.max_summary_length
+                "max_length": config.max_summary_length,
+                "human_agents": human_agents_text,
+                "ai_message_count": ai_message_count
             }
             
             # Generate summary using individual chains
@@ -225,15 +245,20 @@ class SummarizationChains:
             # Generate additional analysis if requested
             key_points = []
             sentiment = None
+            sentiment_emoji = None
             topics = []
             
             if config.include_key_points:
-                key_points_text = await self.key_points_chain.ainvoke({"conversation_text": conversation_text})
+                key_points_inputs = {
+                    "conversation_text": conversation_text,
+                    "ai_message_count": ai_message_count
+                }
+                key_points_text = await self.key_points_chain.ainvoke(key_points_inputs)
                 key_points = self._parse_key_points(key_points_text)
             
             if config.include_sentiment:
                 sentiment_text = await self.sentiment_chain.ainvoke({"conversation_text": conversation_text})
-                sentiment = self._parse_sentiment(sentiment_text)
+                sentiment, sentiment_emoji = self._parse_sentiment_with_emoji(sentiment_text)
             
             if config.include_topics:
                 topics_text = await self.topics_chain.ainvoke({"conversation_text": conversation_text})
@@ -250,6 +275,7 @@ class SummarizationChains:
                 summary=summary,
                 key_points=key_points,
                 sentiment=sentiment,
+                sentiment_emoji=sentiment_emoji,
                 topics=topics,
                 metadata={
                     "style": config.style,
@@ -258,6 +284,8 @@ class SummarizationChains:
                 },
                 generated_at=datetime.now(),
                 message_count=len(conversation_data.messages),
+                ai_message_count=ai_message_count,
+                human_agents=conversation_data.human_agents,
                 duration_minutes=duration_minutes
             )
             
@@ -283,6 +311,27 @@ class SummarizationChains:
                 error=str(e),
                 processing_time=processing_time
             )
+    
+    def _prepare_human_agents_text(self, human_agents: List[Dict[str, str]]) -> str:
+        """
+        Prepare human agents information for the prompt.
+        
+        Args:
+            human_agents: List of human agents with name and email
+            
+        Returns:
+            Formatted text for human agents
+        """
+        if not human_agents:
+            return "No human agents identified in this conversation."
+        
+        agent_lines = []
+        for agent in human_agents:
+            name = agent.get("name", "Unknown")
+            email = agent.get("email", "No email")
+            agent_lines.append(f"- {name} ({email})")
+        
+        return "\n".join(agent_lines)
     
     def _prepare_conversation_text(self, conversation_data: ConversationData) -> str:
         """
@@ -310,9 +359,13 @@ class SummarizationChains:
             if message.role == "user":
                 speaker = "👤 Customer"
             elif message.role == "assistant":
-                speaker = "🤖 Agent"
+                speaker = "🤖 AI Assistant"
             else:
-                speaker = f"📝 {message.role.title()}"
+                # For human agents, include their name if available
+                if message.sender_name:
+                    speaker = f"👨‍💼 {message.sender_name}"
+                else:
+                    speaker = f"📝 {message.role.title()}"
             
             # Format message
             message_line = f"[{timestamp}] {speaker}: {message.content}"
@@ -350,9 +403,65 @@ class SummarizationChains:
         
         return key_points[:10]  # Limit to 10 key points
     
+    def _parse_sentiment_with_emoji(self, sentiment_text: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Parse sentiment and emoji from LLM output.
+        
+        Args:
+            sentiment_text: Raw sentiment text from LLM
+            
+        Returns:
+            Tuple of (sentiment, emoji) or (None, None)
+        """
+        if not sentiment_text:
+            return None, None
+        
+        # Look for sentiment indicators
+        text_lower = sentiment_text.lower()
+        
+        # Extract sentiment
+        sentiment = None
+        if "positive" in text_lower:
+            sentiment = "positive"
+        elif "negative" in text_lower:
+            sentiment = "negative"
+        elif "neutral" in text_lower:
+            sentiment = "neutral"
+        
+        # Extract emoji
+        emoji = None
+        emoji_patterns = {
+            "😊": ["positive", "happy", "satisfied", "pleased"],
+            "😐": ["neutral", "indifferent", "calm"],
+            "😞": ["negative", "disappointed", "sad"],
+            "😤": ["frustrated", "annoyed", "irritated"],
+            "😡": ["angry", "furious", "upset"],
+            "🤔": ["confused", "uncertain", "thinking"],
+            "😌": ["relieved", "content", "peaceful"],
+            "😰": ["anxious", "worried", "nervous"],
+            "😍": ["excited", "enthusiastic", "delighted"],
+            "😔": ["sad", "disappointed", "regretful"]
+        }
+        
+        for emoji_char, keywords in emoji_patterns.items():
+            if any(keyword in text_lower for keyword in keywords):
+                emoji = emoji_char
+                break
+        
+        # If no emoji found, assign default based on sentiment
+        if not emoji and sentiment:
+            if sentiment == "positive":
+                emoji = "😊"
+            elif sentiment == "negative":
+                emoji = "😞"
+            else:
+                emoji = "😐"
+        
+        return sentiment, emoji
+    
     def _parse_sentiment(self, sentiment_text: str) -> Optional[str]:
         """
-        Parse sentiment from LLM output.
+        Parse sentiment from LLM output (legacy method).
         
         Args:
             sentiment_text: Raw sentiment text from LLM
@@ -360,20 +469,8 @@ class SummarizationChains:
         Returns:
             Extracted sentiment or None
         """
-        if not sentiment_text:
-            return None
-        
-        # Look for sentiment indicators
-        text_lower = sentiment_text.lower()
-        
-        if "positive" in text_lower:
-            return "positive"
-        elif "negative" in text_lower:
-            return "negative"
-        elif "neutral" in text_lower:
-            return "neutral"
-        
-        return None
+        sentiment, _ = self._parse_sentiment_with_emoji(sentiment_text)
+        return sentiment
     
     def _parse_topics(self, topics_text: str) -> List[str]:
         """
