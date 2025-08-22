@@ -12,7 +12,7 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, project_root)
 
-from app.services.ai.agent_service import agent_service
+from app.services.ai.agents.whatsapp.agent_service import agent_service
 from app.services.ai.rag.ingest import check_collection_health, ingest_documents
 from app.core.logger import logger
 

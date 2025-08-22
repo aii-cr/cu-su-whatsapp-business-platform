@@ -15,10 +15,10 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
-from app.services.ai.tools.rag_tool import RAGTool
-from app.services.ai.graphs.subgraphs.faq_rag_flow import run_rag_flow
-from app.services.ai.graphs.subgraphs.language_detection import detect_language_and_greeting
-from app.services.ai.memory_service import memory_service
+from app.services.ai.agents.whatsapp.tools.rag_tool import RAGTool
+from app.services.ai.agents.whatsapp.graphs.subgraphs.faq_rag_flow import run_rag_flow
+from app.services.ai.agents.whatsapp.graphs.subgraphs.language_detection import detect_language_and_greeting
+from app.services.ai.shared.memory_service import memory_service
 
 
 class AgentState(TypedDict, total=False):

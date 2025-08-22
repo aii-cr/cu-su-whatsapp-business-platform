@@ -18,11 +18,11 @@ async def test_conversation_context():
     
     try:
         # Test memory service import
-        from app.services.ai.memory_service import memory_service
+        from app.services.ai.shared.memory_service import memory_service
         print("✅ Memory service imported successfully")
         
         # Test agent service import
-        from app.services.ai.agent_service import agent_service
+        from app.services.ai.agents.whatsapp.agent_service import agent_service
         print("✅ Agent service imported successfully")
         
         # Test conversation context creation
@@ -78,7 +78,7 @@ async def test_agent_with_context():
     print("\n🧪 Testing Agent with Conversation Context...")
     
     try:
-        from app.services.ai.agent_service import agent_service
+        from app.services.ai.agents.whatsapp.agent_service import agent_service
         
         # Test agent health check
         health = await agent_service.health_check()

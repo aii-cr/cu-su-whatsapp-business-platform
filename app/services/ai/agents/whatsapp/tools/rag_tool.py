@@ -11,7 +11,7 @@ from langchain_openai import ChatOpenAI
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
-from app.services.ai.tools.base import BaseTool
+from app.services.ai.shared.base_tools import BaseAgentTool as BaseTool
 from app.services.ai.rag.retriever import build_retriever
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
 
@@ -38,10 +38,10 @@ class RAGTool(BaseTool):
         )
         
         # Load RAG prompt template
-        self.prompt_template = self._load_rag_prompt()
+        self._prompt_template = self._load_rag_prompt()
         
         # Initialize LLM
-        self.llm = ChatOpenAI(
+        self._llm = ChatOpenAI(
             openai_api_key=ai_config.openai_api_key,
             model=ai_config.openai_model,
             temperature=0.1,
@@ -49,12 +49,12 @@ class RAGTool(BaseTool):
         )
         
         # Create the RAG chain
-        self.rag_chain = self.prompt_template | self.llm
+        self._rag_chain = self._prompt_template | self._llm
     
     def _load_rag_prompt(self) -> ChatPromptTemplate:
         """Load the RAG prompt template from file."""
         try:
-            prompt_path = Path("app/services/ai/prompts/system/rag_answer.md")
+            prompt_path = Path("app/services/ai/agents/whatsapp/prompts/system/rag_answer.md")
             prompt_content = prompt_path.read_text(encoding="utf-8")
             
             return ChatPromptTemplate.from_template(prompt_content)
@@ -71,6 +71,20 @@ class RAGTool(BaseTool):
             If you cannot answer based on the context, say you don't have that information.
             """
             return ChatPromptTemplate.from_template(fallback_prompt)
+    
+    async def _arun(self, *args, **kwargs) -> str:
+        """
+        Async implementation of the tool.
+        
+        Args:
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+            
+        Returns:
+            String representation of the result
+        """
+        result = await self._execute(**kwargs)
+        return result.get("answer", "No answer generated")
     
     async def _execute(self, **kwargs) -> Dict[str, Any]:
         """
@@ -138,7 +152,7 @@ class RAGTool(BaseTool):
             context = self._format_context(retrieval_result.documents)
             
             # Generate answer using RAG chain
-            response = await self.rag_chain.ainvoke({
+            response = await self._rag_chain.ainvoke({
                 "question": tool_input.query,
                 "context": context
             })

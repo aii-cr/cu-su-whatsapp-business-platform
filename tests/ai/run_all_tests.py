@@ -68,8 +68,8 @@ async def run_integration_tests():
     print("=" * 50)
     
     try:
-        from app.services.ai.agent_service import agent_service
-        from app.services.ai.memory_service import memory_service
+        from app.services.ai.agents.whatsapp.agent_service import agent_service
+        from app.services.ai.shared.memory_service import memory_service
         
         # Test complete flow
         print("Testing complete AI conversation flow...")

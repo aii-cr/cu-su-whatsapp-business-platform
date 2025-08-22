@@ -10,9 +10,9 @@ from datetime import datetime, timezone
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
-from app.services.ai.graphs.whatsapp_agent import WhatsAppAgent, AgentState
+from app.services.ai.agents.whatsapp.graphs.whatsapp_agent import WhatsAppAgent, AgentState
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
-from app.services.ai.memory_service import memory_service
+from app.services.ai.shared.memory_service import memory_service
 from app.services import message_service, conversation_service
 from app.services.websocket.websocket_service import manager, WebSocketService
 

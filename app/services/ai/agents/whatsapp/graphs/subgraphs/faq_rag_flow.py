@@ -5,7 +5,7 @@ Retrieves relevant documents and synthesizes answers using the RAG prompt.
 
 from typing import Dict, Any
 from app.core.logger import logger
-from app.services.ai.tools.rag_tool import RAGTool
+from app.services.ai.agents.whatsapp.tools.rag_tool import RAGTool
 from app.services.ai.config import ai_config
 
 
