@@ -46,6 +46,20 @@ class WriterAgentService:
             
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
             
+            # Check if there was an error in the graph
+            if result.get("error"):
+                logger.error(f"Writer Agent graph error: {result['error']}")
+                return {
+                    "success": False,
+                    "error": "Lo siento, ocurrió un error generando la respuesta. Por favor, inténtalo de nuevo.",
+                    "response": "",
+                    "metadata": {
+                        "processing_time_ms": int(processing_time),
+                        "conversation_id": conversation_id,
+                        "debug_error": result["error"]
+                    }
+                }
+            
             # Extract the final response
             response = result.get("response", "")
             if not response:
@@ -76,13 +90,17 @@ class WriterAgentService:
             
             logger.error(error_msg)
             
+            # Provide user-friendly error message
+            user_friendly_error = "Lo siento, ocurrió un error generando la respuesta. Por favor, inténtalo de nuevo."
+            
             return {
                 "success": False,
-                "error": error_msg,
-                "response": "Lo siento, ocurrió un error generando la respuesta.",
+                "error": user_friendly_error,
+                "response": "",
                 "metadata": {
                     "processing_time_ms": int(processing_time),
-                    "conversation_id": conversation_id
+                    "conversation_id": conversation_id,
+                    "debug_error": error_msg  # Keep detailed error for debugging
                 }
             }
     

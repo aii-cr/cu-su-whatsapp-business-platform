@@ -55,8 +55,18 @@ class ConversationContextTool(BaseAgentTool):
             # Get conversations collection
             conversations_collection = db.conversations
             
+            # Convert conversation_id to ObjectId if it's a string
+            from bson import ObjectId
+            if isinstance(conversation_id, str):
+                try:
+                    conversation_id_obj = ObjectId(conversation_id)
+                except Exception as e:
+                    return f"Error: Invalid conversation ID format: {conversation_id}"
+            else:
+                conversation_id_obj = conversation_id
+            
             # Fetch the conversation
-            conversation = await conversations_collection.find_one({"_id": conversation_id})
+            conversation = await conversations_collection.find_one({"_id": conversation_id_obj})
             
             if not conversation:
                 return f"Error: Conversation {conversation_id} not found"
@@ -66,7 +76,7 @@ class ConversationContextTool(BaseAgentTool):
             
             # Fetch all messages for this conversation, ordered by timestamp
             messages_cursor = messages_collection.find(
-                {"conversation_id": conversation_id}
+                {"conversation_id": conversation_id_obj}
             ).sort("timestamp", 1)
             
             messages = await messages_cursor.to_list(length=None)
@@ -80,6 +90,8 @@ class ConversationContextTool(BaseAgentTool):
                 context_lines.append(f"Conversation ID: {conversation_id}")
                 context_lines.append(f"Status: {conversation.get('status', 'unknown')}")
                 context_lines.append(f"Customer Phone: {conversation.get('customer_phone', 'unknown')}")
+                context_lines.append(f"Customer Name: {conversation.get('customer_name', 'unknown')}")
+                context_lines.append(f"Customer Type: {conversation.get('customer_type', 'unknown')}")
                 context_lines.append(f"Department: {conversation.get('department_name', 'unknown')}")
                 context_lines.append(f"Total Messages: {len(messages)}")
                 
@@ -170,10 +182,8 @@ class ConversationContextTool(BaseAgentTool):
                 
                 if first_time and last_time:
                     if isinstance(first_time, str):
-                        from datetime import datetime
                         first_time = datetime.fromisoformat(first_time.replace('Z', '+00:00'))
                     if isinstance(last_time, str):
-                        from datetime import datetime  
                         last_time = datetime.fromisoformat(last_time.replace('Z', '+00:00'))
                     
                     duration = last_time - first_time

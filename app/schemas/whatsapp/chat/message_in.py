@@ -6,7 +6,7 @@ class MessageSend(BaseModel):
     """Schema for sending a text message. Accepts either conversation_id or customer_phone."""
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
     customer_phone: Optional[str] = Field(None, description="Customer phone number (WhatsApp ID)")
-    text_content: str = Field(..., min_length=1, max_length=496, description="Message text")
+    text_content: str = Field(..., min_length=1, max_length=4096, description="Message text")
     reply_to_message_id: Optional[str] = Field(None, description="Message ID to reply to")
 
     @model_validator(mode='after')

@@ -5,7 +5,7 @@
 import { useState, useCallback } from 'react';
 import { 
   generateWriterResponse, 
-  generateContextualResponse,
+  generateContextualResponse as generateContextualResponseApi,
   WriterQueryRequest,
   ContextualResponseRequest,
   WriterResponse
@@ -27,9 +27,9 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
 
     try {
       const response = await generateWriterResponse(request);
-      setLastResponse(response);
       
       if (response.success) {
+        setLastResponse(response);
         options?.onSuccess?.(response);
       } else {
         const errorMsg = response.error || 'Unknown error occurred';
@@ -53,15 +53,17 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
     setError(null);
 
     try {
-      const response = await generateContextualResponse(request);
-      setLastResponse(response);
+      const response = await generateContextualResponseApi(request);
       
       if (response.success) {
+        setLastResponse(response);
         options?.onSuccess?.(response);
       } else {
         const errorMsg = response.error || 'Unknown error occurred';
         setError(errorMsg);
         options?.onError?.(new Error(errorMsg));
+        // Don't set lastResponse for errors to avoid showing error in textarea
+        return response;
       }
 
       return response;
@@ -83,6 +85,10 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
     setLastResponse(null);
   }, []);
 
+  const setCustomError = useCallback((errorMessage: string) => {
+    setError(errorMessage);
+  }, []);
+
   return {
     isLoading,
     error,
@@ -91,5 +97,6 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
     generateContextualResponse,
     clearError,
     clearResponse,
+    setCustomError,
   };
 }

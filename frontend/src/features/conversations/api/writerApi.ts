@@ -2,7 +2,7 @@
  * API functions for Writer Agent operations
  */
 
-const WRITER_API_BASE = '/api/ai/writer';
+import { getApiUrl } from '@/lib/config';
 
 export interface WriterQueryRequest {
   query: string;
@@ -33,7 +33,7 @@ export interface WriterResponse {
 export async function generateWriterResponse(
   request: WriterQueryRequest
 ): Promise<WriterResponse> {
-  const response = await fetch(`${WRITER_API_BASE}/generate`, {
+  const response = await fetch(getApiUrl('ai/writer/generate'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -43,7 +43,9 @@ export async function generateWriterResponse(
   });
 
   if (!response.ok) {
-    throw new Error(`Writer Agent error: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error || `Writer Agent error: ${response.statusText}`;
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -55,7 +57,7 @@ export async function generateWriterResponse(
 export async function generateContextualResponse(
   request: ContextualResponseRequest
 ): Promise<WriterResponse> {
-  const response = await fetch(`${WRITER_API_BASE}/contextual`, {
+  const response = await fetch(getApiUrl('ai/writer/contextual'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -65,7 +67,9 @@ export async function generateContextualResponse(
   });
 
   if (!response.ok) {
-    throw new Error(`Contextual response error: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.error || `Contextual response error: ${response.statusText}`;
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -75,7 +79,7 @@ export async function generateContextualResponse(
  * Check Writer Agent service health
  */
 export async function checkWriterHealth(): Promise<any> {
-  const response = await fetch(`${WRITER_API_BASE}/health`, {
+  const response = await fetch(getApiUrl('ai/writer/health'), {
     method: 'GET',
     credentials: 'include',
   });

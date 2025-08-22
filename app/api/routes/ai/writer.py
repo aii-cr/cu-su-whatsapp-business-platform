@@ -47,7 +47,7 @@ async def generate_response(
     """
     try:
         logger.info(
-            f"Writer Agent request from user {current_user.get('id')}: "
+            f"Writer Agent request from user {current_user.id}: "
             f"'{request.query[:100]}...' for conversation {request.conversation_id}"
         )
         
@@ -71,9 +71,15 @@ async def generate_response(
         
     except Exception as e:
         logger.error(f"Error in Writer Agent generate endpoint: {str(e)}")
-        return get_error_response(
-            "WRITER_AGENT_ERROR",
-            "Error generating response with Writer Agent"
+        # Log the detailed error for debugging
+        logger.error(f"Writer Agent error details: {str(e)}")
+        
+        # Return user-friendly error message
+        return WriterResponse(
+            success=False,
+            response="",
+            metadata={},
+            error="There was an error connecting to the Writer Agent. Please try again or contact IT if the issue persists."
         )
 
 
@@ -90,7 +96,7 @@ async def generate_contextual_response(
     """
     try:
         logger.info(
-            f"Contextual response request from user {current_user.get('id')} "
+            f"Contextual response request from user {current_user.id} "
             f"for conversation {request.conversation_id}"
         )
         
@@ -113,9 +119,15 @@ async def generate_contextual_response(
         
     except Exception as e:
         logger.error(f"Error in Writer Agent contextual endpoint: {str(e)}")
-        return get_error_response(
-            "WRITER_AGENT_ERROR", 
-            "Error generating contextual response"
+        # Log the detailed error for debugging
+        logger.error(f"Contextual response error details: {str(e)}")
+        
+        # Return user-friendly error message
+        return WriterResponse(
+            success=False,
+            response="",
+            metadata={},
+            error="There was an error generating the contextual response. Please try again or contact IT if the issue persists."
         )
 
 

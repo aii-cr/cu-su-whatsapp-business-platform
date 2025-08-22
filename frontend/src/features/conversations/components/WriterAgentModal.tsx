@@ -48,7 +48,8 @@ export function WriterAgentModal({
     generateResponse,
     generateContextualResponse,
     clearError,
-    clearResponse
+    clearResponse,
+    setCustomError
   } = useWriterAgent({
     onSuccess: (response) => {
       setGeneratedResponse(response.response);
@@ -72,7 +73,10 @@ export function WriterAgentModal({
   }, [open, clearError, clearResponse]);
 
   const handleGenerateContextual = async () => {
-    if (!conversationId) return;
+    if (!conversationId) {
+      setCustomError('Please select a conversation first to generate a contextual response.');
+      return;
+    }
     
     try {
       await generateContextualResponse({ conversation_id: conversationId });

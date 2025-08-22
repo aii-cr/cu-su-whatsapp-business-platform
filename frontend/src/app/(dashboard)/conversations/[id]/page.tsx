@@ -180,6 +180,7 @@ export default function ConversationDetailsPage() {
 
         {/* Message composer */}
         <MessageComposer
+          conversationId={conversationId}
           onSendMessage={handleSendMessage}
           onSendMedia={handleSendMedia}
           disabled={conversation.status === 'closed'}

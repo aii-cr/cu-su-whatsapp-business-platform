@@ -121,6 +121,7 @@ class ErrorCode(str, Enum):
     CONFIGURATION_ERROR = "SYS_9004"
     FEATURE_NOT_IMPLEMENTED = "SYS_9005"
     MAINTENANCE_MODE = "SYS_9006"
+    WRITER_AGENT_ERROR = "SYS_9007"
 
 
 # Error messages mapping
@@ -308,6 +309,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Internal server error",
         "status_code": 500,
         "detail": "An unexpected error occurred. Please try again"
+    },
+    ErrorCode.WRITER_AGENT_ERROR: {
+        "message": "Writer Agent error",
+        "status_code": 500,
+        "detail": "An error occurred while generating response with Writer Agent"
     },
     ErrorCode.SERVICE_UNAVAILABLE: {
         "message": "Service temporarily unavailable",
