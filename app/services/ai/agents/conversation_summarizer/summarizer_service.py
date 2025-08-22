@@ -127,6 +127,8 @@ class ConversationSummarizerService(BaseService):
         try:
             db = await self._get_db()
             
+            logger.info(f"Looking for stored summary for conversation: {conversation_id}")
+            
             # Get the latest summary for this conversation
             stored_summary = await db.conversation_summaries.find_one(
                 {"conversation_id": conversation_id},
@@ -134,9 +136,12 @@ class ConversationSummarizerService(BaseService):
             )
             
             if stored_summary:
+                logger.info(f"Found stored summary for conversation {conversation_id}: {stored_summary.get('_id')}")
                 # Convert to response format
                 summary_data = stored_summary.get("summary_data", {})
                 return ConversationSummaryResponse(**summary_data)
+            else:
+                logger.info(f"No stored summary found for conversation {conversation_id}")
             
             return None
             
@@ -161,6 +166,8 @@ class ConversationSummarizerService(BaseService):
         try:
             db = await self._get_db()
             
+            logger.info(f"Storing summary for conversation: {conversation_id}")
+            
             # Get current version
             current_summary = await db.conversation_summaries.find_one(
                 {"conversation_id": conversation_id},
@@ -170,6 +177,9 @@ class ConversationSummarizerService(BaseService):
             version = 1
             if current_summary:
                 version = current_summary.get("version", 0) + 1
+                logger.info(f"Found existing summary version {current_summary.get('version')}, creating version {version}")
+            else:
+                logger.info(f"No existing summary found, creating version {version}")
             
             # Create stored summary document
             stored_summary = StoredConversationSummary(
@@ -180,9 +190,9 @@ class ConversationSummarizerService(BaseService):
             )
             
             # Insert into database
-            await db.conversation_summaries.insert_one(stored_summary.model_dump())
+            result = await db.conversation_summaries.insert_one(stored_summary.model_dump())
             
-            logger.info(f"Stored summary version {version} for conversation {conversation_id}")
+            logger.info(f"Stored summary version {version} for conversation {conversation_id} with ID: {result.inserted_id}")
             
         except Exception as e:
             logger.error(f"Error storing summary: {str(e)}")

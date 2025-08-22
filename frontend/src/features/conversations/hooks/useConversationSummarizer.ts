@@ -45,7 +45,7 @@ export function useConversationSummarizer({
   const [processingTime, setProcessingTime] = useState(0);
   const [lastGenerated, setLastGenerated] = useState<string | null>(null);
 
-  // Query for existing summary (disabled by default to prevent automatic calls)
+  // Query for existing summary (enabled when conversationId is available)
   const {
     data: existingSummary,
     isLoading: isLoadingExisting,
@@ -54,7 +54,7 @@ export function useConversationSummarizer({
   } = useQuery({
     queryKey: ['conversation-summary', conversationId, summaryType, includeMetadata],
     queryFn: () => SummarizerApi.getConversationSummary(conversationId, summaryType, includeMetadata),
-    enabled: false, // Disabled to prevent automatic calls on conversation load
+    enabled: !!conversationId, // Enable when conversationId is available
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2
   });
@@ -120,10 +120,12 @@ export function useConversationSummarizer({
   }, []);
 
   // Determine which summary to show (local takes precedence)
-  const summary = localSummary || (existingSummary?.success ? existingSummary.summary : null);
+  const summary = localSummary || (existingSummary?.success && existingSummary.summary ? existingSummary.summary : null);
   const error = localError || (existingError ? existingError.message : null);
   const isLoading = isLoadingExisting;
   const isGenerating = generateMutation.isPending;
+
+
 
   return {
     // State
