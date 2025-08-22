@@ -30,13 +30,15 @@ export interface ConversationSummaryModalProps {
   onOpenChange: (open: boolean) => void;
   conversationId: string;
   conversationTitle?: string;
+  conversation?: any; // Add conversation data to access sentiment
 }
 
 export function ConversationSummaryModal({
   open,
   onOpenChange,
   conversationId,
-  conversationTitle = 'Conversation'
+  conversationTitle = 'Conversation',
+  conversation
 }: ConversationSummaryModalProps) {
   const {
     isLoading,
@@ -252,16 +254,16 @@ export function ConversationSummaryModal({
               )}
 
               {/* Sentiment */}
-              {summary.sentiment && (
+              {conversation?.current_sentiment_emoji && (
                 <div className={styles.sentimentSection}>
                   <h4 className={styles.sectionTitle}>Customer Sentiment</h4>
                   <div className={styles.sentimentDisplay}>
-                    {summary.sentiment_emoji && (
-                      <span className={styles.sentimentEmoji}>{summary.sentiment_emoji}</span>
+                    <span className={styles.sentimentEmoji}>{conversation.current_sentiment_emoji}</span>
+                    {conversation.sentiment_confidence && (
+                      <span className={styles.sentimentConfidence}>
+                        ({(conversation.sentiment_confidence * 100).toFixed(0)}% confidence)
+                      </span>
                     )}
-                    <Badge variant={getSentimentColor(summary.sentiment)}>
-                      {summary.sentiment}
-                    </Badge>
                   </div>
                 </div>
               )}
@@ -301,11 +303,12 @@ export function ConversationSummaryModal({
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm, remarkBreaks]}
                     components={{
-                      code({ node, inline, className, children, ...props }) {
+                      code({ node, className, children, ...props }: any) {
                         const match = /language-(\w+)/.exec(className || '');
+                        const inline = !match;
                         return !inline && match ? (
                           <SyntaxHighlighter
-                            style={oneDark}
+                            style={oneDark as any}
                             language={match[1]}
                             PreTag="div"
                             {...props}

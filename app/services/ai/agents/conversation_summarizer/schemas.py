@@ -20,8 +20,6 @@ class ConversationSummaryResponse(BaseModel):
     conversation_id: str = Field(..., description="Conversation ID")
     summary: str = Field(..., description="Generated summary in markdown format")
     key_points: List[str] = Field(default_factory=list, description="Key points from conversation")
-    sentiment: Optional[str] = Field(None, description="Overall sentiment of conversation")
-    sentiment_emoji: Optional[str] = Field(None, description="Emoji representing customer sentiment")
     topics: List[str] = Field(default_factory=list, description="Main topics discussed")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     generated_at: datetime = Field(default_factory=datetime.now, description="When summary was generated")

@@ -8,11 +8,13 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
 import { cn } from '@/lib/utils';
+import { WriterAgentModal } from './WriterAgentModal';
 import { 
   PaperAirplaneIcon,
   PaperClipIcon,
   FaceSmileIcon,
-  MicrophoneIcon 
+  MicrophoneIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 
 export interface MessageComposerProps {
@@ -25,6 +27,8 @@ export interface MessageComposerProps {
   placeholder?: string;
   maxLength?: number;
   className?: string;
+  conversationId?: string;
+  onWriterResponse?: (response: string) => void;
 }
 
 const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
@@ -37,11 +41,14 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
     loading = false,
     placeholder = "Type a message...",
     maxLength = 4096,
-    className 
+    className,
+    conversationId,
+    onWriterResponse
   }, ref) => {
       const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [writerModalOpen, setWriterModalOpen] = useState(false);
 
     // Auto-resize textarea
     const adjustTextareaHeight = () => {
@@ -130,6 +137,15 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
       }
     };
 
+    const handleWriterResponse = (response: string) => {
+      setMessage(response);
+      onWriterResponse?.(response);
+      // Auto-focus the textarea after response is generated
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+    };
+
     return (
       <div 
         ref={ref}
@@ -170,7 +186,7 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
             disabled={disabled || loading}
             rows={1}
             className={cn(
-              'w-full max-h-[120px] px-4 py-3 pr-12 text-sm resize-none overflow-hidden',
+              'w-full max-h-[120px] px-4 py-3 pr-20 text-sm resize-none overflow-hidden',
               'bg-surface border border-border rounded-full',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
               'placeholder:text-muted-foreground',
@@ -190,16 +206,31 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
             </div>
           )}
 
-          {/* Emoji button (placeholder for future implementation) */}
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={disabled || loading}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full p-0 hover:bg-muted/50"
-            aria-label="Add emoji"
-          >
-            <FaceSmileIcon className="w-4 h-4 text-muted-foreground" />
-          </Button>
+          {/* Writer Agent and Emoji buttons */}
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+            {/* Writer Agent button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setWriterModalOpen(true)}
+              disabled={disabled || loading}
+              className="h-8 w-8 rounded-full p-0 hover:bg-muted/50"
+              aria-label="Writer Agent"
+            >
+              <SparklesIcon className="w-4 h-4 text-yellow-500" />
+            </Button>
+            
+            {/* Emoji button (placeholder for future implementation) */}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={disabled || loading}
+              className="h-8 w-8 rounded-full p-0 hover:bg-muted/50"
+              aria-label="Add emoji"
+            >
+              <FaceSmileIcon className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
         </div>
 
         {/* Send button or voice note button */}
@@ -230,6 +261,15 @@ const MessageComposer = React.forwardRef<HTMLDivElement, MessageComposerProps>(
             <MicrophoneIcon className="w-5 h-5 text-muted-foreground" />
           </Button>
         )}
+
+        {/* Writer Agent Modal */}
+        <WriterAgentModal
+          open={writerModalOpen}
+          onOpenChange={setWriterModalOpen}
+          conversationId={conversationId}
+          onResponseGenerated={handleWriterResponse}
+          onSendMessage={onSendMessage}
+        />
       </div>
     );
   }

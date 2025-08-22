@@ -54,26 +54,7 @@ KEY POINTS:
 )
 
 
-# Sentiment analysis prompt with emoji
-SENTIMENT_ANALYSIS_PROMPT = PromptTemplate(
-    input_variables=["conversation_text"],
-    template="""Analyze the overall sentiment of this conversation from the customer's perspective. Consider:
-- Tone of customer messages
-- Emotional expressions
-- Customer satisfaction indicators
-- Frustration or satisfaction levels
-- Overall mood throughout the conversation
 
-CONVERSATION:
-{conversation_text}
-
-SENTIMENT ANALYSIS:
-Overall sentiment: [positive/neutral/negative]
-Confidence: [high/medium/low]
-Sentiment emoji: [Choose the most appropriate emoji: 😊😐😞😤😡🤔😌😰😍😔]
-Key indicators: [list specific phrases or behaviors that indicate sentiment]
-"""
-)
 
 
 # Topic extraction prompt
@@ -187,9 +168,7 @@ def get_key_points_prompt() -> PromptTemplate:
     return KEY_POINTS_PROMPT
 
 
-def get_sentiment_prompt() -> PromptTemplate:
-    """Get the sentiment analysis prompt."""
-    return SENTIMENT_ANALYSIS_PROMPT
+
 
 
 def get_topics_prompt() -> PromptTemplate:

@@ -84,6 +84,7 @@ export function ConversationView({ conversationId }: ConversationViewProps) {
         onSendMedia={handleSendMedia}
         loading={sendMessageMutation.isPending}
         placeholder="Type a message..."
+        conversationId={conversationId}
       />
     </div>
   );

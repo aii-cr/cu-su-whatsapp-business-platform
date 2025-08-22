@@ -20,7 +20,6 @@ from app.core.config import settings
 from app.services.ai.agents.conversation_summarizer.prompts.summarization_prompts import (
     get_summary_prompt,
     get_key_points_prompt,
-    get_sentiment_prompt,
     get_topics_prompt
 )
 from app.services.ai.agents.conversation_summarizer.schemas import (
@@ -35,8 +34,6 @@ class CombinedSummarySchema(BaseModel):
     """Validated schema returned by a single LLM call for all summary artifacts."""
     summary: str = Field(..., description="Concise, faithful conversation summary.")
     key_points: List[str] = Field(..., description="Top actionable bullet points, max 10.")
-    sentiment: Literal["positive", "neutral", "negative"] = Field(..., description="Overall customer sentiment.")
-    sentiment_emoji: str = Field(..., description="One emoji matching the sentiment.")
     topics: List[str] = Field(..., description="Up to 5 concise topics covered.")
 
 
@@ -98,7 +95,7 @@ class SummarizationChains:
                     "Max summary length (chars): {max_length}\n"
                     "Human agents:\n{human_agents}\n"
                     "AI message count: {ai_message_count}\n"
-                    "Return a concise summary, key points (<=10), sentiment, a matching emoji, and topics (<=5)."
+                    "Return a concise summary, key points (<=10), and topics (<=5)."
                 ),
             ]
         )
@@ -171,13 +168,15 @@ class SummarizationChains:
                 conversation_id=conversation_data.conversation_id,
                 summary=combined.summary,
                 key_points=combined.key_points if config.include_key_points else [],
-                sentiment=combined.sentiment if config.include_sentiment else None,
-                sentiment_emoji=combined.sentiment_emoji if config.include_sentiment else None,
                 topics=combined.topics if config.include_topics else [],
                 metadata={
                     "style": config.style,
                     "language": config.language,
                     "max_length": config.max_summary_length,
+                    # Include sentiment data from conversation metadata
+                    "current_sentiment_emoji": conversation_data.metadata.get("current_sentiment_emoji"),
+                    "sentiment_confidence": conversation_data.metadata.get("sentiment_confidence"),
+                    "last_sentiment_analysis_at": conversation_data.metadata.get("last_sentiment_analysis_at")
                 },
                 generated_at=datetime.now(),
                 message_count=len(conversation_data.messages),

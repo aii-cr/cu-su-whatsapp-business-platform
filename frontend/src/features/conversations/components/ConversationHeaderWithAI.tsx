@@ -31,6 +31,7 @@ export const ConversationHeaderWithAI: React.FC<ConversationHeaderProps> = (prop
         onOpenChange={setShowSummaryModal}
         conversationId={props.conversation._id}
         conversationTitle={props.conversation.customer_name || props.conversation.customer_phone}
+        conversation={props.conversation}
       />
     </>
   );

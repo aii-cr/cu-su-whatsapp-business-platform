@@ -87,7 +87,7 @@ class ConversationSummarizerService(BaseService):
             config = SummarizationConfig(
                 max_summary_length=500,
                 include_key_points=True,
-                include_sentiment=True,
+                include_sentiment=False,  # Disable sentiment generation - will use from conversation
                 include_topics=True,
                 language="auto",
                 style="professional"
@@ -225,8 +225,6 @@ class ConversationSummarizerService(BaseService):
                     "summary_length": len(summary.summary),
                     "message_count": summary.message_count,
                     "ai_message_count": summary.ai_message_count,
-                    "sentiment": summary.sentiment,
-                    "sentiment_emoji": summary.sentiment_emoji,
                     "key_points_count": len(summary.key_points),
                     "topics_count": len(summary.topics),
                     "human_agents_count": len(summary.human_agents)
@@ -313,7 +311,13 @@ class ConversationSummarizerService(BaseService):
                 customer=customer,
                 start_time=start_time,
                 end_time=end_time,
-                metadata=conversation.get("metadata", {})
+                metadata={
+                    **conversation.get("metadata", {}),
+                    # Include sentiment data from conversation
+                    "current_sentiment_emoji": conversation.get("current_sentiment_emoji"),
+                    "sentiment_confidence": conversation.get("sentiment_confidence"),
+                    "last_sentiment_analysis_at": conversation.get("last_sentiment_analysis_at")
+                }
             )
             
             logger.info(f"Loaded {len(message_data_list)} messages for conversation {conversation_id}")
