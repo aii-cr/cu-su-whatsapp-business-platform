@@ -86,6 +86,9 @@ export function useSendMessage() {
       );
 
       const optimisticId = `optimistic-${Date.now()}`;
+      // Use current UTC time for optimistic messages
+      const now = new Date();
+      
       const optimisticMessage: Message = {
         _id: optimisticId,
         conversation_id: conversationId,
@@ -96,9 +99,9 @@ export function useSendMessage() {
         sender_name: user?.first_name ?? user?.email ?? 'Me',
         text_content: variables.text_content,
         status: 'sending',
-        timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        timestamp: now.toISOString(),
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
       } as unknown as Message;
 
       queryClient.setQueryData(

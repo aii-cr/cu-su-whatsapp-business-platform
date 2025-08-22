@@ -177,9 +177,17 @@ export function VirtualizedMessageList({
   // Flatten messages from all pages and sort chronologically (oldest to newest)
   const messages = messagesData?.pages.flatMap((page) => page.messages) || [];
   
-  const sortedMessages = [...messages].sort(
+  // Separate optimistic messages from real messages
+  const realMessages = messages.filter(msg => !msg._id?.startsWith('optimistic-'));
+  const optimisticMessages = messages.filter(msg => msg._id?.startsWith('optimistic-'));
+  
+  // Sort real messages chronologically, then append optimistic messages at the end
+  const sortedRealMessages = [...realMessages].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
+  
+  // Optimistic messages should always appear at the end (newest)
+  const sortedMessages = [...sortedRealMessages, ...optimisticMessages];
   
   // Determine if we have any messages at all
   const hasAnyMessages = sortedMessages.length > 0;

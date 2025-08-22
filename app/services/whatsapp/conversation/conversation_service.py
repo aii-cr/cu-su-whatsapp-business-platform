@@ -75,8 +75,8 @@ class ConversationService(BaseService):
             "unread_count": 0,
             "ai_autoreply_enabled": True,  # Default AI auto-reply to ON for new conversations
             "created_by": created_by,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
             "last_message_at": None
         }
         
@@ -287,7 +287,7 @@ class ConversationService(BaseService):
             db = await self._get_db()
             
             # Add update timestamp
-            update_data["updated_at"] = datetime.now(timezone.utc)
+            update_data["updated_at"] = datetime.utcnow()
             if updated_by:
                 update_data["updated_by"] = updated_by
             
@@ -340,7 +340,7 @@ class ConversationService(BaseService):
             # Update the conversation
             update_data = {
                 "ai_autoreply_enabled": enabled,
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.utcnow()
             }
             if updated_by:
                 update_data["updated_by"] = updated_by
@@ -426,8 +426,8 @@ class ConversationService(BaseService):
                 {
                     "$inc": {"message_count": 1},
                     "$set": {
-                        "last_message_at": datetime.now(timezone.utc),
-                        "updated_at": datetime.now(timezone.utc)
+                        "last_message_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow()
                     }
                 }
             )
@@ -588,10 +588,10 @@ class ConversationService(BaseService):
                         "_id": ObjectId(),
                         "user_id": ObjectId(user_id),
                         "role": role,
-                        "added_at": datetime.now(timezone.utc)
+                        "added_at": datetime.utcnow()
                     }
                 },
-                "$set": {"updated_at": datetime.now(timezone.utc)}
+                "$set": {"updated_at": datetime.utcnow()}
             }
             result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, update)
             if result.modified_count:
@@ -612,7 +612,7 @@ class ConversationService(BaseService):
         try:
             result = await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id)},
-                {"$pull": {"participants": {"_id": ObjectId(participant_id)}}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+                {"$pull": {"participants": {"_id": ObjectId(participant_id)}}, "$set": {"updated_at": datetime.utcnow()}}
             )
             if result.modified_count:
                 await audit_service.log_event(
@@ -632,7 +632,7 @@ class ConversationService(BaseService):
         try:
             result = await db.conversations.update_one(
                 {"_id": ObjectId(conversation_id), "participants._id": ObjectId(participant_id)},
-                {"$set": {"participants.$.role": new_role, "updated_at": datetime.now(timezone.utc)}}
+                {"$set": {"participants.$.role": new_role, "updated_at": datetime.utcnow()}}
             )
             if result.modified_count:
                 await audit_service.log_event(
@@ -664,7 +664,7 @@ class ConversationService(BaseService):
     # ----------------- Archiving / Soft Deletion -----------------
     async def archive_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
         db = await self._get_db()
-        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": True, "archived_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}})
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": True, "archived_at": datetime.utcnow(), "updated_at": datetime.utcnow()}})
         if result.modified_count:
             await audit_service.log_event(
                 action="conversation_archived",
@@ -676,7 +676,7 @@ class ConversationService(BaseService):
 
     async def restore_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
         db = await self._get_db()
-        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": False, "archived_at": None, "updated_at": datetime.now(timezone.utc)}})
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": False, "archived_at": None, "updated_at": datetime.utcnow()}})
         if result.modified_count:
             await audit_service.log_event(
                 action="conversation_restored",
@@ -746,7 +746,7 @@ class ConversationService(BaseService):
             # Update conversation with assigned agent
             update_data = {
                 "assigned_agent_id": ObjectId(agent_id),
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": datetime.utcnow(),
                 "status": "active"  # Activate the conversation when claimed
             }
             
@@ -818,7 +818,7 @@ class ConversationService(BaseService):
             # Update conversation with assigned agent
             update_data = {
                 "assigned_agent_id": ObjectId(agent_id),
-                "updated_at": datetime.now(timezone.utc),
+                "updated_at": datetime.utcnow(),
                 "status": "active"  # Activate the conversation when assigned
             }
             

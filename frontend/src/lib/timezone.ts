@@ -27,6 +27,22 @@ const crRelativeDateFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'America/Costa_Rica',
 });
 
+// Formatters for extracting date components in Costa Rica timezone
+const crYearFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  timeZone: 'America/Costa_Rica',
+});
+
+const crMonthFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'numeric',
+  timeZone: 'America/Costa_Rica',
+});
+
+const crDayFormatter = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  timeZone: 'America/Costa_Rica',
+});
+
 /**
  * Convert UTC timestamp to Costa Rica local time for display.
  * Uses optimized formatter instance for microsecond performance.
@@ -78,36 +94,43 @@ export function getMessageDayBanner(date: Date | string | number): string {
     
     const now = new Date();
     
-    // Convert both dates to Costa Rica timezone for comparison
-    const crMessageDate = new Date(messageDate.toLocaleString('en-US', { timeZone: 'America/Costa_Rica' }));
-    const crNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Costa_Rica' }));
+    // Extract date components in Costa Rica timezone using Intl.DateTimeFormat
+    const messageYear = parseInt(crYearFormatter.format(messageDate));
+    const messageMonth = parseInt(crMonthFormatter.format(messageDate));
+    const messageDay = parseInt(crDayFormatter.format(messageDate));
+    
+    const nowYear = parseInt(crYearFormatter.format(now));
+    const nowMonth = parseInt(crMonthFormatter.format(now));
+    const nowDay = parseInt(crDayFormatter.format(now));
     
     // Check if message is from today in Costa Rica timezone
-    const isToday = crMessageDate.toDateString() === crNow.toDateString();
+    const isToday = messageYear === nowYear && messageMonth === nowMonth && messageDay === nowDay;
     
     if (isToday) {
       return 'Today';
     }
     
     // Check if message is from yesterday in Costa Rica timezone
-    const yesterday = new Date(crNow);
+    const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday = crMessageDate.toDateString() === yesterday.toDateString();
+    const yesterdayYear = parseInt(crYearFormatter.format(yesterday));
+    const yesterdayMonth = parseInt(crMonthFormatter.format(yesterday));
+    const yesterdayDay = parseInt(crDayFormatter.format(yesterday));
+    
+    const isYesterday = messageYear === yesterdayYear && messageMonth === yesterdayMonth && messageDay === yesterdayDay;
     
     if (isYesterday) {
       return 'Yesterday';
     }
     
     // For older messages, return formatted date in Costa Rica timezone
-    const year = crMessageDate.getFullYear();
-    const currentYear = crNow.getFullYear();
-    
-    if (year !== currentYear) {
+    if (messageYear !== nowYear) {
       return crRelativeDateFormatter.format(messageDate);
     }
     
     return crDateFormatter.format(messageDate);
   } catch (error) {
+    console.error('Error in getMessageDayBanner:', error);
     return ''; // Return empty string for any errors
   }
 }
@@ -120,14 +143,28 @@ export function getMessageDayBanner(date: Date | string | number): string {
  * @returns True if dates are on the same day in Costa Rica timezone
  */
 export function isSameDay(date1: Date | string | number, date2: Date | string | number): boolean {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  
-  // Convert both dates to Costa Rica timezone for comparison
-  const crD1 = new Date(d1.toLocaleString('en-US', { timeZone: 'America/Costa_Rica' }));
-  const crD2 = new Date(d2.toLocaleString('en-US', { timeZone: 'America/Costa_Rica' }));
-  
-  return crD1.toDateString() === crD2.toDateString();
+  try {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+      return false;
+    }
+    
+    // Extract date components in Costa Rica timezone using Intl.DateTimeFormat
+    const d1Year = parseInt(crYearFormatter.format(d1));
+    const d1Month = parseInt(crMonthFormatter.format(d1));
+    const d1Day = parseInt(crDayFormatter.format(d1));
+    
+    const d2Year = parseInt(crYearFormatter.format(d2));
+    const d2Month = parseInt(crMonthFormatter.format(d2));
+    const d2Day = parseInt(crDayFormatter.format(d2));
+    
+    return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+  } catch (error) {
+    console.error('Error in isSameDay:', error);
+    return false;
+  }
 }
 
 /**
@@ -152,4 +189,11 @@ export function toCRTime(date: Date | string | number): Date {
 }
 
 // Export the formatter for direct use if needed
-export { crFormatter, crDateFormatter, crRelativeDateFormatter }; 
+export { 
+  crFormatter, 
+  crDateFormatter, 
+  crRelativeDateFormatter,
+  crYearFormatter,
+  crMonthFormatter,
+  crDayFormatter
+}; 

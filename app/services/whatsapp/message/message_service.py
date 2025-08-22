@@ -83,9 +83,9 @@ class MessageService(BaseService):
             "location_data": location_data,
             "contact_data": contact_data,
             "status": status,
-            "timestamp": datetime.now(timezone.utc),
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "timestamp": datetime.utcnow(),
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
             "reply_to_message_id": ObjectId(reply_to_message_id) if reply_to_message_id else None,
             "is_automated": is_automated,
             "whatsapp_data": whatsapp_data or {}
@@ -93,7 +93,7 @@ class MessageService(BaseService):
         
         # Add status-specific timestamps
         if status == "sent":
-            message_data["sent_at"] = datetime.now(timezone.utc)
+            message_data["sent_at"] = datetime.utcnow()
         
         result = await db.messages.insert_one(message_data)
         message_id = result.inserted_id
