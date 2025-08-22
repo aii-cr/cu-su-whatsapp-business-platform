@@ -436,6 +436,39 @@
   }
 }
 
+.customerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.customerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.customerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: rgb(var(--muted) / 0.2);
+  border-radius: 0.375rem;
+  border-left: 3px solid rgb(var(--accent));
+}
+
+.customerName {
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  font-size: 0.875rem;
+}
+
+.customerPhone {
+  font-size: 0.75rem;
+  color: rgb(var(--muted-foreground));
+}
+
 .agentsList {
   display: flex;
   flex-direction: column;

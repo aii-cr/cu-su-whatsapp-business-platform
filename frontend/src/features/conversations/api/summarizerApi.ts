@@ -26,6 +26,10 @@ export interface ConversationSummaryResponse {
     name: string;
     email: string;
   }>;
+  customer?: {
+    name: string;
+    phone: string;
+  };
   duration_minutes?: number;
 }
 

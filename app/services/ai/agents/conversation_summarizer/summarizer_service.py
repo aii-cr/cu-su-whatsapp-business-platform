@@ -263,7 +263,10 @@ class ConversationSummarizerService(BaseService):
                 return None
             
             # Extract human agents from messages
-            human_agents = self._extract_human_agents(messages)
+            human_agents = await self._extract_human_agents(messages)
+            
+            # Extract customer information
+            customer = self._extract_customer_info(messages, conversation)
             
             # Convert to MessageData objects
             message_data_list = []
@@ -302,6 +305,7 @@ class ConversationSummarizerService(BaseService):
                 messages=message_data_list,
                 participants=conversation.get("participants", []),
                 human_agents=human_agents,
+                customer=customer,
                 start_time=start_time,
                 end_time=end_time,
                 metadata=conversation.get("metadata", {})
@@ -314,7 +318,7 @@ class ConversationSummarizerService(BaseService):
             logger.error(f"Error loading conversation data: {str(e)}")
             return None
     
-    def _extract_human_agents(self, messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    async def _extract_human_agents(self, messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         """
         Extract human agents from messages.
         
@@ -327,20 +331,65 @@ class ConversationSummarizerService(BaseService):
         human_agents = {}
         
         for msg in messages:
-            role = msg.get("sender_role", "user")
+            role = msg.get("sender_role", "customer")
             
             # Only include human agents (not AI assistant or customer)
-            if role not in ["assistant", "user"]:
+            if role == "agent":
                 sender_name = msg.get("sender_name")
-                sender_email = msg.get("sender_email")
+                sender_id = msg.get("sender_id")
+                
+                # Try to get email from user service if sender_id is available
+                sender_email = "No email"
+                if sender_id:
+                    try:
+                        from app.services import user_service
+                        user = await user_service.get_user_by_id(str(sender_id))
+                        if user and user.get("email"):
+                            sender_email = user["email"]
+                    except Exception as e:
+                        logger.warning(f"Could not fetch email for user {sender_id}: {str(e)}")
                 
                 if sender_name and sender_name not in human_agents:
                     human_agents[sender_name] = {
                         "name": sender_name,
-                        "email": sender_email or "No email"
+                        "email": sender_email
                     }
         
         return list(human_agents.values())
+    
+    def _extract_customer_info(self, messages: List[Dict[str, Any]], conversation: Dict[str, Any]) -> Optional[Dict[str, str]]:
+        """
+        Extract customer information from messages and conversation.
+        
+        Args:
+            messages: List of message dictionaries
+            conversation: Conversation data
+            
+        Returns:
+            Customer information or None
+        """
+        # First try to get customer info from conversation
+        customer_phone = conversation.get("customer_phone")
+        customer_name = conversation.get("customer_name")
+        
+        # If not in conversation, try to get from customer messages
+        if not customer_phone or not customer_name:
+            for msg in messages:
+                if msg.get("sender_role") == "customer":
+                    if not customer_phone:
+                        customer_phone = msg.get("sender_phone")
+                    if not customer_name:
+                        customer_name = msg.get("sender_name")
+                    if customer_phone and customer_name:
+                        break
+        
+        if customer_phone or customer_name:
+            return {
+                "name": customer_name or "Unknown Customer",
+                "phone": customer_phone or "No phone number"
+            }
+        
+        return None
     
     def _get_cached_summary(self, cache_key: str) -> Optional[ConversationSummaryResponse]:
         """

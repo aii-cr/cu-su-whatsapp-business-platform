@@ -29,6 +29,7 @@ class ConversationSummaryResponse(BaseModel):
     message_count: int = Field(..., description="Number of messages processed")
     ai_message_count: int = Field(0, description="Number of AI assistant messages")
     human_agents: List[Dict[str, str]] = Field(default_factory=list, description="Human agents in conversation")
+    customer: Optional[Dict[str, str]] = Field(None, description="Customer information")
     duration_minutes: Optional[float] = Field(None, description="Duration of conversation in minutes")
 
 
@@ -50,6 +51,7 @@ class ConversationData(BaseModel):
     messages: List[MessageData] = Field(..., description="List of messages")
     participants: List[str] = Field(default_factory=list, description="Participant IDs")
     human_agents: List[Dict[str, str]] = Field(default_factory=list, description="Human agents in conversation")
+    customer: Optional[Dict[str, str]] = Field(None, description="Customer information")
     start_time: Optional[datetime] = Field(None, description="Conversation start time")
     end_time: Optional[datetime] = Field(None, description="Conversation end time")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Conversation metadata")

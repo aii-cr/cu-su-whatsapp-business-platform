@@ -224,8 +224,8 @@ class SummarizationChains:
                     processing_time=(datetime.now() - start_time).total_seconds()
                 )
             
-            # Count AI messages
-            ai_message_count = sum(1 for msg in conversation_data.messages if msg.role == "assistant")
+            # Count AI messages - use correct sender_role value
+            ai_message_count = sum(1 for msg in conversation_data.messages if msg.role == "ai_assistant")
             
             # Prepare human agents information
             human_agents_text = self._prepare_human_agents_text(conversation_data.human_agents)
@@ -286,6 +286,7 @@ class SummarizationChains:
                 message_count=len(conversation_data.messages),
                 ai_message_count=ai_message_count,
                 human_agents=conversation_data.human_agents,
+                customer=conversation_data.customer,
                 duration_minutes=duration_minutes
             )
             
@@ -356,16 +357,18 @@ class SummarizationChains:
             timestamp = message.timestamp.strftime("%H:%M")
             
             # Determine speaker
-            if message.role == "user":
+            if message.role == "customer":
                 speaker = "👤 Customer"
-            elif message.role == "assistant":
+            elif message.role == "ai_assistant":
                 speaker = "🤖 AI Assistant"
-            else:
+            elif message.role == "agent":
                 # For human agents, include their name if available
                 if message.sender_name:
                     speaker = f"👨‍💼 {message.sender_name}"
                 else:
-                    speaker = f"📝 {message.role.title()}"
+                    speaker = f"👨‍💼 Agent"
+            else:
+                speaker = f"📝 {message.role.title()}"
             
             # Format message
             message_line = f"[{timestamp}] {speaker}: {message.content}"

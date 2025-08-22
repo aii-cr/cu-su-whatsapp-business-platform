@@ -206,6 +206,19 @@ export function ConversationSummaryModal({
 
               <div className={styles.separator} />
 
+              {/* Customer */}
+              {summary.customer && (
+                <div className={styles.customerSection}>
+                  <h4 className={styles.sectionTitle}>Customer</h4>
+                  <div className={styles.customerInfo}>
+                    <div className={styles.customerItem}>
+                      <span className={styles.customerName}>{summary.customer.name}</span>
+                      <span className={styles.customerPhone}>{summary.customer.phone}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Human Agents */}
               {summary.human_agents && summary.human_agents.length > 0 && (
                 <div className={styles.agentsSection}>

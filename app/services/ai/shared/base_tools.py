@@ -147,3 +147,4 @@ def extract_keywords(text: str, max_keywords: int = 10) -> List[str]:
     
     # Return most common keywords
     return [word for word, count in word_counts.most_common(max_keywords)]
+
