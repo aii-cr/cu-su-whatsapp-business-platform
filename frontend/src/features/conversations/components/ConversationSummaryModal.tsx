@@ -127,7 +127,7 @@ export function ConversationSummaryModal({
                 </>
               ) : (
                 <>
-                  <SparklesIcon className="w-4 h-4 mr-2" />
+                  <SparklesIcon className="w-4 h-4 mr-2 sparkle-icon" />
                   Generate Summary
                 </>
               )}

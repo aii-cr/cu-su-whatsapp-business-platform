@@ -60,16 +60,66 @@
 .generateButton {
   @include button-base;
   background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary) / 0.8));
-  color: rgb(var(--primary-foreground));
+  color: white;
   font-weight: 500;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  
+  // Shimmer effect
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+  }
   
   &:hover {
     background: linear-gradient(135deg, rgb(var(--primary) / 0.9), rgb(var(--primary) / 0.7));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary), 0.3);
+    color: white;
+    
+    &::before {
+      left: 100%;
+    }
+  }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(var(--primary), 0.2);
+    color: white;
   }
   
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    
+    &::before {
+      display: none;
+    }
+  }
+  
+  // Make the sparkle icon yellow with subtle animation
+  .sparkle-icon {
+    color: #FFD700 !important; // Golden yellow for the sparkle
+    animation: sparkle-glow 2s ease-in-out infinite alternate;
+  }
+}
+
+// Sparkle glow animation
+@keyframes sparkle-glow {
+  0% {
+    filter: brightness(1) drop-shadow(0 0 2px rgba(255, 215, 0, 0.3));
+  }
+  100% {
+    filter: brightness(1.2) drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
   }
 }
 
@@ -453,6 +503,21 @@
     
     button {
       width: 100%;
+    }
+  }
+  
+  .generateButton {
+    // Ensure gradient and effects work on mobile
+    &:hover {
+      transform: none; // Disable hover transform on mobile
+    }
+    
+    &:active {
+      transform: scale(0.98); // Use scale instead of translateY on mobile
+    }
+    
+    .sparkle-icon {
+      animation: sparkle-glow 1.5s ease-in-out infinite alternate; // Slightly faster on mobile
     }
   }
   
