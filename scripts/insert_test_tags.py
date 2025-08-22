@@ -7,7 +7,7 @@ Run this script to populate the database with sample tags.
 import asyncio
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 # Add the app directory to the Python path
@@ -77,8 +77,8 @@ async def insert_test_tags():
                         "usage_count": tag_data["usage_count"],
                         "department_ids": [],
                         "user_ids": [],
-                        "created_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow(),
+                        "created_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(timezone.utc),
                         "created_by": ObjectId(),  # Use a dummy ObjectId
                         "updated_by": ObjectId(),  # Use a dummy ObjectId
                     }
@@ -111,8 +111,8 @@ async def insert_test_tags():
                 "usage_count": tag_data["usage_count"],
                 "department_ids": [],
                 "user_ids": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "created_by": ObjectId(),  # Use a dummy ObjectId
                 "updated_by": ObjectId(),  # Use a dummy ObjectId
             }

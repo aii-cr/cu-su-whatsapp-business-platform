@@ -34,7 +34,7 @@ async def fix_message_timestamps():
             updated_at = message.get('updated_at')
             
             # Check if timestamps need fixing (if they're in the future)
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             needs_fixing = False
             
             if timestamp and timestamp > now + timedelta(hours=1):

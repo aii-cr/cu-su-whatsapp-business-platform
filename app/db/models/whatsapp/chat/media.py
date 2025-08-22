@@ -5,7 +5,7 @@ Handles media files (images, audio, video, documents) with metadata and storage.
 
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from enum import Enum
 from app.db.models.base import PyObjectId
@@ -127,8 +127,8 @@ class Media(BaseModel):
     auto_delete_at: Optional[datetime] = Field(None, description="Automatic deletion timestamp")
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_at: Optional[datetime] = Field(None, description="Soft deletion timestamp")
     
     # Tags and categorization
@@ -171,7 +171,7 @@ class MediaUpdate(BaseModel):
     is_public: Optional[bool] = None
     metadata: Optional[Dict[str, Any]] = None
     status: Optional[MediaStatus] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class MediaResponse(BaseModel):
     """Schema for media responses."""

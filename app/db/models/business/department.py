@@ -5,7 +5,7 @@ Represents organizational departments for user management and chat routing.
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from enum import Enum
 from app.db.models.base import PyObjectId
@@ -101,8 +101,8 @@ class Department(BaseModel):
     )
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="User ID who created this department")
     updated_by: Optional[PyObjectId] = Field(None, description="User ID who last updated this department")
     
@@ -162,7 +162,7 @@ class DepartmentUpdate(BaseModel):
     sla_settings: Optional[Dict[str, Any]] = None
     whatsapp_settings: Optional[Dict[str, Any]] = None
     tags: Optional[List[str]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DepartmentResponse(BaseModel):
     """Schema for department responses."""

@@ -5,7 +5,7 @@ Represents chat conversations between customers and agents.
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from enum import Enum
 from app.db.models.base import PyObjectId
@@ -119,9 +119,9 @@ class Conversation(BaseModel):
     feedback_comment: Optional[str] = Field(None, max_length=1000, description="Customer feedback")
     
     # Session management
-    session_started_at: datetime = Field(default_factory=datetime.utcnow, description="Conversation start time")
+    session_started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Conversation start time")
     session_ended_at: Optional[datetime] = Field(None, description="Conversation end time")
-    last_activity_at: datetime = Field(default_factory=datetime.utcnow, description="Last activity timestamp")
+    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last activity timestamp")
     inactivity_timeout_at: Optional[datetime] = Field(None, description="Inactivity timeout timestamp")
     
     # WhatsApp specific
@@ -145,8 +145,8 @@ class Conversation(BaseModel):
     auto_close_enabled: bool = Field(default=True, description="Whether auto-close is enabled")
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="User who created conversation")
     updated_by: Optional[PyObjectId] = Field(None, description="User who last updated conversation")
     
@@ -193,7 +193,7 @@ class ConversationUpdate(BaseModel):
     satisfaction_rating: Optional[int] = Field(None, ge=1, le=5)
     feedback_comment: Optional[str] = Field(None, max_length=1000)
     is_archived: Optional[bool] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ConversationTransfer(BaseModel):
     """Schema for transferring conversations."""

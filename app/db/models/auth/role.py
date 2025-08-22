@@ -5,7 +5,7 @@ Represents roles that can be assigned to users with specific permissions.
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from app.db.models.base import PyObjectId
 
@@ -44,8 +44,8 @@ class Role(BaseModel):
     )
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="User ID who created this role")
     updated_by: Optional[PyObjectId] = Field(None, description="User ID who last updated this role")
     
@@ -91,7 +91,7 @@ class RoleUpdate(BaseModel):
     parent_role_id: Optional[str] = None
     inherits_permissions: Optional[bool] = None
     settings: Optional[Dict[str, Any]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class RoleResponse(BaseModel):
     """Schema for role responses."""

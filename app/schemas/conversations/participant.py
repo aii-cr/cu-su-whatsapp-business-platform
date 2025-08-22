@@ -31,7 +31,7 @@ class ParticipantOut(BaseModel):
 
 class ParticipantEvent(BaseModel):
     type: str = Field(..., description="Event type: added|removed|role_changed")
-    ts_utc: datetime = Field(default_factory=datetime.utcnow)
+    ts_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     actor_id: Optional[PyObjectId] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
 

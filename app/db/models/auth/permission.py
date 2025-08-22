@@ -5,7 +5,7 @@ Defines granular permissions that can be assigned to roles.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from app.db.models.base import PyObjectId
 
@@ -63,8 +63,8 @@ class Permission(BaseModel):
     )
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="User ID who created this permission")
     updated_by: Optional[PyObjectId] = Field(None, description="User ID who last updated this permission")
     
@@ -110,7 +110,7 @@ class PermissionUpdate(BaseModel):
     is_active: Optional[bool] = None
     requires_approval: Optional[bool] = None
     scope: Optional[Dict[str, Any]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PermissionResponse(BaseModel):
     """Schema for permission responses."""

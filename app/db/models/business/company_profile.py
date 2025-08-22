@@ -5,7 +5,7 @@ Manages company information, branding, and platform settings.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from app.db.models.base import PyObjectId
 
@@ -212,8 +212,8 @@ class CompanyProfile(BaseModel):
     verification_date: Optional[datetime] = Field(None, description="Date of verification")
     
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login: Optional[datetime] = Field(None, description="Last admin login")
     
     class Config:
@@ -255,7 +255,7 @@ class CompanyProfileUpdate(BaseModel):
     integrations: Optional[Dict[str, Any]] = None
     social_media: Optional[Dict[str, str]] = None
     custom_fields: Optional[Dict[str, Any]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class CompanyProfileResponse(BaseModel):
     """Schema for company profile responses."""

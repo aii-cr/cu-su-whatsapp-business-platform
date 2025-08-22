@@ -1,6 +1,6 @@
 """Enhanced tag model for conversation categorization."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from bson import ObjectId
@@ -33,8 +33,8 @@ class Tag(BaseModel):
     usage_count: int = Field(default=0, description="How many times used")
     department_ids: List[PyObjectId] = Field(default=[], description="Department IDs")
     user_ids: List[PyObjectId] = Field(default=[], description="User IDs")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="Creator user ID")
     updated_by: Optional[PyObjectId] = Field(None, description="Updater user ID")
     
@@ -62,7 +62,7 @@ class ConversationTag(BaseModel):
     tag_slug: str = Field(..., description="Tag slug for quick access")
     tag_color: str = Field(..., description="Tag color for quick access")
     tag_category: str = Field(default="general", description="Tag category for quick access")
-    assigned_at: datetime = Field(default_factory=datetime.utcnow)
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     assigned_by: Optional[PyObjectId] = Field(None, description="User who assigned")
     auto_assigned: bool = Field(default=False, description="Was auto-assigned")
     

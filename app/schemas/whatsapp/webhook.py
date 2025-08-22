@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Webhook Verification Challenge
 class WebhookChallenge(BaseModel):
@@ -144,7 +144,7 @@ class ProcessedWebhookData(BaseModel):
     errors: List[Dict[str, Any]] = Field(default=[], description="Processing errors")
     
     # Processing metadata
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
     
 # Webhook Processing Result

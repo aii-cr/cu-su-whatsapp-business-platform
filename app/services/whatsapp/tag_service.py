@@ -1,6 +1,6 @@
 """Enhanced tag service following project patterns."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
 from pymongo import DESCENDING, ASCENDING
@@ -36,7 +36,7 @@ class TagService(BaseService):
                 raise ValueError(f"Tag '{tag_data.name}' already exists")
             
             # Create tag document
-            now = datetime.now(datetime.UTC)
+            now = datetime.now(timezone.utc)
             tag_doc = {
                 "name": tag_data.name,
                 "slug": slug,
@@ -85,7 +85,7 @@ class TagService(BaseService):
         
         try:
             # Build update document
-            update_doc = {"updated_at": datetime.now(datetime.UTC), "updated_by": updated_by}
+            update_doc = {"updated_at": datetime.now(timezone.utc), "updated_by": updated_by}
             
             if tag_data.name is not None:
                 # Check if new name conflicts
@@ -134,7 +134,7 @@ class TagService(BaseService):
         try:
             result = await db.tags.update_one(
                 {"_id": tag_id},
-                {"$set": {"status": TagStatus.INACTIVE, "updated_at": datetime.now(datetime.UTC)}}
+                {"$set": {"status": TagStatus.INACTIVE, "updated_at": datetime.now(timezone.utc)}}
             )
             return result.matched_count > 0
         except Exception as e:
@@ -296,7 +296,7 @@ class TagService(BaseService):
                 return []
             
             # Create assignments
-            now = datetime.now(datetime.UTC)
+            now = datetime.now(timezone.utc)
             assignments = []
             
             for tag in tags:
@@ -346,7 +346,7 @@ class TagService(BaseService):
                     {"_id": {"$in": tag_ids}},
                     {
                         "$inc": {"usage_count": -1},
-                        "$set": {"updated_at": datetime.now(datetime.UTC)}
+                        "$set": {"updated_at": datetime.now(timezone.utc)}
                     }
                 )
                 

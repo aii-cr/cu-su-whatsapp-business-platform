@@ -83,9 +83,9 @@ class MessageService(BaseService):
             "location_data": location_data,
             "contact_data": contact_data,
             "status": status,
-            "timestamp": datetime.now(datetime.UTC),
-            "created_at": datetime.now(datetime.UTC),
-            "updated_at": datetime.now(datetime.UTC),
+            "timestamp": datetime.now(timezone.utc),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "reply_to_message_id": ObjectId(reply_to_message_id) if reply_to_message_id else None,
             "is_automated": is_automated,
             "whatsapp_data": whatsapp_data or {}
@@ -93,7 +93,7 @@ class MessageService(BaseService):
         
         # Add status-specific timestamps
         if status == "sent":
-            message_data["sent_at"] = datetime.now(datetime.UTC)
+            message_data["sent_at"] = datetime.now(timezone.utc)
         
         result = await db.messages.insert_one(message_data)
         message_id = result.inserted_id
@@ -114,7 +114,7 @@ class MessageService(BaseService):
                     # Update conversation with assigned agent
                     update_data = {
                         "assigned_agent_id": sender_id,
-                        "updated_at": datetime.now(datetime.UTC),
+                        "updated_at": datetime.now(timezone.utc),
                         "status": "active"  # Activate the conversation when assigned
                     }
                     
@@ -252,18 +252,18 @@ class MessageService(BaseService):
             
             update_data = {
                 "status": status,
-                "updated_at": datetime.now(datetime.UTC)
+                "updated_at": datetime.now(timezone.utc)
             }
             
             # Add status-specific timestamps
             if status == "sent":
-                update_data["sent_at"] = datetime.now(datetime.UTC)
+                update_data["sent_at"] = datetime.now(timezone.utc)
             elif status == "delivered":
-                update_data["delivered_at"] = datetime.now(datetime.UTC)
+                update_data["delivered_at"] = datetime.now(timezone.utc)
             elif status == "read":
-                update_data["read_at"] = datetime.now(datetime.UTC)
+                update_data["read_at"] = datetime.now(timezone.utc)
             elif status == "failed":
-                update_data["failed_at"] = datetime.now(datetime.UTC)
+                update_data["failed_at"] = datetime.now(timezone.utc)
                 if error_code:
                     update_data["error_code"] = error_code
                 if error_message:
