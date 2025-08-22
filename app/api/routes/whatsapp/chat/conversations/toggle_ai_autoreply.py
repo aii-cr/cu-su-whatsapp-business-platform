@@ -103,10 +103,14 @@ async def toggle_ai_autoreply(
         # Send WebSocket notification about the toggle
         try:
             from app.services.websocket.websocket_service import WebSocketService
+            # Get user's full name for better display
+            user_name = current_user.name or f"{getattr(current_user, 'first_name', '')} {getattr(current_user, 'last_name', '')}".strip()
+            changed_by = user_name if user_name else current_user.email
+            
             await WebSocketService.notify_autoreply_toggled(
                 conversation_id=conversation_id,
                 enabled=request.enabled,
-                changed_by=current_user.email
+                changed_by=changed_by
             )
             logger.info(f"🔔 [WS] Sent auto-reply toggle notification for conversation {conversation_id}")
         except Exception as ws_error:

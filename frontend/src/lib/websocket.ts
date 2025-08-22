@@ -765,11 +765,13 @@ export class MessagingWebSocketClient extends WebSocketClient {
       queryKey: ['conversation', conversation_id],
     });
 
-    // Show notification about the change
+    // Show notification about the change with colored icons
     const action = ai_autoreply_enabled ? 'enabled' : 'disabled';
     const actor = changed_by || 'An agent';
+    const icon = ai_autoreply_enabled ? '✅' : '❌';
+    const color = ai_autoreply_enabled ? 'success' : 'error';
     
-    toast.info(`AI Auto-reply ${action}: ${actor} ${action} AI automatic responses`);
+    toast.custom(`AI Auto-reply ${action}: ${actor} ${action} AI automatic responses`, icon, color);
   }
 
   /**

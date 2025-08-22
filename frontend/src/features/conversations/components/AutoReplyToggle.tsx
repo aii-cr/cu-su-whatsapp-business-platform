@@ -47,9 +47,8 @@ export function AutoReplyToggle({
       setIsEnabled(variables.enabled);
     },
     onSuccess: (data) => {
-      // Show single success message with green check for both actions
-      const isEnabled = data.ai_autoreply_enabled;
-      toast.success(`✅ AI Assistant ${isEnabled ? 'Enabled' : 'Disabled'} Successfully`);
+      // Remove duplicate toast - WebSocket notification will provide user feedback
+      // toast.success(`✅ AI Assistant ${isEnabled ? 'Enabled' : 'Disabled'} Successfully`);
 
       // Invalidate conversation queries to update the conversation data
       queryClient.invalidateQueries({ 
