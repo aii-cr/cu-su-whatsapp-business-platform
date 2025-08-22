@@ -145,6 +145,13 @@ export function ConversationSummaryModal({
               </Button>
             )}
           </div>
+          
+          {/* Cache Info */}
+          <div className={styles.cacheInfo}>
+            <p className="text-xs text-muted-foreground">
+              💡 Summary will be regenerated automatically if new messages are detected
+            </p>
+          </div>
 
           {/* Loading State */}
           {(isLoading || isGenerating) && !summary && (

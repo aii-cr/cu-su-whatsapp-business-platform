@@ -29,15 +29,35 @@ export function AutoReplyToggle({
   currentEnabled,
   className = "" 
 }: AutoReplyToggleProps) {
-  const [isEnabled, setIsEnabled] = useState(initialEnabled);
   const queryClient = useQueryClient();
 
-  // Update local state when currentEnabled prop changes
+  // Fetch the current auto-reply status to ensure we have the latest state
+  const { data: autoReplyStatus, error: statusError, isLoading: isLoadingStatus } = useQuery({
+    queryKey: ['conversation-auto-reply', conversationId],
+    queryFn: () => ConversationsApi.getAIAutoReplyStatus(conversationId),
+    enabled: !!conversationId,
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    retry: 2, // Retry up to 2 times
+    retryDelay: 1000, // Wait 1 second between retries
+  });
+
+  // Use the fetched status as the source of truth, fallback to props
+  const actualEnabled = autoReplyStatus?.ai_autoreply_enabled ?? currentEnabled ?? initialEnabled;
+  const [isEnabled, setIsEnabled] = useState(actualEnabled);
+
+  // Update local state when any source changes
   useEffect(() => {
-    if (currentEnabled !== undefined) {
-      setIsEnabled(currentEnabled);
-    }
-  }, [currentEnabled]);
+    console.log(`🔄 [AUTO-REPLY] State sync:`, {
+      conversationId,
+      autoReplyStatus: autoReplyStatus?.ai_autoreply_enabled,
+      currentEnabled,
+      initialEnabled,
+      actualEnabled,
+      isEnabled
+    });
+    setIsEnabled(actualEnabled);
+  }, [actualEnabled, conversationId, autoReplyStatus, currentEnabled, initialEnabled, isEnabled]);
 
   const toggleMutation = useMutation({
     mutationFn: async (request: ToggleAutoReplyRequest) => 
@@ -47,12 +67,12 @@ export function AutoReplyToggle({
       setIsEnabled(variables.enabled);
     },
     onSuccess: (data) => {
-      // Remove duplicate toast - WebSocket notification will provide user feedback
-      // toast.success(`✅ AI Assistant ${isEnabled ? 'Enabled' : 'Disabled'} Successfully`);
-
-      // Invalidate conversation queries to update the conversation data
+      // Invalidate both conversation and auto-reply status queries
       queryClient.invalidateQueries({ 
         queryKey: ['conversation', conversationId] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['conversation-auto-reply', conversationId] 
       });
     },
     onError: (error: Error, variables) => {
@@ -98,16 +118,18 @@ export function AutoReplyToggle({
         <Switch
           checked={isEnabled}
           onCheckedChange={(newState) => handleToggle(newState)}
-          disabled={toggleMutation.isPending}
+          disabled={toggleMutation.isPending || isLoadingStatus}
           aria-label={`Toggle AI auto-reply ${isEnabled ? 'off' : 'on'}`}
         />
       </div>
 
-      {/* Loading indicator */}
-      {toggleMutation.isPending && (
+      {/* Loading indicators */}
+      {(toggleMutation.isPending || isLoadingStatus) && (
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-muted-foreground">Updating...</span>
+          <span className="text-xs text-muted-foreground">
+            {toggleMutation.isPending ? 'Updating...' : 'Loading...'}
+          </span>
         </div>
       )}
     </div>

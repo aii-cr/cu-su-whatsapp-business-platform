@@ -92,6 +92,15 @@ export interface WebSocketMessageData {
     response_sent: boolean;
     timestamp: string;
   };
+
+  // Sentiment analysis updates
+  sentiment_update: {
+    conversation_id: string;
+    sentiment_emoji: string;
+    confidence: number;
+    message_id: string;
+    timestamp: string;
+  };
 }
 
 export class MessagingWebSocketClient extends WebSocketClient {
@@ -284,6 +293,17 @@ export class MessagingWebSocketClient extends WebSocketClient {
             message_id: data.message_id,
             success: data.success,
             response_sent: data.response_sent,
+            timestamp: data.timestamp
+          });
+          break;
+          
+        case 'sentiment_update':
+          console.log('😊 [WEBSOCKET] Handling sentiment update');
+          this.handleSentimentUpdate({
+            conversation_id: data.conversation_id,
+            sentiment_emoji: data.sentiment_emoji,
+            confidence: data.confidence,
+            message_id: data.message_id,
             timestamp: data.timestamp
           });
           break;
@@ -836,6 +856,62 @@ export class MessagingWebSocketClient extends WebSocketClient {
     });
     window.dispatchEvent(event);
     console.log('🤖 [WEBSOCKET] ai-processing-completed event dispatched');
+  }
+
+  /**
+   * Handle sentiment update notification
+   */
+  private handleSentimentUpdate(data: WebSocketMessageData['sentiment_update']) {
+    console.log('😊 [WEBSOCKET] handleSentimentUpdate called with data:', data);
+    console.log('😊 [WEBSOCKET] Updating conversation sentiment for conversation:', data.conversation_id);
+    
+    const { conversation_id, sentiment_emoji, confidence } = data;
+
+    // Update conversation data with new sentiment
+    this.queryClient.setQueryData(
+      ['conversations', 'detail', conversation_id],
+      (oldData: any) => {
+        if (oldData) {
+          return {
+            ...oldData,
+            current_sentiment_emoji: sentiment_emoji,
+            sentiment_confidence: confidence,
+            last_sentiment_analysis_at: data.timestamp
+          };
+        }
+        return oldData;
+      }
+    );
+
+    // Also update conversation list if it exists
+    this.queryClient.setQueryData(
+      ['conversations', 'list'],
+      (oldData: any) => {
+        if (oldData?.conversations) {
+          return {
+            ...oldData,
+            conversations: oldData.conversations.map((conv: any) => 
+              conv._id === conversation_id 
+                ? { ...conv, current_sentiment_emoji: sentiment_emoji, sentiment_confidence: confidence }
+                : conv
+            )
+          };
+        }
+        return oldData;
+      }
+    );
+
+    // Trigger sentiment update by dispatching a custom event
+    const event = new CustomEvent('sentiment-update', {
+      detail: {
+        conversationId: conversation_id,
+        sentimentEmoji: sentiment_emoji,
+        confidence,
+        timestamp: data.timestamp
+      }
+    });
+    window.dispatchEvent(event);
+    console.log('😊 [WEBSOCKET] sentiment-update event dispatched');
   }
 
   /**

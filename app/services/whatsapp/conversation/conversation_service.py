@@ -305,6 +305,58 @@ class ConversationService(BaseService):
             logger.error(f"Error updating conversation {conversation_id}: {str(e)}")
             return None
     
+    async def update_conversation_sentiment(
+        self,
+        conversation_id: str,
+        sentiment_emoji: str,
+        confidence: float,
+        updated_by: ObjectId = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update conversation sentiment data.
+        
+        Args:
+            conversation_id: Conversation ID
+            sentiment_emoji: Sentiment emoji
+            confidence: Confidence score
+            updated_by: User who made the update
+            
+        Returns:
+            Updated conversation document or None
+        """
+        try:
+            logger.info(f"😊 [SENTIMENT] Updating conversation sentiment: {conversation_id} -> {sentiment_emoji} (confidence: {confidence})")
+            
+            db = await self._get_db()
+            
+            update_data = {
+                "current_sentiment_emoji": sentiment_emoji,
+                "sentiment_confidence": confidence,
+                "last_sentiment_analysis_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+            
+            if updated_by:
+                update_data["updated_by"] = updated_by
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"😊 [SENTIMENT] No conversation updated for {conversation_id}")
+                return None
+            
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            logger.info(f"😊 [SENTIMENT] Successfully updated conversation sentiment: {conversation_id}")
+            
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error updating conversation sentiment {conversation_id}: {str(e)}")
+            return None
+    
     async def toggle_ai_autoreply(
         self,
         conversation_id: str,

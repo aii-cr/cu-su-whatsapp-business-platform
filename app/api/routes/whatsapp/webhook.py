@@ -21,6 +21,7 @@ from app.services import audit_service
 from app.services import automation_service
 from app.services import message_service, conversation_service
 from app.services import websocket_service
+from app.services import sentiment_analyzer_service
 from app.services.websocket.websocket_service import manager
 from app.services.ai.agents.whatsapp.agent_service import agent_service
 from app.core.error_handling import handle_database_error
@@ -329,6 +330,24 @@ async def process_incoming_message(
     
     # Process automation
     await automation_service.process_incoming_message(message)
+    
+    # ===== SENTIMENT ANALYSIS PROCESSING =====
+    # Process sentiment analysis for customer messages
+    if incoming_msg.text and incoming_msg.text.body:
+        logger.info(f"😊 [SENTIMENT] Triggering sentiment analysis for conversation {conversation['_id']}")
+        
+        # Process sentiment analysis in background
+        asyncio.create_task(
+            process_sentiment_analysis(
+                conversation_id=str(conversation["_id"]),
+                message_id=str(message["_id"]),
+                message_text=incoming_msg.text.body,
+                customer_phone=phone_number,
+                is_first_message=is_new_conversation
+            )
+        )
+    else:
+        logger.info(f"🚫 [SENTIMENT] Skipping sentiment analysis (no text content)")
     
     # ===== AI AGENT PROCESSING =====
     # Check if AI auto-reply is enabled for this conversation
@@ -693,4 +712,41 @@ async def process_with_ai_agent(
         except Exception as ws_error:
             logger.warning(f"⚠️ [WS] Failed to send error completion notification: {str(ws_error)}")
         
-        # Don't raise - AI processing failure shouldn't break webhook processing 
+        # Don't raise - AI processing failure shouldn't break webhook processing
+
+
+async def process_sentiment_analysis(
+    conversation_id: str,
+    message_id: str,
+    message_text: str,
+    customer_phone: str,
+    is_first_message: bool = False
+):
+    """
+    Process sentiment analysis for customer message.
+    
+    Args:
+        conversation_id: Conversation identifier
+        message_id: Message identifier
+        message_text: Customer message text
+        customer_phone: Customer phone number
+        is_first_message: Whether this is the first message in conversation
+    """
+    try:
+        logger.info(f"😊 [SENTIMENT] Starting sentiment analysis for conversation {conversation_id}")
+        
+        # Process sentiment analysis
+        await sentiment_analyzer_service.process_incoming_message_sentiment(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            message_text=message_text,
+            customer_phone=customer_phone,
+            is_first_message=is_first_message
+        )
+        
+        logger.info(f"✅ [SENTIMENT] Sentiment analysis completed for conversation {conversation_id}")
+        
+    except Exception as e:
+        logger.error(f"💥 [SENTIMENT] Unexpected error in sentiment analysis: {str(e)}")
+        
+        # Don't raise - sentiment analysis failure shouldn't break webhook processing 

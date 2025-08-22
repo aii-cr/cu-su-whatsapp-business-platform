@@ -87,6 +87,7 @@ class DatabaseClient:
             await self._create_audit_log_indexes()
             await self._create_company_profile_indexes()
             await self._create_conversation_summaries_indexes()
+            await self._create_conversation_sentiments_indexes()
             
             logger.info("Database initialization completed successfully")
             
@@ -381,6 +382,22 @@ class DatabaseClient:
         ]
         await collection.create_indexes(indexes)
         logger.info("Created indexes for conversation_summaries collection")
+    
+    async def _create_conversation_sentiments_indexes(self) -> None:
+        """Create indexes for conversation_sentiments collection."""
+        collection = self.db.conversation_sentiments
+        indexes = [
+            IndexModel([("conversation_id", ASCENDING)], name="idx_conv_sentiments_conversation"),
+            IndexModel([("created_at", DESCENDING)], name="idx_conv_sentiments_created"),
+            IndexModel([("updated_at", DESCENDING)], name="idx_conv_sentiments_updated"),
+            IndexModel([("version", DESCENDING)], name="idx_conv_sentiments_version"),
+            IndexModel([
+                ("conversation_id", ASCENDING),
+                ("version", DESCENDING)
+            ], name="idx_conv_sentiments_conversation_version")
+        ]
+        await collection.create_indexes(indexes)
+        logger.info("Created indexes for conversation_sentiments collection")
     
     @property
     def is_connected(self) -> bool:

@@ -140,6 +140,15 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
               <h1 className="text-lg font-semibold truncate">
                 {conversation.customer?.name || conversation.customer_name || conversation.customer?.phone || conversation.customer_phone || 'Unknown Customer'}
               </h1>
+              {/* Sentiment Emoji */}
+              {conversation.current_sentiment_emoji && (
+                <span 
+                  className="text-xl flex-shrink-0 cursor-default"
+                  title={`Sentiment: ${conversation.current_sentiment_emoji} (Confidence: ${Math.round((conversation.sentiment_confidence || 0) * 100)}%)`}
+                >
+                  {conversation.current_sentiment_emoji}
+                </span>
+              )}
               <Badge 
                 variant={getStatusVariant(conversation.status)}
                 className="text-xs flex-shrink-0"

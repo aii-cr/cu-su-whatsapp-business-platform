@@ -58,18 +58,7 @@ class ConversationSummarizerService(BaseService):
                     processing_time=0.0
                 )
             
-            # Check cache first
-            cache_key = f"{request.conversation_id}_{request.summary_type}"
-            cached_summary = self._get_cached_summary(cache_key)
-            if cached_summary:
-                logger.info(f"Returning cached summary for conversation {request.conversation_id}")
-                return SummarizationResult(
-                    success=True,
-                    summary=cached_summary,
-                    processing_time=0.0
-                )
-            
-            # Load conversation data
+            # Load conversation data first to check message count
             conversation_data = await self._load_conversation_data(request.conversation_id)
             if not conversation_data:
                 return SummarizationResult(
@@ -77,6 +66,22 @@ class ConversationSummarizerService(BaseService):
                     error="Conversation not found or no messages available",
                     processing_time=0.0
                 )
+            
+            # Check cache with message count validation
+            current_message_count = len(conversation_data.messages)
+            cache_key = f"{request.conversation_id}_{request.summary_type}_{current_message_count}"
+            cached_summary = self._get_cached_summary(cache_key)
+            
+            # Use cache if available (message count is part of the key)
+            if cached_summary:
+                logger.info(f"Returning cached summary for conversation {request.conversation_id} (message count: {current_message_count})")
+                return SummarizationResult(
+                    success=True,
+                    summary=cached_summary,
+                    processing_time=0.0
+                )
+            
+
             
             # Create summarization config
             config = SummarizationConfig(
@@ -337,23 +342,51 @@ class ConversationSummarizerService(BaseService):
             if role == "agent":
                 sender_name = msg.get("sender_name")
                 sender_id = msg.get("sender_id")
+                sender_email = msg.get("sender_email")  # Try to get email from message first
                 
-                # Try to get email from user service if sender_id is available
-                sender_email = "No email"
-                if sender_id:
+                # If email not in message, try to get from user service if sender_id is available
+                if not sender_email and sender_id:
                     try:
-                        from app.services import user_service
-                        user = await user_service.get_user_by_id(str(sender_id))
+                        from app.services.auth.user_service import UserService
+                        from bson import ObjectId
+                        
+                        user_service = UserService()
+                        user_obj_id = ObjectId(str(sender_id))
+                        user = await user_service.get_user_by_id(user_obj_id)
+                        
                         if user and user.get("email"):
                             sender_email = user["email"]
+                            logger.info(f"Found email for user {sender_id}: {sender_email}")
+                        else:
+                            logger.warning(f"No email found for user {sender_id}")
                     except Exception as e:
                         logger.warning(f"Could not fetch email for user {sender_id}: {str(e)}")
+                
+                # If still no email, try to get from conversation participants
+                if not sender_email and sender_id:
+                    try:
+                        from app.services.conversation_service import conversation_service
+                        conversation = await conversation_service.get_conversation(msg.get("conversation_id"))
+                        if conversation and conversation.get("participants"):
+                            for participant in conversation.get("participants", []):
+                                if participant.get("user_id") == str(sender_id) and participant.get("email"):
+                                    sender_email = participant["email"]
+                                    logger.info(f"Found email from conversation participants for user {sender_id}: {sender_email}")
+                                    break
+                    except Exception as e:
+                        logger.warning(f"Could not fetch conversation participants for user {sender_id}: {str(e)}")
+                
+                # Default fallback
+                if not sender_email:
+                    sender_email = "No email available"
+                    logger.warning(f"No email found for agent {sender_name} (ID: {sender_id})")
                 
                 if sender_name and sender_name not in human_agents:
                     human_agents[sender_name] = {
                         "name": sender_name,
                         "email": sender_email
                     }
+                    logger.info(f"Added human agent: {sender_name} ({sender_email})")
         
         return list(human_agents.values())
     
@@ -414,6 +447,17 @@ class ConversationSummarizerService(BaseService):
         
         return None
     
+    def _clear_cache_entry(self, cache_key: str):
+        """
+        Clear a specific cache entry.
+        
+        Args:
+            cache_key: Cache key to clear
+        """
+        if cache_key in self._cache:
+            del self._cache[cache_key]
+            logger.debug(f"Cleared cache entry: {cache_key}")
+    
     def _cache_summary(self, cache_key: str, summary: ConversationSummaryResponse):
         """
         Cache a summary.
@@ -443,7 +487,7 @@ class ConversationSummarizerService(BaseService):
             conversation_id: Specific conversation to clear, or None for all
         """
         if conversation_id:
-            # Clear specific conversation cache
+            # Clear specific conversation cache (handles new format with message count)
             keys_to_remove = [
                 key for key in self._cache.keys()
                 if key.startswith(f"{conversation_id}_")

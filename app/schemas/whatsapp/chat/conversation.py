@@ -78,6 +78,10 @@ class ConversationResponse(BaseModel):
     response_time_minutes: Optional[int] = None
     resolution_time_minutes: Optional[int] = None
     metadata: Dict[str, Any] = {}
+    # Sentiment Analysis
+    current_sentiment_emoji: Optional[str] = None
+    sentiment_confidence: Optional[float] = None
+    last_sentiment_analysis_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True

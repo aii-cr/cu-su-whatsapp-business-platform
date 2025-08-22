@@ -76,6 +76,10 @@ export const ConversationSchema = z.object({
   last_message: LastMessageSchema.optional(),
   unread_count: z.number().default(0),
   ai_autoreply_enabled: z.boolean().default(true), // AI auto-reply setting per conversation
+  // Sentiment Analysis
+  current_sentiment_emoji: z.string().optional(),
+  sentiment_confidence: z.number().min(0).max(1).optional(),
+  last_sentiment_analysis_at: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   closed_at: z.string().optional(),

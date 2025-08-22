@@ -586,6 +586,21 @@ class WebSocketService:
         logger.info(f"🤖 [WS] Notified AI processing completed for conversation {conversation_id}: success={success}, response_sent={response_sent}")
     
     @staticmethod
+    async def notify_sentiment_update(conversation_id: str, sentiment_emoji: str, confidence: float, message_id: str):
+        """Notify about sentiment analysis updates."""
+        notification = {
+            "type": "sentiment_update",
+            "conversation_id": str(conversation_id),
+            "sentiment_emoji": sentiment_emoji,
+            "confidence": confidence,
+            "message_id": str(message_id),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"😊 [WS] Broadcasted sentiment update for conversation {conversation_id}: {sentiment_emoji} (confidence: {confidence:.2f})")
+    
+    @staticmethod
     async def reset_unread_count_for_user(user_id: str, conversation_id: str):
         """Reset unread count when user reads messages."""
         manager.reset_unread_count(user_id, conversation_id)

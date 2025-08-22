@@ -137,6 +137,11 @@ class Conversation(BaseModel):
         description="WhatsApp-specific data"
     )
     
+    # Sentiment Analysis
+    current_sentiment_emoji: Optional[str] = Field(None, description="Current sentiment emoji for the customer")
+    sentiment_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score for sentiment analysis")
+    last_sentiment_analysis_at: Optional[datetime] = Field(None, description="When sentiment was last analyzed")
+    
     # Internal flags and settings
     is_internal: bool = Field(default=False, description="Whether this is an internal conversation")
     is_archived: bool = Field(default=False, description="Whether conversation is archived")
