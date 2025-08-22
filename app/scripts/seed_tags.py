@@ -198,7 +198,7 @@ async def seed_tags():
         logger.info(f"🎉 Seeding complete! Created: {created_count}, Skipped: {skipped_count}")
         
         # Verify tags were created
-        db = await database._get_db()
+        db = await database.get_database()
         total_tags = await db.tags.count_documents({"status": "active"})
         logger.info(f"📊 Total active tags in database: {total_tags}")
         

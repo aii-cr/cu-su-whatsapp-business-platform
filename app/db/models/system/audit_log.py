@@ -141,7 +141,7 @@ class AuditLog(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     # Indexing fields
-    date_partition: str = Field(default_factory=lambda: datetime.utcnow().strftime("%Y%m%d"))
+    date_partition: str = Field(default_factory=lambda: datetime.now(datetime.UTC).strftime("%Y%m%d"))
     
     class Config:
         populate_by_name = True

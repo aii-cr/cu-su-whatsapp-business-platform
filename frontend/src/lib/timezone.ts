@@ -87,12 +87,23 @@ export function formatMessageTime(date: Date | string | number): string {
  */
 export function getMessageDayBanner(date: Date | string | number): string {
   try {
-    const messageDate = new Date(date);
+    let messageDate = new Date(date);
     if (isNaN(messageDate.getTime())) {
       return ''; // Return empty string for invalid dates
     }
     
+    // TEMPORARY FIX: Detect if this is a backend message with timezone offset issue
+    // Backend messages from before the fix have timestamps 6 hours in the future
     const now = new Date();
+    const timeDiff = messageDate.getTime() - now.getTime();
+    const sixHoursInMs = 6 * 60 * 60 * 1000;
+    
+    // If message timestamp is significantly in the future (more than 3 hours), 
+    // it's likely a backend message with the timezone offset issue
+    if (timeDiff > (3 * 60 * 60 * 1000)) {
+      console.log('🔧 [TIMEZONE] Detected backend message with offset, adjusting timestamp');
+      messageDate = new Date(messageDate.getTime() - sixHoursInMs);
+    }
     
     // Extract date components in Costa Rica timezone using Intl.DateTimeFormat
     const messageYear = parseInt(crYearFormatter.format(messageDate));

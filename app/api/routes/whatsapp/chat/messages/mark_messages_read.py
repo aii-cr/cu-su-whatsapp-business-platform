@@ -27,7 +27,7 @@ async def mark_messages_read(
     This endpoint is called when the agent enters the conversation view and messages are visible.
     """
     try:
-        db = await database._get_db()
+        db = await database.get_database()
         conversation_id = ObjectId(request_data.conversation_id)
         
         # Verify the user is the assigned agent for this conversation

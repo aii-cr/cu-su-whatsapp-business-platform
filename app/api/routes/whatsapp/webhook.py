@@ -384,7 +384,7 @@ async def process_message_status(
         
         # Let's also check if there are any messages in the database for debugging
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         total_messages = await db.messages.count_documents({})
         messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
         logger.info(f"📊 [STATUS] Database stats - Total messages: {total_messages}, Messages with WhatsApp ID: {messages_with_whatsapp_id}")
@@ -566,7 +566,7 @@ async def debug_webhook_signature():
         
         # Get database statistics
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         total_messages = await db.messages.count_documents({})
         messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
         

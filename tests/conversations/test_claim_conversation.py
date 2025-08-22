@@ -15,7 +15,7 @@ from app.services.auth.utils.session_auth import create_access_token
 @pytest.fixture
 async def test_user():
     """Create a test user for authentication."""
-    db = await database._get_db()
+    db = await database.get_database()
     
     # Create test user
     user_data = {
@@ -47,7 +47,7 @@ async def test_user():
 @pytest.fixture
 async def test_conversation():
     """Create a test conversation."""
-    db = await database._get_db()
+    db = await database.get_database()
     
     conversation_data = {
         "_id": ObjectId(),
@@ -90,7 +90,7 @@ async def test_claim_conversation_success(test_user, test_conversation):
         assert data["status"] == "active"
         
         # Verify in database
-        db = await database._get_db()
+        db = await database.get_database()
         updated_conversation = await db.conversations.find_one({"_id": test_conversation["_id"]})
         assert updated_conversation["assigned_agent_id"] == test_user["user"]["_id"]
         assert updated_conversation["status"] == "active"
@@ -99,7 +99,7 @@ async def test_claim_conversation_success(test_user, test_conversation):
 @pytest.mark.asyncio
 async def test_claim_already_assigned_conversation(test_user, test_conversation):
     """Test claiming a conversation that's already assigned."""
-    db = await database._get_db()
+    db = await database.get_database()
     
     # First, assign the conversation to another user
     other_user_id = ObjectId()
@@ -149,7 +149,7 @@ async def test_claim_conversation_unauthorized():
 @pytest.mark.asyncio
 async def test_auto_assign_on_first_message(test_user, test_conversation):
     """Test auto-assignment when agent sends first message."""
-    db = await database._get_db()
+    db = await database.get_database()
     
     # Send a message as an agent to an unassigned conversation
     message_data = {

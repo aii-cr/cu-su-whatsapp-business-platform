@@ -14,18 +14,7 @@ export interface DayBannerProps {
 
 const DayBanner = React.forwardRef<HTMLDivElement, DayBannerProps>(
   ({ date, className }, ref) => {
-    console.log('🎯 [DAY_BANNER] Raw date received:', date);
-    console.log('🎯 [DAY_BANNER] Date as ISO:', new Date(date).toISOString());
-    console.log('🎯 [DAY_BANNER] Current time Costa Rica:', new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      month: 'long', 
-      day: 'numeric',
-      timeZone: 'America/Costa_Rica'
-    }).format(new Date()));
-    
     const bannerText = getMessageDayBanner(date);
-    
-    console.log('🎯 [DAY_BANNER] Banner text result:', bannerText);
 
     return (
       <div

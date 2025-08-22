@@ -48,7 +48,7 @@ class ChatPlatformService(BaseService):
             # Update conversation with last message
             await db.conversations.update_one(
                 {"conversation_id": message["conversation_id"]},
-                {"$set": {"last_message": message, "updated_at": datetime.utcnow()}}
+                {"$set": {"last_message": message, "updated_at": datetime.now(datetime.UTC)}}
             )
 
             return result.inserted_id

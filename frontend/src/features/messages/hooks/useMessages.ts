@@ -156,10 +156,25 @@ export function useSendMessage() {
       const conversationId = variables.conversation_id;
       if (!conversationId) return handleError(error);
 
-      // Rollback optimistic update
+      // Instead of completely removing the optimistic message, update it to show error state
       queryClient.setQueryData(
         messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
-        context?.previousData ?? null
+        (old: any) => {
+          if (!old) return context?.previousData ?? null;
+          
+          const newPages = old.pages.map((page: any, idx: number) => {
+            if (idx !== 0) return page;
+            return {
+              ...page,
+              messages: page.messages.map((msg: any) =>
+                msg._id === context?.optimisticId 
+                  ? { ...msg, status: 'failed', error: true }
+                  : msg
+              ),
+            };
+          });
+          return { ...old, pages: newPages };
+        }
       );
       handleError(error);
     },

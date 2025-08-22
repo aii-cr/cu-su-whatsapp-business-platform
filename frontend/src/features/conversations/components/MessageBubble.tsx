@@ -87,10 +87,11 @@ export interface MessageBubbleProps {
   className?: string;
   isOptimistic?: boolean;
   isNewMessage?: boolean;
+  onRetry?: (message: Message) => void;
 }
 
 const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  ({ message, isOwn = false, showAvatar = true, showTimestamp = true, className, isOptimistic = false, isNewMessage = false }, ref) => {
+  ({ message, isOwn = false, showAvatar = true, showTimestamp = true, className, isOptimistic = false, isNewMessage = false, onRetry }, ref) => {
     // Track status changes for animation
     const [previousStatus, setPreviousStatus] = useState(message.status);
     const [shouldAnimateStatus, setShouldAnimateStatus] = useState(false);
@@ -364,6 +365,19 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
               'flex items-center justify-end mt-1 space-x-1',
               shouldAlignRight ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
             )}>
+              {/* Retry button for failed messages */}
+              {message.status === 'failed' && onRetry && shouldAlignRight && (
+                <button
+                  onClick={() => onRetry(message)}
+                  className={cn(
+                    'text-xs px-2 py-1 rounded bg-white/20 hover:bg-white/30 transition-colors',
+                    'text-white/90 hover:text-white font-medium'
+                  )}
+                  title="Retry sending message"
+                >
+                  Retry
+                </button>
+              )}
               {showTimestamp && (
                 <span className="text-xs font-medium">
                   {formatMessageTime(getDisplayTimestamp())}

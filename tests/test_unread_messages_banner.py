@@ -51,7 +51,7 @@ class TestUnreadMessagesBanner:
         """Create a test conversation with unread inbound messages."""
         from app.db.client import database
         
-        db = await database._get_db()
+        db = await database.get_database()
         
         # Create conversation assigned to test user
         conversation_data = {
@@ -137,7 +137,7 @@ class TestUnreadMessagesBanner:
         
         # Verify messages are marked as read
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         
         unread_messages = await db.messages.find({
             "conversation_id": ObjectId(conversation_id),
@@ -269,7 +269,7 @@ class TestUnreadMessagesBanner:
         
         # Initially should have unread messages
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         
         unread_messages = await db.messages.find({
             "conversation_id": ObjectId(conversation_id),
@@ -314,7 +314,7 @@ class TestUnreadMessagesBanner:
         """Test behavior when conversation has no assigned agent."""
         from app.db.client import database
         
-        db = await database._get_db()
+        db = await database.get_database()
         
         # Create conversation without assigned agent
         conversation_data = {

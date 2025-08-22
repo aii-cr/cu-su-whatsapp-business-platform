@@ -181,7 +181,7 @@ class ConnectionManager:
             "conversation_id": conversation_id,
             "assigned_agent_id": assigned_agent_id,
             "agent_name": agent_name,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         logger.info(f"🔔 [WEBSOCKET] Broadcasting conversation assignment update for {conversation_id} to {len(self.dashboard_subscribers)} dashboard subscribers")
@@ -278,7 +278,7 @@ class WebSocketService:
             "type": "new_message",
             "conversation_id": str(conversation_id),
             "message": serialized_message,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         logger.info(f"🔔 [WEBSOCKET] Sending notification: {notification}")
@@ -294,7 +294,7 @@ class WebSocketService:
             "conversation_id": str(conversation_id),
             "message_id": str(message_id),
             "status": status,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -342,7 +342,7 @@ class WebSocketService:
             "message_id": str(message_id),
             "status": status,
             "message_data": serialized_message_data,  # Include serialized message data
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         logger.info(f"🔔 [WEBSOCKET] Broadcasting status update notification: {notification}")
@@ -365,7 +365,7 @@ class WebSocketService:
             "message_ids": message_ids,
             "read_by_user_id": read_by_user_id,
             "read_by_user_name": read_by_user_name,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -378,7 +378,7 @@ class WebSocketService:
             "type": "conversation_update",
             "conversation_id": str(conversation_id),
             "update": update_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -391,7 +391,7 @@ class WebSocketService:
             "type": "user_activity",
             "user_id": str(user_id),
             "activity": activity_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.send_personal_message(notification, str(user_id))
@@ -427,7 +427,7 @@ class WebSocketService:
         notification = {
             "type": "new_conversation",
             "conversation": serialized_conversation,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_dashboard(notification)
@@ -439,7 +439,7 @@ class WebSocketService:
         notification = {
             "type": "stats_update",
             "stats": stats_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_dashboard(notification)
@@ -476,7 +476,7 @@ class WebSocketService:
             "type": "conversation_list_update",
             "update_type": update_type,  # "created", "updated", "status_changed"
             "conversation": serialized_conversation,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_dashboard(notification)
@@ -489,7 +489,7 @@ class WebSocketService:
             "type": "unread_count_update",
             "conversation_id": str(conversation_id),
             "unread_count": count,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.send_personal_message(notification, user_id)
@@ -510,7 +510,7 @@ class WebSocketService:
                 elif isinstance(value, str):
                     serialized_message[key] = value
                 else:
-                    serialized_message[key] = datetime.utcnow().isoformat()
+                    serialized_message[key] = datetime.now(datetime.UTC).isoformat()
             elif isinstance(value, datetime):
                 serialized_message[key] = value.isoformat()
             elif hasattr(value, 'isoformat'):
@@ -522,7 +522,7 @@ class WebSocketService:
             "type": "ai_response",
             "conversation_id": str(conversation_id),
             "message": serialized_message,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -536,7 +536,7 @@ class WebSocketService:
             "conversation_id": str(conversation_id),
             "ai_autoreply_enabled": enabled,
             "changed_by": changed_by,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -549,7 +549,7 @@ class WebSocketService:
             "type": "ai_processing_started",
             "conversation_id": str(conversation_id),
             "message_id": str(message_id),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -564,7 +564,7 @@ class WebSocketService:
             "activity_type": activity_type,  # e.g., "rag_search", "tool_execution", "intent_detection"
             "activity_description": activity_description,  # e.g., "Using internal knowledge", "Detecting intent"
             "metadata": metadata or {},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -579,7 +579,7 @@ class WebSocketService:
             "message_id": str(message_id),
             "success": success,
             "response_sent": response_sent,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(datetime.UTC).isoformat()
         }
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
@@ -695,8 +695,8 @@ class WebSocketService:
                                 {
                                     "$set": {
                                         "status": MessageStatus.READ,
-                                        "read_at": datetime.utcnow(),
-                                        "updated_at": datetime.utcnow()
+                                        "read_at": datetime.now(datetime.UTC),
+                                        "updated_at": datetime.now(datetime.UTC)
                                     }
                                 }
                             )

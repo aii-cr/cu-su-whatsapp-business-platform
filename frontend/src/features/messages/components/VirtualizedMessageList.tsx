@@ -12,7 +12,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { useQueryClient } from '@tanstack/react-query';
 import { Message } from '../models/message';
-import { useMessages } from '../hooks/useMessages';
+import { useMessages, useSendMessage } from '../hooks/useMessages';
 import { messageQueryKeys } from '../hooks/useMessages';
 import { MessageBubble } from '@/features/conversations/components/MessageBubble';
 import { DayBanner } from '@/features/conversations/components/DayBanner';
@@ -66,8 +66,43 @@ export function VirtualizedMessageList({
     isError,
   } = useMessages(conversationId, 50);
 
+  // Message sending
+  const sendMessageMutation = useSendMessage();
+
   // WebSocket integration
   const webSocket = useConversationWebSocket(conversationId);
+
+  // Handle retry for failed messages
+  const handleRetryMessage = useCallback((message: Message) => {
+    if (!message.text_content) {
+      console.error('❌ [RETRY] Cannot retry message without text content');
+      return;
+    }
+
+    console.log('🔄 [RETRY] Retrying failed message:', message._id);
+    
+    // First, remove the failed optimistic message from cache
+    queryClient.setQueryData(
+      messageQueryKeys.conversationMessages(conversationId, { limit: 50 }),
+      (old: any) => {
+        if (!old) return old;
+        const newPages = old.pages.map((page: any, idx: number) => {
+          if (idx !== 0) return page;
+          return {
+            ...page,
+            messages: page.messages.filter((msg: any) => msg._id !== message._id),
+          };
+        });
+        return { ...old, pages: newPages };
+      }
+    );
+
+    // Then send the message again
+    sendMessageMutation.mutate({
+      conversation_id: conversationId,
+      text_content: message.text_content,
+    });
+  }, [conversationId, queryClient, sendMessageMutation]);
 
   // Debug test functions
   useEffect(() => {
@@ -186,8 +221,30 @@ export function VirtualizedMessageList({
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
   
+  // Normalize optimistic message timestamps to be on the same day as the last real message
+  // This prevents each optimistic message from getting its own day banner
+  const lastRealMessage = sortedRealMessages[sortedRealMessages.length - 1];
+  const normalizedOptimisticMessages = optimisticMessages.map(msg => {
+    if (lastRealMessage && !isSameDay(msg.timestamp, lastRealMessage.timestamp)) {
+      // Use the last real message's date but keep the time from optimistic message
+      const lastRealDate = new Date(lastRealMessage.timestamp);
+      const optimisticTime = new Date(msg.timestamp);
+      const normalizedDate = new Date(
+        lastRealDate.getFullYear(),
+        lastRealDate.getMonth(),
+        lastRealDate.getDate(),
+        optimisticTime.getHours(),
+        optimisticTime.getMinutes(),
+        optimisticTime.getSeconds(),
+        optimisticTime.getMilliseconds()
+      );
+      return { ...msg, timestamp: normalizedDate.toISOString() };
+    }
+    return msg;
+  });
+  
   // Optimistic messages should always appear at the end (newest)
-  const sortedMessages = [...sortedRealMessages, ...optimisticMessages];
+  const sortedMessages = [...sortedRealMessages, ...normalizedOptimisticMessages];
   
   // Determine if we have any messages at all
   const hasAnyMessages = sortedMessages.length > 0;
@@ -483,6 +540,7 @@ export function VirtualizedMessageList({
                 isOwn={item.message!.direction === 'outbound'}
                 isOptimistic={item.message!._id?.startsWith('optimistic-')}
                 isNewMessage={item.isNewMessage}
+                onRetry={handleRetryMessage}
               />
             </div>
           );
