@@ -63,6 +63,9 @@ export function useConversationSummarizer({
   const generateMutation = useMutation({
     mutationFn: async (request: ConversationSummaryRequest) => {
       const startTime = Date.now();
+      // Show initial loading toast
+      toast.info('Starting conversation analysis...', { duration: 2000 });
+      
       const result = await SummarizerApi.summarizeConversation(request);
       const endTime = Date.now();
       return { ...result, processingTime: endTime - startTime };
@@ -73,14 +76,23 @@ export function useConversationSummarizer({
         setLocalError(null);
         setProcessingTime(data.processingTime);
         setLastGenerated(new Date().toISOString());
-        toast.success('Conversation summary generated successfully!');
+        toast.success(`Summary generated in ${(data.processingTime / 1000).toFixed(1)}s!`);
       } else {
         setLocalError(data.error || 'Failed to generate summary');
         toast.error(data.error || 'Failed to generate summary');
       }
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to generate summary';
+      let errorMessage = 'Failed to generate summary';
+      
+      if (error?.name === 'AbortError' || error?.message?.includes('timeout')) {
+        errorMessage = 'Summarization timed out. Please try again.';
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       setLocalError(errorMessage);
       toast.error(errorMessage);
     }

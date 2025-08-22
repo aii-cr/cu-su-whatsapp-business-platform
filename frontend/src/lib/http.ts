@@ -53,8 +53,8 @@ export class HttpClient {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      // Add timeout for requests
-      signal: AbortSignal.timeout(30000), // 30 second timeout
+      // Add timeout for requests - increased for summarization operations
+      signal: AbortSignal.timeout(60000), // 60 second timeout
     };
 
     try {

@@ -147,10 +147,20 @@ export function ConversationSummaryModal({
           </div>
 
           {/* Loading State */}
-          {isLoading && !summary && (
+          {(isLoading || isGenerating) && !summary && (
             <div className={styles.loadingState}>
               <ArrowPathIcon className="w-6 h-6 animate-spin" />
-              <p>Loading summary...</p>
+              <p>
+                {isGenerating 
+                  ? 'Analyzing conversation and generating summary...' 
+                  : 'Loading summary...'
+                }
+              </p>
+              {isGenerating && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  This may take up to 2 minutes for long conversations
+                </p>
+              )}
             </div>
           )}
 

@@ -3,6 +3,7 @@
  */
 
 import { httpClient } from '@/lib/http';
+import { getApiUrl } from '@/lib/config';
 
 export interface ConversationSummaryRequest {
   conversation_id: string;
@@ -49,12 +50,43 @@ export interface CacheStatsResponse {
 export class SummarizerApi {
   /**
    * Generate a summary for a conversation.
+   * Uses extended timeout for summarization operations.
    */
   static async summarizeConversation(
     request: ConversationSummaryRequest
   ): Promise<SummarizeResponse> {
-    const response = await httpClient.post<SummarizeResponse>('/ai/summarizer/summarize', request);
-    return response;
+    // Create a custom request with extended timeout for summarization
+    const url = getApiUrl('/ai/summarizer/summarize');
+    const config: RequestInit = {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+      // Extended timeout for summarization (2 minutes)
+      signal: AbortSignal.timeout(120000),
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || 
+          errorData.detail || 
+          `HTTP ${response.status}: ${response.statusText}`
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred during summarization');
+    }
   }
 
   /**
