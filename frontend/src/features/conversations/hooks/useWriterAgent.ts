@@ -6,20 +6,25 @@ import { useState, useCallback } from 'react';
 import { 
   generateWriterResponse, 
   generateContextualResponse as generateContextualResponseApi,
+  generateStructuredWriterResponse,
+  generateStructuredContextualResponse as generateStructuredContextualResponseApi,
   WriterQueryRequest,
   ContextualResponseRequest,
-  WriterResponse
+  WriterResponse,
+  WriterAgentResult
 } from '../api/writerApi';
 
 export interface UseWriterAgentOptions {
   onSuccess?: (response: WriterResponse) => void;
   onError?: (error: Error) => void;
+  onStructuredSuccess?: (response: WriterAgentResult) => void;
 }
 
 export function useWriterAgent(options?: UseWriterAgentOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResponse, setLastResponse] = useState<WriterResponse | null>(null);
+  const [lastStructuredResponse, setLastStructuredResponse] = useState<WriterAgentResult | null>(null);
 
   const generateResponse = useCallback(async (request: WriterQueryRequest) => {
     setIsLoading(true);
@@ -81,8 +86,64 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
     setError(null);
   }, []);
 
+  const generateStructuredResponse = useCallback(async (request: WriterQueryRequest) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await generateStructuredWriterResponse(request);
+      
+      if (response.success) {
+        setLastStructuredResponse(response);
+        options?.onStructuredSuccess?.(response);
+      } else {
+        const errorMsg = response.error || 'Unknown error occurred';
+        setError(errorMsg);
+        options?.onError?.(new Error(errorMsg));
+      }
+
+      return response;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMsg);
+      options?.onError?.(err instanceof Error ? err : new Error(errorMsg));
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [options]);
+
+  const generateStructuredContextualResponse = useCallback(async (request: ContextualResponseRequest): Promise<WriterAgentResult> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response: WriterAgentResult = await generateStructuredContextualResponseApi(request);
+      
+      if (response.success) {
+        setLastStructuredResponse(response);
+        options?.onStructuredSuccess?.(response);
+      } else {
+        const errorMsg = response.error || 'Unknown error occurred';
+        setError(errorMsg);
+        options?.onError?.(new Error(errorMsg));
+        return response;
+      }
+
+      return response;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMsg);
+      options?.onError?.(err instanceof Error ? err : new Error(errorMsg));
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [options]);
+
   const clearResponse = useCallback(() => {
     setLastResponse(null);
+    setLastStructuredResponse(null);
   }, []);
 
   const setCustomError = useCallback((errorMessage: string) => {
@@ -93,8 +154,11 @@ export function useWriterAgent(options?: UseWriterAgentOptions) {
     isLoading,
     error,
     lastResponse,
+    lastStructuredResponse,
     generateResponse,
     generateContextualResponse,
+    generateStructuredResponse,
+    generateStructuredContextualResponse,
     clearError,
     clearResponse,
     setCustomError,

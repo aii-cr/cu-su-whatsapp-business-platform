@@ -10,6 +10,7 @@ from app.core.logger import logger
 from app.services.auth.utils.session_auth import get_current_user
 from app.services.ai.agents.writer.agent_service import writer_agent_service
 from app.config.error_codes import get_error_response
+from app.schemas.ai.writer_response import StructuredWriterResponse, WriterAgentResult
 
 router = APIRouter()
 
@@ -51,8 +52,8 @@ async def generate_response(
             f"'{request.query[:100]}...' for conversation {request.conversation_id}"
         )
         
-        # Generate response
-        result = await writer_agent_service.generate_response(
+        # Generate response (using legacy method for now to maintain compatibility)
+        result = await writer_agent_service.generate_response_legacy(
             user_query=request.query,
             conversation_id=request.conversation_id
         )
@@ -100,8 +101,8 @@ async def generate_contextual_response(
             f"for conversation {request.conversation_id}"
         )
         
-        # Generate contextual response
-        result = await writer_agent_service.generate_contextual_response(
+        # Generate contextual response (using legacy method for now to maintain compatibility)
+        result = await writer_agent_service.generate_contextual_response_legacy(
             conversation_id=request.conversation_id
         )
         
@@ -128,6 +129,101 @@ async def generate_contextual_response(
             response="",
             metadata={},
             error="There was an error generating the contextual response. Please try again or contact IT if the issue persists."
+        )
+
+
+@router.post("/generate-structured", response_model=WriterAgentResult)
+async def generate_structured_response(
+    request: WriterQueryRequest,
+    current_user=Depends(get_current_user)
+):
+    """
+    Generate a structured response using the Writer Agent.
+    
+    Returns the response in a structured format with separate customer_response 
+    and reason sections for better UI integration.
+    """
+    try:
+        logger.info(
+            f"Structured Writer Agent request from user {current_user.id}: "
+            f"'{request.query[:100]}...' for conversation {request.conversation_id}"
+        )
+        
+        # Generate structured response
+        result = await writer_agent_service.generate_response(
+            user_query=request.query,
+            conversation_id=request.conversation_id
+        )
+        
+        # Log the result
+        if result.success:
+            has_structured = result.structured_response is not None
+            logger.info(
+                f"Structured Writer Agent response generated successfully "
+                f"(structured: {has_structured}, iterations: {result.metadata.get('iterations', 0)}, "
+                f"time: {result.metadata.get('processing_time_ms', 0)}ms)"
+            )
+        else:
+            logger.warning(f"Structured Writer Agent failed: {result.error}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in Writer Agent structured generate endpoint: {str(e)}")
+        
+        # Return structured error response
+        return WriterAgentResult(
+            success=False,
+            raw_response="",
+            error="There was an error connecting to the Writer Agent. Please try again or contact IT if the issue persists.",
+            metadata={}
+        )
+
+
+@router.post("/contextual-structured", response_model=WriterAgentResult)
+async def generate_structured_contextual_response(
+    request: ContextualResponseRequest,
+    current_user=Depends(get_current_user)
+):
+    """
+    Generate a structured contextual response for current conversation context.
+    
+    Returns the response in a structured format with separate customer_response 
+    and reason sections for better UI integration.
+    """
+    try:
+        logger.info(
+            f"Structured contextual response request from user {current_user.id} "
+            f"for conversation {request.conversation_id}"
+        )
+        
+        # Generate structured contextual response
+        result = await writer_agent_service.generate_contextual_response(
+            conversation_id=request.conversation_id
+        )
+        
+        # Log the result
+        if result.success:
+            has_structured = result.structured_response is not None
+            logger.info(
+                f"Structured contextual response generated successfully "
+                f"(structured: {has_structured}, iterations: {result.metadata.get('iterations', 0)}, "
+                f"time: {result.metadata.get('processing_time_ms', 0)}ms)"
+            )
+        else:
+            logger.warning(f"Structured contextual response failed: {result.error}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in Writer Agent structured contextual endpoint: {str(e)}")
+        
+        # Return structured error response
+        return WriterAgentResult(
+            success=False,
+            raw_response="",
+            error="There was an error generating the contextual response. Please try again or contact IT if the issue persists.",
+            metadata={}
         )
 
 

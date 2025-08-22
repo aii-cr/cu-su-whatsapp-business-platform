@@ -15,9 +15,12 @@ import {
   XMarkIcon,
   ArrowPathIcon,
   CheckIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import { useWriterAgent } from '../hooks/useWriterAgent';
+import { Markdown } from '@/components/ui/Markdown';
 import styles from './WriterAgentModal.module.scss';
 
 export interface WriterAgentModalProps {
@@ -39,22 +42,42 @@ export function WriterAgentModal({
 }: WriterAgentModalProps) {
   const [customQuery, setCustomQuery] = useState('');
   const [generatedResponse, setGeneratedResponse] = useState('');
+  const [reasoningText, setReasoningText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
 
   const {
     isLoading,
     error,
     lastResponse,
+    lastStructuredResponse,
     generateResponse,
     generateContextualResponse,
+    generateStructuredResponse,
+    generateStructuredContextualResponse,
     clearError,
     clearResponse,
     setCustomError
   } = useWriterAgent({
     onSuccess: (response) => {
       setGeneratedResponse(response.response);
+      setReasoningText('');
       setIsEditing(true);
       onResponseGenerated(response.response);
+    },
+    onStructuredSuccess: (response) => {
+      if (response.structured_response) {
+        setGeneratedResponse(response.structured_response.customer_response);
+        setReasoningText(response.structured_response.reason);
+        setIsEditing(true);
+        onResponseGenerated(response.structured_response.customer_response);
+      } else {
+        // Fallback to raw response if structured parsing failed
+        setGeneratedResponse(response.raw_response);
+        setReasoningText('');
+        setIsEditing(true);
+        onResponseGenerated(response.raw_response);
+      }
     },
     onError: (error) => {
       console.error('Writer Agent error:', error);
@@ -66,7 +89,9 @@ export function WriterAgentModal({
     if (open) {
       setCustomQuery('');
       setGeneratedResponse('');
+      setReasoningText('');
       setIsEditing(false);
+      setIsReasoningExpanded(false);
       clearError();
       clearResponse();
     }
@@ -79,7 +104,7 @@ export function WriterAgentModal({
     }
     
     try {
-      await generateContextualResponse({ conversation_id: conversationId });
+      await generateStructuredContextualResponse({ conversation_id: conversationId });
     } catch (error) {
       // Error handling is done in the hook
     }
@@ -89,7 +114,7 @@ export function WriterAgentModal({
     if (!customQuery.trim()) return;
 
     try {
-      await generateResponse({
+      await generateStructuredResponse({
         query: customQuery,
         conversation_id: conversationId
       });
@@ -205,9 +230,9 @@ export function WriterAgentModal({
             <div className={styles.loadingSection}>
               <LoadingSpinner size="sm" />
               <span>AI is analyzing and generating response...</span>
-              {lastResponse?.metadata && (
+              {(lastResponse?.metadata || lastStructuredResponse?.metadata) && (
                 <div className={styles.loadingMeta}>
-                  Iteration {lastResponse.metadata.iterations || 0} - Ensuring helpfulness
+                  Iteration {(lastStructuredResponse?.metadata.iterations || lastResponse?.metadata.iterations || 0)} - Ensuring helpfulness
                 </div>
               )}
             </div>
@@ -216,19 +241,52 @@ export function WriterAgentModal({
           {/* Generated Response */}
           {generatedResponse && (
             <div className={styles.responseSection}>
+              {/* AI Reasoning Section - Collapsible */}
+              {reasoningText && (
+                <div className={styles.reasoningSection}>
+                  <button
+                    onClick={() => setIsReasoningExpanded(!isReasoningExpanded)}
+                    className={styles.reasoningToggle}
+                  >
+                    <div className={styles.reasoningToggleContent}>
+                      {isReasoningExpanded ? (
+                        <ChevronDownIcon className={styles.reasoningToggleIcon} />
+                      ) : (
+                        <ChevronRightIcon className={styles.reasoningToggleIcon} />
+                      )}
+                      <h4 className={styles.sectionTitle}>
+                        {isReasoningExpanded ? 'Hide AI Strategy & Reasoning' : 'Show AI Strategy & Reasoning'}
+                      </h4>
+                    </div>
+                  </button>
+                  
+                  <div className={cn(
+                    styles.reasoningContent,
+                    isReasoningExpanded && styles.reasoningContentExpanded
+                  )}>
+                    <Markdown content={reasoningText} />
+                  </div>
+                </div>
+              )}
+              
               <div className={styles.responseHeader}>
-                <h4 className={styles.sectionTitle}>Generated Response</h4>
-                {lastResponse?.metadata && (
+                <h4 className={styles.sectionTitle}>Customer Response</h4>
+                {(lastResponse?.metadata || lastStructuredResponse?.metadata) && (
                   <div className={styles.responseMeta}>
                     <span className={styles.responseMetaItem}>
-                      ✓ {lastResponse.metadata.iterations} iterations
+                      ✓ {(lastStructuredResponse?.metadata.iterations || lastResponse?.metadata.iterations || 0)} iterations
                     </span>
                     <span className={styles.responseMetaItem}>
-                      ⚡ {lastResponse.metadata.processing_time_ms}ms
+                      ⚡ {(lastStructuredResponse?.metadata.processing_time_ms || lastResponse?.metadata.processing_time_ms || 0)}ms
                     </span>
                     <span className={styles.responseMetaItem}>
-                      {lastResponse.metadata.helpfulness_score === 'Y' ? '✅ Helpful' : '⚠️ Needs review'}
+                      {(lastStructuredResponse?.metadata.helpfulness_score || lastResponse?.metadata.helpfulness_score) === 'Y' ? '✅ Helpful' : '⚠️ Needs review'}
                     </span>
+                    {lastStructuredResponse?.metadata.has_structured_format && (
+                      <span className={styles.responseMetaItem}>
+                        🎯 Structured
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -243,6 +301,7 @@ export function WriterAgentModal({
                 )}
                 rows={6}
                 placeholder="Generated response will appear here..."
+                style={{ whiteSpace: 'pre-wrap' }}
               />
               
               <div className={styles.responseActions}>
@@ -291,3 +350,4 @@ export function WriterAgentModal({
     </div>
   );
 }
+

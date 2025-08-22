@@ -26,10 +26,15 @@ const renderMarkdown = (text: string): React.ReactNode => {
   const lines = text.split('\n');
   
   return lines.map((line, lineIndex) => {
+    // For empty lines, render a line break
+    if (line.trim() === '') {
+      return <br key={lineIndex} />;
+    }
+    
     // Handle bullet points
     if (line.trim().startsWith('• ')) {
       return (
-        <div key={lineIndex} className="flex items-start space-x-2">
+        <div key={lineIndex} className="flex items-start space-x-2 mb-1">
           <span className="text-lg leading-none mt-0.5">•</span>
           <span className="flex-1">{line.trim().substring(2)}</span>
         </div>
@@ -40,7 +45,7 @@ const renderMarkdown = (text: string): React.ReactNode => {
     const numberedMatch = line.trim().match(/^(\d+)\.\s+(.+)$/);
     if (numberedMatch) {
       return (
-        <div key={lineIndex} className="flex items-start space-x-2">
+        <div key={lineIndex} className="flex items-start space-x-2 mb-1">
           <span className="text-sm font-medium leading-none mt-0.5">{numberedMatch[1]}.</span>
           <span className="flex-1">{numberedMatch[2]}</span>
         </div>
@@ -51,7 +56,7 @@ const renderMarkdown = (text: string): React.ReactNode => {
     if (line.includes('**')) {
       const parts = line.split(/(\*\*[^*]+\*\*)/g);
       return (
-        <span key={lineIndex}>
+        <div key={lineIndex} className="mb-1">
           {parts.map((part, partIndex) => {
             if (part.startsWith('**') && part.endsWith('**')) {
               return (
@@ -62,12 +67,12 @@ const renderMarkdown = (text: string): React.ReactNode => {
             }
             return part;
           })}
-        </span>
+        </div>
       );
     }
     
-    // Regular line
-    return <span key={lineIndex}>{line}</span>;
+    // Regular line - render as a block to preserve line breaks
+    return <div key={lineIndex} className="mb-1">{line}</div>;
   });
 };
 
@@ -343,7 +348,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
             {/* Text content */}
             {message.text_content && (
               <div className={cn(
-                'text-sm leading-relaxed space-y-1',
+                'text-sm leading-relaxed',
                 message.type !== 'text' && 'mt-2'
               )}>
                 {renderMarkdown(message.text_content)}
@@ -353,7 +358,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
             {/* Fallback for content object */}
             {!message.text_content && message.content?.text && (
               <div className={cn(
-                'text-sm leading-relaxed space-y-1',
+                'text-sm leading-relaxed',
                 message.type !== 'text' && 'mt-2'
               )}>
                 {renderMarkdown(message.content.text)}
