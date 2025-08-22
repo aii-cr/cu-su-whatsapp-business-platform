@@ -27,8 +27,17 @@ class WriterRAGTool(BaseAgentTool):
     name: str = "retrieve_information"
     description: str = """
     Retrieves relevant information from the knowledge base using RAG (Retrieval-Augmented Generation).
-    Use this to find specific information about services, policies, procedures, or any topic
-    that might help craft a better response to the customer.
+    
+    CRITICAL USAGE GUIDELINES:
+    - Use this tool when the customer asks for specific information about services, products, policies, procedures, or any topic
+    - ALWAYS use the COMPLETE customer message as the query, not just keywords
+    - Examples of good queries:
+      * "que velocidades de internet tienen?" (not just "internet")
+      * "what services do you offer?" (not just "services")
+      * "cuáles son los precios?" (not just "precios")
+      * "what are your business hours?" (not just "hours")
+    
+    This tool helps craft better responses by providing accurate, up-to-date information from the knowledge base.
     """
     
     def __init__(self, **kwargs):
@@ -57,7 +66,7 @@ class WriterRAGTool(BaseAgentTool):
         Retrieve relevant information using RAG.
         
         Args:
-            query: Search query
+            query: Search query (should be the complete customer message)
             tenant_id: Tenant identifier
             locale: Language locale
             k: Number of documents to retrieve
@@ -68,6 +77,9 @@ class WriterRAGTool(BaseAgentTool):
         self._log_usage(query=query, tenant_id=tenant_id, locale=locale, k=k)
         
         try:
+            # Log the query for debugging
+            logger.info(f"RAG query: '{query[:100]}...' (length: {len(query)})")
+            
             # Get retriever
             retriever = await self._get_retriever(tenant_id, locale, k)
             
@@ -75,7 +87,7 @@ class WriterRAGTool(BaseAgentTool):
             result = await retriever.get_retrieval_result(query)
             
             if not result.documents:
-                return f"No relevant information found for query: '{query}'"
+                return f"No relevant information found for query: '{query}'\n\nSuggestion: Try rephrasing the query or using different keywords."
             
             # Format the results
             formatted_results = []
@@ -106,6 +118,14 @@ class WriterRAGTool(BaseAgentTool):
             if result.scores:
                 avg_score = sum(result.scores) / len(result.scores)
                 formatted_results.append(f"Average relevance score: {avg_score:.3f}")
+                
+                # Add quality indicator
+                if avg_score > 0.8:
+                    formatted_results.append("Quality: Excellent match")
+                elif avg_score > 0.6:
+                    formatted_results.append("Quality: Good match")
+                else:
+                    formatted_results.append("Quality: Moderate match - consider refining query")
             
             result_text = "\n".join(formatted_results)
             

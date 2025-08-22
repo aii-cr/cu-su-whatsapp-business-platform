@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Dict, Any, TypedDict, Literal, List
 from pathlib import Path
 from datetime import datetime
+import re
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
@@ -30,6 +31,8 @@ class WriterAgentState(TypedDict, total=False):
     messages: List[Dict[str, Any]]
     context_retrieved: bool
     information_retrieved: bool
+    last_customer_message: str  # Store the last customer message for RAG
+    conversation_context: str   # Store the full conversation context
     
     # Output
     response: str
@@ -150,6 +153,8 @@ class WriterAgent:
             "messages": [],
             "context_retrieved": False,
             "information_retrieved": False,
+            "last_customer_message": "",
+            "conversation_context": "",
             "iteration_count": 0,
             "processing_start_time": datetime.now().isoformat(),
             "node_history": []
@@ -170,7 +175,7 @@ class WriterAgent:
                     initial_state,
                     config={"recursion_limit": 15}  # Reduced recursion limit
                 ),
-                timeout=20.0  # Reduced timeout to 20 seconds
+                timeout=30.0  # Increased timeout to 30 seconds
             )
             
             processing_time = (
@@ -205,10 +210,60 @@ class WriterAgent:
                 "error": f"Error generating response: {str(e)}"
             }
     
+    def _extract_last_customer_message(self, conversation_context: str) -> str:
+        """
+        Extract the last customer message from conversation context.
+        
+        Args:
+            conversation_context: The full conversation context string
+            
+        Returns:
+            The last customer message or empty string if not found
+        """
+        try:
+            # First, look for the "LAST CUSTOMER MESSAGE" section
+            if "=== LAST CUSTOMER MESSAGE ===" in conversation_context:
+                lines = conversation_context.split('\n')
+                for i, line in enumerate(lines):
+                    if "=== LAST CUSTOMER MESSAGE ===" in line:
+                        # Get the next line which should contain the message
+                        if i + 1 < len(lines):
+                            message_line = lines[i + 1].strip()
+                            if message_line.startswith("Customer: "):
+                                message = message_line.replace("Customer: ", "").strip()
+                                if message:
+                                    logger.info(f"Extracted last customer message from section: '{message[:100]}...'")
+                                    return message
+            
+            # Fallback: Split by lines and look for the last customer message
+            lines = conversation_context.split('\n')
+            customer_messages = []
+            
+            for line in lines:
+                # Look for lines that start with customer indicators
+                if any(indicator in line for indicator in ['Customer:', 'Cliente:']):
+                    # Extract the message content after the colon
+                    if ':' in line:
+                        message = line.split(':', 1)[1].strip()
+                        if message:
+                            customer_messages.append(message)
+            
+            # Return the last customer message
+            if customer_messages:
+                last_message = customer_messages[-1]
+                logger.info(f"Extracted last customer message from history: '{last_message[:100]}...'")
+                return last_message
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extracting last customer message: {str(e)}")
+            return ""
+    
     # Node implementations
     
     async def _start_processing(self, state: WriterAgentState) -> WriterAgentState:
-        """Initialize processing."""
+        """Initialize processing and retrieve conversation context if needed."""
         state["node_history"] = state.get("node_history", []) + ["start_processing"]
         state["iteration_count"] = 0
         
@@ -225,6 +280,50 @@ class WriterAgent:
             {"role": "system", "content": system_prompt + conversation_context},
             {"role": "user", "content": state["user_query"]}
         ]
+        
+        # For contextual requests, immediately retrieve conversation context
+        if ("current conversation context" in state["user_query"].lower() and 
+            state.get("conversation_id")):
+            
+            logger.info("Retrieving conversation context for contextual request")
+            
+            # Get conversation context tool
+            conversation_tool = None
+            for tool in self.tools:
+                if tool.name == "get_conversation_context":
+                    conversation_tool = tool
+                    break
+            
+            if conversation_tool:
+                try:
+                    # Retrieve conversation context
+                    context_result = await conversation_tool.ainvoke({
+                        "conversation_id": state["conversation_id"],
+                        "include_metadata": True
+                    })
+                    
+                    # Store the conversation context
+                    state["conversation_context"] = context_result
+                    state["context_retrieved"] = True
+                    
+                    # Extract the last customer message for RAG queries
+                    last_customer_msg = self._extract_last_customer_message(context_result)
+                    state["last_customer_message"] = last_customer_msg
+                    
+                    # Add context to messages
+                    state["messages"].append({
+                        "role": "user",
+                        "content": f"Conversation Context:\n{context_result}"
+                    })
+                    
+                    logger.info(f"Retrieved conversation context with {len(context_result)} characters")
+                    
+                except Exception as e:
+                    logger.error(f"Error retrieving conversation context: {str(e)}")
+                    state["messages"].append({
+                        "role": "user",
+                        "content": "Error: Could not retrieve conversation context. Please proceed without historical context."
+                    })
         
         return state
     
@@ -297,6 +396,24 @@ class WriterAgent:
                 
                 return state
             
+            # If we have context but no information retrieved yet, suggest using RAG
+            if (state.get("context_retrieved") and 
+                not state.get("information_retrieved") and 
+                state.get("last_customer_message") and
+                state["iteration_count"] == 1):
+                
+                # Add a hint to use RAG with the last customer message
+                hint_message = f"""
+Based on the conversation context, I can see the last customer message is: "{state['last_customer_message']}"
+
+I should use the retrieve_information tool to get relevant information about what the customer is asking for.
+"""
+                
+                state["messages"].append({
+                    "role": "user",
+                    "content": hint_message
+                })
+            
             logger.info(f"Calling model with {len(messages)} messages (iteration {state['iteration_count']})")
             
             # Call model with tools
@@ -320,7 +437,7 @@ class WriterAgent:
         return state
     
     async def _action_node(self, state: WriterAgentState) -> WriterAgentState:
-        """Execute tool calls."""
+        """Execute tool calls with enhanced RAG query handling."""
         state["node_history"] = state.get("node_history", []) + ["action"]
         
         try:
@@ -343,10 +460,26 @@ class WriterAgent:
                         tool_args["conversation_id"] = state["conversation_id"]
                         logger.info(f"Fixed conversation_id from 'current' to '{state['conversation_id']}'")
                 
+                # Enhanced RAG query handling
+                if tool_name == "retrieve_information":
+                    # Use the last customer message for RAG queries if available
+                    if state.get("last_customer_message") and tool_args.get("query"):
+                        # Check if the query is too generic (like just "services")
+                        current_query = tool_args["query"].strip().lower()
+                        last_customer_msg = state["last_customer_message"].strip().lower()
+                        
+                        # If the query is too short or generic, use the last customer message
+                        if (len(current_query) < 10 or 
+                            current_query in ["services", "servicios", "info", "information", "help", "ayuda"]):
+                            
+                            # Use the full last customer message for better RAG results
+                            tool_args["query"] = state["last_customer_message"]
+                            logger.info(f"Enhanced RAG query from '{current_query}' to '{state['last_customer_message'][:100]}...'")
+                
                 # Track context retrieval
                 if tool_name == "get_conversation_context":
                     state["context_retrieved"] = True
-                elif tool_name in ["search_knowledge_base", "rag_search"]:
+                elif tool_name in ["search_knowledge_base", "rag_search", "retrieve_information"]:
                     state["information_retrieved"] = True
                 
                 # Find the tool
@@ -414,9 +547,9 @@ class WriterAgent:
         """Evaluate helpfulness of the response."""
         state["node_history"] = state.get("node_history", []) + ["helpfulness"]
         
-        # Guard against infinite loops - reduced threshold for faster completion
-        if state.get("iteration_count", 0) > 2:
-            logger.warning("Writer Agent hit max iterations (2), ending loop")
+        # Guard against infinite loops - increased threshold for better responses
+        if state.get("iteration_count", 0) > 3:
+            logger.warning("Writer Agent hit max iterations (3), ending loop")
             
             # Try to extract the best response we have so far
             best_response = None

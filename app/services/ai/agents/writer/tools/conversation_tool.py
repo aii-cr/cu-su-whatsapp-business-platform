@@ -135,7 +135,7 @@ class ConversationContextTool(BaseAgentTool):
                     author = "System"
                 
                 # Message content
-                content = msg.get('text', msg.get('content', ''))
+                content = msg.get('text_content', msg.get('text', msg.get('content', '')))
                 
                 # Add message with metadata
                 if include_metadata:
@@ -171,6 +171,20 @@ class ConversationContextTool(BaseAgentTool):
             context_lines.append(f"- Customer messages: {inbound_count}")
             context_lines.append(f"- Agent responses: {outbound_count}")
             context_lines.append(f"- AI generated responses: {ai_count}")
+            
+            # Find the last customer message for easy identification
+            last_customer_message = None
+            for msg in reversed(messages):
+                if msg.get('direction') == 'inbound':
+                    last_customer_message = msg.get('text_content', msg.get('text', msg.get('content', '')))
+                    break
+            
+            if last_customer_message:
+                context_lines.append("")
+                context_lines.append("=== LAST CUSTOMER MESSAGE ===")
+                context_lines.append(f"Customer: {last_customer_message}")
+                context_lines.append("")
+                context_lines.append("IMPORTANT: This is the message you need to respond to!")
             
             # Conversation duration
             if len(messages) >= 2:
