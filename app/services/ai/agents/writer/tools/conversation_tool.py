@@ -172,19 +172,20 @@ class ConversationContextTool(BaseAgentTool):
             context_lines.append(f"- Agent responses: {outbound_count}")
             context_lines.append(f"- AI generated responses: {ai_count}")
             
-            # Find the last customer message for easy identification
-            last_customer_message = None
-            for msg in reversed(messages):
-                if msg.get('direction') == 'inbound':
-                    last_customer_message = msg.get('text_content', msg.get('text', msg.get('content', '')))
-                    break
+            # Conversation flow analysis
+            context_lines.append("")
+            context_lines.append("=== CONVERSATION FLOW ANALYSIS ===")
             
-            if last_customer_message:
-                context_lines.append("")
-                context_lines.append("=== LAST CUSTOMER MESSAGE ===")
-                context_lines.append(f"Customer: {last_customer_message}")
-                context_lines.append("")
-                context_lines.append("IMPORTANT: This is the message you need to respond to!")
+            if len(messages) <= 4:
+                context_lines.append("Conversation Status: NEW CONVERSATION")
+                context_lines.append("Recommendation: Use appropriate greetings and introductions")
+            elif len(messages) <= 10:
+                context_lines.append("Conversation Status: EARLY STAGE")
+                context_lines.append("Recommendation: Use friendly tone, avoid repetitive greetings")
+            else:
+                context_lines.append("Conversation Status: ONGOING CONVERSATION")
+                context_lines.append("Recommendation: Use natural conversation continuations (Claro, Perfecto, Excelente, etc.)")
+                context_lines.append("IMPORTANT: DO NOT use generic greetings like '¡Hola Steve! 😊'")
             
             # Conversation duration
             if len(messages) >= 2:
@@ -202,6 +203,44 @@ class ConversationContextTool(BaseAgentTool):
                     
                     duration = last_time - first_time
                     context_lines.append(f"- Duration: {duration}")
+                    
+                    # Add conversation age context
+                    if duration.total_seconds() > 3600:  # More than 1 hour
+                        context_lines.append("- Conversation Age: LONG-RUNNING (over 1 hour)")
+                        context_lines.append("- Tone: Use natural continuations, avoid greetings")
+                    elif duration.total_seconds() > 300:  # More than 5 minutes
+                        context_lines.append("- Conversation Age: ONGOING (over 5 minutes)")
+                        context_lines.append("- Tone: Use natural continuations, avoid greetings")
+                    else:
+                        context_lines.append("- Conversation Age: RECENT (under 5 minutes)")
+                        context_lines.append("- Tone: Can use friendly tone, avoid repetitive greetings")
+            
+            # Find the last customer message for easy identification
+            last_customer_message = None
+            for msg in reversed(messages):
+                if msg.get('direction') == 'inbound':
+                    last_customer_message = msg.get('text_content', msg.get('text', msg.get('content', '')))
+                    break
+            
+            if last_customer_message:
+                context_lines.append("")
+                context_lines.append("=== LAST CUSTOMER MESSAGE ===")
+                context_lines.append(f"Customer: {last_customer_message}")
+                context_lines.append("")
+                context_lines.append("IMPORTANT: This is the message you need to respond to!")
+                
+                # Add response style recommendation based on conversation flow
+                if len(messages) > 10:
+                    context_lines.append("RESPONSE STYLE: Use enthusiastic conversation continuations like:")
+                    context_lines.append("- '¡Claro Steve! 🛜 Ofrecemos...'")
+                    context_lines.append("- '¡Perfecto! 🚀 Aquí tienes toda la información sobre...'")
+                    context_lines.append("- '¡Excelente pregunta! 💫 Nuestras velocidades incluyen...'")
+                    context_lines.append("- '¡Por supuesto! ⚡ Contamos con...'")
+                    context_lines.append("AVOID: Generic greetings like '¡Hola Steve! 😊'")
+                    context_lines.append("REMEMBER: Show enthusiasm about ADN's services! 🎉")
+                else:
+                    context_lines.append("RESPONSE STYLE: Can use enthusiastic tone, but avoid repetitive greetings")
+                    context_lines.append("REMEMBER: Show excitement about helping customers! 🚀")
             
             result = "\n".join(context_lines)
             
