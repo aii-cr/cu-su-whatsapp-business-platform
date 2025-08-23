@@ -231,7 +231,7 @@ async def test_writer_agent_tools_individually():
     
     try:
         from app.services.ai.agents.writer.tools.conversation_tool import ConversationContextTool
-        from app.services.ai.agents.writer.tools.rag_tool import WriterRAGTool
+        from app.services.ai.shared.rag_tool import SharedRAGTool as WriterRAGTool
         
         test_conversation_id = "68a896bf96f98f65b7d7ba68"
         
@@ -262,8 +262,8 @@ async def test_writer_agent_tools_individually():
         
         rag_result = await rag_tool._arun(
             query="What are the business hours?",
-            tenant_id="default",
-            locale="es"
+            tenant_id=None,
+            locale=None
         )
         
         print(f"   Result type: {type(rag_result)}")

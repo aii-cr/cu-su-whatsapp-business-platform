@@ -384,13 +384,13 @@ class WhatsAppAgent:
         rag_result = await self.rag_tool.execute_with_timeout(
             query=state["user_text"],
             tenant_id=None,  # Disable filtering for now
-            locale=state.get("customer_language", "es")
+            locale=None      # Disable filtering for now
         )
         
-        if rag_result.status == "success":
-            state["reply"] = rag_result.data["answer"]
-            state["confidence"] = rag_result.data["confidence"]
-            state["tool_result"] = rag_result.data
+        if rag_result["status"] == "success":
+            state["reply"] = rag_result["data"]["answer"]
+            state["confidence"] = rag_result["data"]["confidence"]
+            state["tool_result"] = rag_result["data"]
         else:
             state["reply"] = "Lo siento, no puedo ayudarte con reservas en este momento. Te conectaré con un agente."
             state["confidence"] = 0.0
@@ -407,13 +407,13 @@ class WhatsAppAgent:
         rag_result = await self.rag_tool.execute_with_timeout(
             query=state["user_text"],
             tenant_id=None,  # Disable filtering for now
-            locale=state.get("customer_language", "es")
+            locale=None      # Disable filtering for now
         )
         
-        if rag_result.status == "success":
-            state["reply"] = rag_result.data["answer"]
-            state["confidence"] = rag_result.data["confidence"]
-            state["tool_result"] = rag_result.data
+        if rag_result["status"] == "success":
+            state["reply"] = rag_result["data"]["answer"]
+            state["confidence"] = rag_result["data"]["confidence"]
+            state["tool_result"] = rag_result["data"]
         else:
             state["reply"] = "Lo siento, no puedo ayudarte con pagos en este momento. Te conectaré con un agente."
             state["confidence"] = 0.0

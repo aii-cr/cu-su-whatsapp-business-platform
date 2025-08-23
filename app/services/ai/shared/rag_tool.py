@@ -1,6 +1,6 @@
 """
-RAG tool for the Writer Agent.
-Uses the same Qdrant collection as the WhatsApp agent for consistency.
+Shared RAG tool for all agents.
+Uses the same Qdrant collection for consistency across all agents.
 """
 
 from typing import Dict, Any, Optional
@@ -13,16 +13,16 @@ from app.services.ai.shared.base_tools import BaseAgentTool
 from app.services.ai.rag.retriever import build_retriever
 
 
-class RAGInput(BaseModel):
-    """Input schema for RAG tool."""
+class SharedRAGInput(BaseModel):
+    """Input schema for shared RAG tool."""
     query: str = Field(..., description="The query to search for relevant information")
     tenant_id: str = Field(default=None, description="Tenant ID for filtering (None disables filtering)")
     locale: str = Field(default=None, description="Language locale (None disables filtering)")
     k: int = Field(default=6, description="Number of documents to retrieve")
 
 
-class WriterRAGTool(BaseAgentTool):
-    """RAG tool for retrieving relevant information for response writing."""
+class SharedRAGTool(BaseAgentTool):
+    """Shared RAG tool for retrieving relevant information for all agents."""
     
     name: str = "retrieve_information"
     description: str = """
@@ -78,7 +78,11 @@ class WriterRAGTool(BaseAgentTool):
         
         try:
             # Log the query for debugging
-            logger.info(f"RAG query: '{query[:100]}...' (length: {len(query)})")
+            logger.info(f"🔍 [SHARED_RAG] Query: '{query[:100]}...' (length: {len(query)})")
+            
+            # Force disable filtering to avoid Qdrant index issues
+            tenant_id = None
+            locale = None
             
             # Get retriever
             retriever = await self._get_retriever(tenant_id, locale, k)
@@ -86,7 +90,10 @@ class WriterRAGTool(BaseAgentTool):
             # Retrieve documents
             result = await retriever.get_retrieval_result(query)
             
+            logger.info(f"📊 [SHARED_RAG] Found {result.total_found} documents for query: '{query}'")
+            
             if not result.documents:
+                logger.warning(f"❌ [SHARED_RAG] No documents found for query: '{query}'")
                 return f"No relevant information found for query: '{query}'\n\nSuggestion: Try rephrasing the query or using different keywords."
             
             # Format the results
@@ -130,27 +137,51 @@ class WriterRAGTool(BaseAgentTool):
             result_text = "\n".join(formatted_results)
             
             logger.info(
-                f"RAG query completed: '{query}' -> {result.total_found} documents "
+                f"✅ [SHARED_RAG] Query completed: '{query}' -> {result.total_found} documents "
                 f"in {result.retrieval_time_ms}ms"
             )
             
             return result_text
             
         except Exception as e:
-            error_msg = f"Error in RAG retrieval: {str(e)}"
-            logger.error(error_msg)
+            error_msg = f"Error in shared RAG retrieval: {str(e)}"
+            logger.error(f"❌ [SHARED_RAG] {error_msg}")
             return error_msg
 
 
-def create_rag_tool() -> StructuredTool:
-    """Create a structured RAG tool for use in LangGraph."""
+def create_shared_rag_tool() -> StructuredTool:
+    """Create a structured shared RAG tool for use in LangGraph."""
     
-    tool = WriterRAGTool()
+    tool = SharedRAGTool()
     
     return StructuredTool(
         name=tool.name,
         description=tool.description,
         func=tool._run,
         coroutine=tool._arun,
-        args_schema=RAGInput
+        args_schema=SharedRAGInput
     )
+
+
+# Convenience function for direct usage
+async def retrieve_information(
+    query: str,
+    tenant_id: str = None,
+    locale: str = None,
+    k: int = 6
+) -> str:
+    """
+    Convenience function to retrieve information directly.
+    
+    Args:
+        query: Search query
+        tenant_id: Tenant identifier (ignored - filtering disabled)
+        locale: Language locale (ignored - filtering disabled)
+        k: Number of documents to retrieve
+        
+    Returns:
+        Formatted relevant information
+    """
+    tool = SharedRAGTool()
+    # Force disable filtering to avoid Qdrant index issues
+    return await tool._arun(query=query, tenant_id=None, locale=None, k=k)

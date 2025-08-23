@@ -37,8 +37,8 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.warning(f"Failed to send RAG activity notification: {str(e)}")
         
-        # Initialize RAG tool with new hybrid retriever
-        rag_tool = RAGTool()
+        # Use WhatsApp RAG tool to get raw document content
+        from app.services.ai.agents.whatsapp.tools.rag_tool import RAGTool
         
         # Enhance query with conversation context
         enhanced_query = _enhance_query_with_context(
@@ -49,15 +49,26 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
         
         logger.info(f"Enhanced query: '{enhanced_query[:100]}...'")
         
-        # Execute RAG search with enhanced query using shared hybrid retriever
+        # Get raw document content from WhatsApp RAG tool
+        rag_tool = RAGTool()
         rag_result = await rag_tool.execute_with_timeout(
             query=enhanced_query,
             tenant_id=None,  # Disable filtering for now
-            locale=state.get("customer_language", "es_CR"),
+            locale=None,     # Disable filtering for now
             max_context_length=ai_config.max_context_tokens
         )
         
-        if rag_result.status == "success":
+        if rag_result["status"] == "success":
+            # Synthesize answer using LLM with proper prompt (like writer agent)
+            answer = await _synthesize_answer_with_llm(
+                question=state["user_text"],
+                context=rag_result["data"]["answer"],  # Raw document content
+                conversation_history=state.get("conversation_history", [])
+            )
+        else:
+            answer = f"Error: {rag_result.get('error', 'Unknown error')}"
+        
+        if answer and not answer.startswith("Error"):
             # Send activity notification for response generation
             try:
                 from app.services import websocket_service
@@ -69,22 +80,6 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Failed to send response generation activity notification: {str(e)}")
             
-            # Extract results
-            answer = rag_result.data["answer"]
-            confidence = rag_result.data["confidence"]
-            sources = rag_result.data["sources"]
-            
-            # Log retrieval metadata for telemetry
-            if "retrieval_metadata" in rag_result.data:
-                metadata = rag_result.data["retrieval_metadata"]
-                logger.info(
-                    f"Retrieval metadata: method={metadata.get('method')}, "
-                    f"expanded_queries={len(metadata.get('expanded_queries', []))}, "
-                    f"filters_applied={metadata.get('filters_applied')}, "
-                    f"threshold_used={metadata.get('threshold_used')}, "
-                    f"metadata_overrides={metadata.get('metadata_overrides', 0)}"
-                )
-            
             # Post-process answer based on conversation context
             processed_answer = _post_process_answer(
                 answer, 
@@ -94,33 +89,36 @@ async def run_rag_flow(state: Dict[str, Any]) -> Dict[str, Any]:
             
             # Update state
             state["reply"] = processed_answer
-            state["confidence"] = confidence
-            state["tool_result"] = rag_result.data
-            state["context_docs"] = sources
+            state["confidence"] = 0.8  # High confidence for successful LLM synthesis
+            state["tool_result"] = {
+                "answer": answer,
+                "context": rag_result["data"]["answer"],  # Raw document content
+                "method": "shared_rag_with_llm_synthesis"
+            }
+            state["context_docs"] = []  # Context is in the tool_result
             
             # Check if we need human handoff based on confidence
-            if confidence < ai_config.confidence_threshold:
+            if state["confidence"] < ai_config.confidence_threshold:
                 state["requires_human_handoff"] = True
                 
                 # Append handoff message if confidence is very low
-                if confidence < 0.3:
+                if state["confidence"] < 0.3:
                     state["reply"] += "\n\n¿Te gustaría que te conecte con un agente?"
             
             logger.info(
-                f"RAG flow completed successfully (confidence: {confidence:.2f}, "
-                f"sources: {len(sources)})"
+                f"RAG flow completed successfully (confidence: {state['confidence']:.2f})"
             )
             
         else:
-            # Handle RAG tool failure
-            logger.error(f"RAG tool failed: {rag_result.error}")
+            # Handle LLM synthesis failure
+            logger.error(f"LLM synthesis failed: {answer}")
             
             state["reply"] = "Lo siento, no puedo acceder a la información en este momento. Te conectaré con un agente."
             state["confidence"] = 0.0
             state["requires_human_handoff"] = True
             state["tool_result"] = {
-                "error": rag_result.error,
-                "status": rag_result.status
+                "error": answer,
+                "status": "llm_synthesis_failed"
             }
         
     except Exception as e:
@@ -352,6 +350,40 @@ async def _generate_rag_answer(query: str, context: str) -> str:
     except Exception as e:
         logger.error(f"Error generating RAG answer: {str(e)}")
         return "Lo siento, no puedo generar una respuesta en este momento."
+
+
+async def _synthesize_answer_with_llm(question: str, context: str, conversation_history: list) -> str:
+    """Synthesize answer using LLM with proper prompt (like writer agent)."""
+    try:
+        from pathlib import Path
+        from langchain_core.prompts import ChatPromptTemplate
+        from langchain_openai import ChatOpenAI
+        from app.services.ai.config import ai_config
+        
+        # Load RAG answer prompt
+        prompt_path = Path(__file__).parent.parent.parent / "prompts" / "system" / "rag_answer.md"
+        prompt_content = prompt_path.read_text(encoding="utf-8")
+        
+        # Create chain
+        prompt = ChatPromptTemplate.from_template(prompt_content)
+        llm = ChatOpenAI(
+            openai_api_key=ai_config.openai_api_key,
+            model=ai_config.openai_model,
+            temperature=0.1
+        )
+        chain = prompt | llm
+        
+        # Generate answer
+        result = await chain.ainvoke({
+            "question": question,
+            "context": context
+        })
+        
+        return result.content.strip()
+        
+    except Exception as e:
+        logger.error(f"Error synthesizing answer with LLM: {str(e)}")
+        return f"Error: {str(e)}"
 
 
 def _calculate_confidence(scores: list) -> float:
