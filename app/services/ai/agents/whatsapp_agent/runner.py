@@ -1,0 +1,151 @@
+# NEW CODE
+"""
+Ejecución del agente por conversación:
+- LangSmith tracing
+- Carga memoria Mongo
+- Detección de idioma simple
+- Invocación del grafo
+"""
+
+from __future__ import annotations
+from typing import List
+import re
+import time
+
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+from app.services.ai.shared.memory_service import memory_service
+from .agent_graph import build_graph
+from .prompts import ADN_SYSTEM_PROMPT
+from .telemetry import setup_tracing
+from app.core.logger import logger
+
+
+def _infer_language(text: str) -> str:
+    """Heurística ligera para detectar 'en' vs 'es'."""
+    try:
+        t = text.lower()
+        en_hits = sum(1 for w in ("the","and","what","how","price","channel","plan","install","coverage") if w in t)
+        es_hits = sum(1 for w in ("el","la","los","las","qué","como","precio","canal","plan","instalación","cobertura") if w in t)
+        detected_lang = "en" if en_hits > es_hits else "es"
+        
+        logger.info(f"🌐 [RUNNER] Language detection - text: '{text[:50]}...', en_hits: {en_hits}, es_hits: {es_hits}, detected: {detected_lang}")
+        return detected_lang
+        
+    except Exception as e:
+        logger.error(f"❌ [RUNNER] Language detection failed: {str(e)}")
+        return "es"  # Default to Spanish
+
+
+def _prepare_history_messages(history: List[dict], target_language: str) -> List:
+    """Convierte historial en mensajes (inyecta system bilingüe)."""
+    try:
+        logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with target language: {target_language}")
+        
+        msgs: List = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
+        
+        for i, h in enumerate(history):
+            role = h.get("role")
+            content = h.get("content", "")
+            if not content:
+                continue
+                
+            if role == "user":
+                msgs.append(HumanMessage(content=content))
+                logger.debug(f"📚 [RUNNER] Added user message {i+1}: '{content[:50]}...'")
+            elif role == "assistant":
+                msgs.append(AIMessage(content=content))
+                logger.debug(f"📚 [RUNNER] Added assistant message {i+1}: '{content[:50]}...'")
+                
+        logger.info(f"✅ [RUNNER] Prepared {len(msgs)} total messages (including system message)")
+        return msgs
+        
+    except Exception as e:
+        logger.error(f"❌ [RUNNER] Failed to prepare history messages: {str(e)}")
+        # Return minimal system message
+        return [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
+
+
+async def run_agent(conversation_id: str, user_text: str) -> str:
+    """Ejecuta el agente para una conversación y retorna la respuesta."""
+    start_time = time.time()
+    
+    try:
+        logger.info(f"🚀 [RUNNER] Starting agent execution - conversation: {conversation_id}")
+        logger.info(f"📝 [RUNNER] User input: '{user_text[:100]}...'")
+        
+        # Step 1: LangSmith tracing setup
+        logger.info("🔍 [RUNNER] Setting up LangSmith tracing...")
+        setup_tracing()
+
+        # Step 2: Memory and history compression
+        logger.info("📚 [RUNNER] Loading conversation context...")
+        ctx = await memory_service.get_conversation_context(conversation_id)
+        history = ctx.get("history", [])
+        
+        original_history_len = len(history)
+        if len(history) > 10 and ctx.get("summary"):
+            history = [{"role": "assistant", "content": f"Resumen: {ctx['summary']}"}] + history[-6:]
+            logger.info(f"📚 [RUNNER] Compressed history from {original_history_len} to {len(history)} messages")
+        else:
+            logger.info(f"📚 [RUNNER] Using full history: {len(history)} messages")
+
+        # Step 3: Language detection
+        logger.info("🌐 [RUNNER] Detecting target language...")
+        target_language = _infer_language(user_text)
+
+        # Step 4: Graph setup and input preparation
+        logger.info("🏗️ [RUNNER] Building agent graph...")
+        graph = build_graph()
+        
+        logger.info("📝 [RUNNER] Preparing input messages...")
+        messages = _prepare_history_messages(history, target_language)
+        messages.append(HumanMessage(content=user_text))
+
+        # Step 5: Execute agent graph
+        logger.info(f"🎯 [RUNNER] Executing agent graph with {len(messages)} messages...")
+        
+        graph_start_time = time.time()
+        result = graph.invoke({
+            "messages": messages,
+            "conversation_id": conversation_id,
+            "attempts": 0,
+            "target_language": target_language
+        })
+        graph_execution_time = time.time() - graph_start_time
+        
+        logger.info(f"✅ [RUNNER] Graph execution completed in {graph_execution_time:.2f}s")
+        
+        # Step 6: Extract final answer
+        ai_msgs = [m for m in result["messages"] if isinstance(m, AIMessage)]
+        if ai_msgs:
+            # Find the last non-helpfulness message
+            final_response = None
+            for msg in reversed(ai_msgs):
+                content = getattr(msg, "content", "")
+                if not content.startswith("HELPFULNESS:"):
+                    final_response = content
+                    break
+            
+            answer = final_response if final_response else "Lo siento, no pude generar respuesta."
+        else:
+            answer = "Lo siento, no pude generar respuesta."
+            logger.warning("⚠️ [RUNNER] No AI messages found in result")
+
+        logger.info(f"💬 [RUNNER] Final answer: '{answer[:100]}...'")
+
+        # Step 7: Persist memory
+        logger.info("💾 [RUNNER] Persisting interaction to memory...")
+        await memory_service.add_interaction_to_memory(conversation_id, user_text, answer)
+        
+        total_execution_time = time.time() - start_time
+        logger.info(f"🎉 [RUNNER] Agent execution completed successfully in {total_execution_time:.2f}s")
+        
+        return answer
+        
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logger.error(f"❌ [RUNNER] Agent execution failed after {execution_time:.2f}s: {str(e)}")
+        
+        # Return a helpful error message instead of raising
+        return "Lo siento, ocurrió un error procesando tu consulta. Por favor, intenta de nuevo o contacta a un asesor humano."

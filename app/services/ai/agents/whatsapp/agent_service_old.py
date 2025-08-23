@@ -1,6 +1,6 @@
 """
-Enhanced AI agent service for WhatsApp Business chatbot with hybrid RAG and bilingual support.
-Maintains compatibility with existing webhook and WebSocket systems.
+Main AI agent service for WhatsApp Business chatbot.
+Handles message processing, database integration, and response generation.
 """
 
 import asyncio
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from app.core.logger import logger
 from app.services.ai.config import ai_config
-from app.services.ai.agents.whatsapp_agent.runner import run_agent
+from app.services.ai.agents.whatsapp.graphs.whatsapp_agent import WhatsAppAgent, AgentState
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
 from app.services.ai.shared.memory_service import memory_service
 from app.services import message_service, conversation_service
@@ -67,12 +67,12 @@ def strip_markdown(text: str) -> str:
 
 class AgentService:
     """
-    Enhanced AI agent service that coordinates all chatbot functionality.
-    Uses the new hybrid RAG system with bilingual support.
+    Main AI agent service that coordinates all chatbot functionality.
     """
     
     def __init__(self):
         """Initialize the agent service."""
+        self.agent = WhatsAppAgent()
         self._initialized = False
         
     async def initialize(self):
@@ -80,27 +80,27 @@ class AgentService:
         if self._initialized:
             return
         
-        logger.info("Initializing enhanced AI agent service...")
+        logger.info("Initializing AI agent service...")
         
         try:
             # Check collection health
             health = await check_collection_health()
             
             if not health.get("collection_exists", False) or health.get("vectors_count", 0) == 0:
-                logger.info("Knowledge base empty, running initial hybrid ingestion...")
+                logger.info("Knowledge base empty, running initial ingestion...")
                 
                 ingestion_result = await ingest_documents()
                 
                 if ingestion_result.success:
                     logger.info(
                         f"Successfully ingested {ingestion_result.chunks_stored} chunks "
-                        f"from {ingestion_result.documents_processed} documents using hybrid approach"
+                        f"from {ingestion_result.documents_processed} documents"
                     )
                 else:
                     logger.error(f"Failed to ingest documents: {ingestion_result.errors}")
                     
             self._initialized = True
-            logger.info("Enhanced AI agent service initialized successfully")
+            logger.info("AI agent service initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize AI agent service: {str(e)}")
@@ -116,7 +116,7 @@ class AgentService:
         is_first_message: bool = False
     ) -> Dict[str, Any]:
         """
-        Process a WhatsApp message using the new enhanced agent with hybrid RAG.
+        Process a WhatsApp message and generate AI response.
         
         Args:
             conversation_id: Conversation identifier
@@ -132,41 +132,43 @@ class AgentService:
         await self.initialize()
         
         logger.info(
-            f"Processing WhatsApp message with enhanced agent (conversation: {conversation_id}, "
+            f"Processing WhatsApp message (conversation: {conversation_id}, "
             f"autoreply: {ai_autoreply_enabled}): '{user_text[:100]}...'"
         )
         
         try:
-            # Check if auto-reply is disabled
-            if not ai_autoreply_enabled:
-                logger.info(f"Auto-reply disabled for conversation {conversation_id}")
+            # Process message through agent
+            agent_result = await self.agent.process_message(
+                user_text=user_text,
+                conversation_id=conversation_id,
+                customer_phone=customer_phone,
+                message_id=message_id,
+                ai_autoreply_enabled=ai_autoreply_enabled,
+                is_first_message=is_first_message
+            )
+            
+            # Handle the response
+            if agent_result.get("reply") == "NO_REPLY":
+                logger.info(f"No AI reply generated for conversation {conversation_id} (auto-reply disabled)")
                 return {
                     "success": True,
                     "ai_response_sent": False,
                     "reason": "auto_reply_disabled"
                 }
             
-            # Process message through enhanced agent
-            start_time = datetime.now(timezone.utc)
-            raw_response = await run_agent(conversation_id, user_text)
-            
-            # Calculate confidence score (simplified for now)
-            confidence = 0.8 if len(raw_response) > 50 else 0.6
-            
             # Strip markdown from AI response for WhatsApp
+            raw_response = agent_result["reply"]
             clean_response = strip_markdown(raw_response)
             
-            logger.info(f"🤖 [AI] Enhanced agent response: {clean_response[:100]}...")
+            logger.info(f"🤖 [AI] Original response: {raw_response[:100]}...")
+            logger.info(f"🤖 [AI] Cleaned response: {clean_response[:100]}...")
             
             # Send AI response via WhatsApp and store as message
             ai_message_id = await self._send_and_store_ai_response(
                 conversation_id=conversation_id,
                 response_text=clean_response,
-                confidence=confidence,
-                metadata={
-                    "agent_type": "enhanced_hybrid",
-                    "processing_time": (datetime.now(timezone.utc) - start_time).total_seconds()
-                },
+                confidence=agent_result.get("confidence", 0.0),
+                metadata=agent_result,
                 customer_phone=customer_phone
             )
             
@@ -193,19 +195,14 @@ class AgentService:
             # Update conversation metadata
             await self._update_conversation_metadata(
                 conversation_id=conversation_id,
-                agent_result={
-                    "confidence": confidence,
-                    "customer_language": "es",  # Default for now
-                    "requires_human_handoff": False,
-                    "agent_type": "enhanced_hybrid"
-                }
+                agent_result=agent_result
             )
             
             # Log the result based on whether WhatsApp sending succeeded
             if whatsapp_sent:
-                logger.info(f"✅ [AI] Enhanced AI response sent successfully via WhatsApp for conversation {conversation_id}")
+                logger.info(f"✅ [AI] AI response sent successfully via WhatsApp for conversation {conversation_id}")
             else:
-                logger.warning(f"⚠️ [AI] Enhanced AI response generated but WhatsApp sending failed for conversation {conversation_id}")
+                logger.warning(f"⚠️ [AI] AI response generated but WhatsApp sending failed for conversation {conversation_id}")
             
             return {
                 "success": True,
@@ -213,14 +210,14 @@ class AgentService:
                 "whatsapp_sent": whatsapp_sent,  # Whether it was actually sent via WhatsApp
                 "ai_message_id": ai_message_id,
                 "response_text": clean_response,
-                "confidence": confidence,
-                "requires_human_handoff": False,
-                "processing_time_ms": int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000),
-                "node_history": ["enhanced_hybrid_agent"]
+                "confidence": agent_result.get("confidence", 0.0),
+                "requires_human_handoff": agent_result.get("requires_human_handoff", False),
+                "processing_time_ms": self._calculate_processing_time(agent_result),
+                "node_history": agent_result.get("node_history", [])
             }
             
         except Exception as e:
-            logger.error(f"Error processing WhatsApp message with enhanced agent: {str(e)}")
+            logger.error(f"Error processing WhatsApp message: {str(e)}")
             
             # For critical errors (like agent processing failures), 
             # don't try to send a fallback WhatsApp message as it might also fail
@@ -297,7 +294,7 @@ class AgentService:
             message_id = message["_id"]
             
             logger.info(
-                f"Stored enhanced AI response message {message_id} for conversation {conversation_id} "
+                f"Stored AI response message {message_id} for conversation {conversation_id} "
                 f"(confidence: {confidence:.2f}, whatsapp_status: {message_status})"
             )
             
@@ -307,10 +304,12 @@ class AgentService:
             logger.error(f"Error storing AI response: {str(e)}")
             raise
     
+
+    
     async def _update_conversation_metadata(
         self,
         conversation_id: str,
-        agent_result: Dict[str, Any]
+        agent_result: AgentState
     ):
         """
         Update conversation metadata with AI interaction info.
@@ -324,8 +323,7 @@ class AgentService:
                 "ai_last_interaction": datetime.now(timezone.utc).isoformat(),
                 "ai_confidence_score": agent_result.get("confidence", 0.0),
                 "ai_language_detected": agent_result.get("customer_language", "es"),
-                "ai_requires_handoff": agent_result.get("requires_human_handoff", False),
-                "ai_agent_type": agent_result.get("agent_type", "enhanced_hybrid")
+                "ai_requires_handoff": agent_result.get("requires_human_handoff", False)
             }
             
             await conversation_service.update_conversation(
@@ -338,9 +336,21 @@ class AgentService:
             logger.error(f"Error updating conversation metadata: {str(e)}")
             # Don't raise - metadata update failure shouldn't break the flow
     
-    async def health_check(self) -> Dict[str, Any]:
-        """Comprehensive health check for the enhanced agent service."""
+    def _calculate_processing_time(self, agent_result: AgentState) -> int:
+        """Calculate total processing time in milliseconds."""
         try:
+            start_time = datetime.fromisoformat(agent_result["processing_start_time"])
+            processing_time = (datetime.now() - start_time).total_seconds() * 1000
+            return int(processing_time)
+        except:
+            return 0
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Comprehensive health check for the agent service."""
+        try:
+            # Check agent health
+            agent_health = await self.agent.health_check()
+            
             # Check collection health
             collection_health = await check_collection_health()
             
@@ -348,27 +358,23 @@ class AgentService:
             memory_stats = await memory_service.get_memory_stats()
             
             return {
-                "status": "healthy" if collection_health.get("status") == "healthy" else "unhealthy",
-                "agent_type": "enhanced_hybrid",
+                "status": "healthy" if agent_health["status"] == "healthy" else "unhealthy",
+                "agent": agent_health,
                 "knowledge_base": collection_health,
                 "memory_service": memory_stats,
                 "initialized": self._initialized,
                 "config": {
                     "model": ai_config.openai_model,
                     "confidence_threshold": ai_config.confidence_threshold,
-                    "max_response_length": ai_config.max_response_length,
-                    "rag_retrieval_k": ai_config.rag_retrieval_k,
-                    "default_language": ai_config.default_language,
-                    "supported_languages": ai_config.supported_languages
+                    "max_response_length": ai_config.max_response_length
                 },
                 "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Enhanced agent service health check failed: {str(e)}")
+            logger.error(f"Agent service health check failed: {str(e)}")
             return {
                 "status": "unhealthy",
-                "agent_type": "enhanced_hybrid",
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
