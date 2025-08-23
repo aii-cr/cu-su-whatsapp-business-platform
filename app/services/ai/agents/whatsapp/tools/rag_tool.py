@@ -1,5 +1,6 @@
 """
 RAG tool for retrieving and synthesizing information from the knowledge base.
+Uses the shared hybrid retriever for consistent performance.
 """
 
 from typing import Any, Dict, List, Optional
@@ -14,13 +15,14 @@ from app.services.ai.config import ai_config
 from app.services.ai.agents.whatsapp.tools.base import BaseTool
 from app.services.ai.rag.retriever import build_retriever
 from app.services.ai.rag.ingest import ingest_documents, check_collection_health
+from app.services.ai.rag.schemas import RetrievalMethod
 
 
 class RAGToolInput(BaseModel):
     """Input schema for the RAG tool."""
     query: str = Field(..., description="User query to search in the knowledge base")
-    tenant_id: str = Field(default="default", description="Tenant identifier for filtering")
-    locale: str = Field(default="es", description="Language locale for filtering (es/en)")
+    tenant_id: str = Field(default=None, description="Tenant identifier for filtering (None disables filtering)")
+    locale: str = Field(default="es_CR", description="Language locale for filtering (es_CR/en_US)")
     max_context_length: int = Field(default=4000, description="Maximum context length in tokens")
 
 
@@ -28,6 +30,7 @@ class RAGTool(BaseTool):
     """
     RAG tool that retrieves relevant documents and synthesizes responses.
     Handles auto-ingestion if collection is empty.
+    Uses the shared hybrid retriever for optimal performance.
     """
     
     def __init__(self):
@@ -50,8 +53,6 @@ class RAGTool(BaseTool):
         
         # Create the RAG chain
         self._rag_chain = self._prompt_template | self._llm
-    
-
     
     def _load_rag_prompt(self) -> ChatPromptTemplate:
         """Load the RAG prompt template from file."""
@@ -97,166 +98,153 @@ class RAGTool(BaseTool):
            collection_health.get("vectors_count", 0) == 0:
             
             logger.info("Collection empty or missing, triggering auto-ingestion")
-            ingestion_result = await ingest_documents(
-                tenant_id=tool_input.tenant_id,
-                locale=tool_input.locale
-            )
+            ingestion_result = await ingest_documents()
             
             if not ingestion_result.success:
                 return {
-                    "answer": "Lo siento, no puedo acceder a la información en este momento. Por favor, contacta con un agente.",
-                    "sources": [],
-                    "confidence": 0.0,
-                    "metadata": {
-                        "error": "Knowledge base not available",
-                        "ingestion_attempted": True,
-                        "ingestion_success": False
-                    }
+                    "status": "error",
+                    "error": f"Failed to ingest documents: {ingestion_result.errors}",
+                    "data": {}
                 }
         
         try:
-            # Build retriever with filters
+            # Execute retrieval using the shared hybrid retriever
+            result = await self._execute_retrieval(tool_input)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in RAG tool execution: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "data": {}
+            }
+    
+    async def _execute_retrieval(self, tool_input: RAGToolInput) -> Dict[str, Any]:
+        """Execute retrieval using the shared hybrid retriever."""
+        try:
+            # Build hybrid retriever with optimal settings
             retriever = build_retriever(
                 tenant_id=tool_input.tenant_id,
                 locale=tool_input.locale,
-                k=ai_config.rag_retrieval_k
+                k=10,
+                score_threshold=0.20,
+                method=RetrievalMethod.DENSE,
+                enable_multi_query=True,
+                enable_compression=True
             )
             
-            # Retrieve relevant documents
+            # Retrieve documents
             retrieval_result = await retriever.get_retrieval_result(tool_input.query)
             
             if not retrieval_result.documents:
                 return {
-                    "answer": "Lo siento, no encuentro esa información en este momento. ¿Te ayudo con otra cosa o deseas que te contacte un agente?",
-                    "sources": [],
-                    "confidence": 0.1,
-                    "metadata": {
-                        "retrieval_time_ms": retrieval_result.retrieval_time_ms,
-                        "documents_found": 0
+                    "status": "success",
+                    "data": {
+                        "answer": "Lo siento, no encuentro esa información en este momento 🙏. ¿Te ayudo con otra cosa?",
+                        "confidence": 0.0,
+                        "sources": [],
+                        "retrieval_metadata": {
+                            "method": retrieval_result.method,
+                            "expanded_queries": retrieval_result.expanded_queries,
+                            "filters_applied": retrieval_result.filters_applied,
+                            "threshold_used": retrieval_result.threshold_used,
+                            "metadata_overrides": retrieval_result.metadata_overrides
+                        }
                     }
                 }
             
-            # Format context from retrieved documents
-            context = self._format_context(retrieval_result.documents)
+            # Format context for RAG prompt
+            context = self._format_context_for_rag(retrieval_result.documents)
             
-            # Generate answer using RAG chain
-            response = await self._rag_chain.ainvoke({
-                "question": tool_input.query,
-                "context": context
-            })
+            # Generate answer
+            answer = await self._generate_answer(tool_input.query, context)
             
-            answer = response.content.strip()
+            # Calculate confidence
+            confidence = self._calculate_confidence(retrieval_result.scores)
             
-            # Calculate confidence based on retrieval scores and answer length
-            confidence = self._calculate_confidence(retrieval_result, answer)
-            
-            # Debug logging for confidence analysis
-            logger.info(f"RAG confidence analysis:")
-            logger.info(f"  - Query: {tool_input.query[:100]}...")
-            logger.info(f"  - Retrieved docs: {len(retrieval_result.documents)}")
-            logger.info(f"  - Avg retrieval score: {sum(retrieval_result.scores) / len(retrieval_result.scores) if retrieval_result.scores else 0:.3f}")
-            logger.info(f"  - Answer length: {len(answer)} chars")
-            logger.info(f"  - Final confidence: {confidence:.3f}")
-            logger.info(f"  - Threshold: {ai_config.confidence_threshold}")
-            logger.info(f"  - Above threshold: {confidence >= ai_config.confidence_threshold}")
-            
-            # Prepare sources information
+            # Format sources
             sources = [
                 {
+                    "content": doc.content,
                     "source": doc.source,
                     "section": doc.section,
-                    "score": score,
-                    "updated_at": doc.updated_at.isoformat()
+                    "subsection": doc.subsection,
+                    "title": doc.title,
+                    "tags": doc.tags,
+                    "price_text": doc.price_text,
+                    "url": doc.url,
+                    "contact_value": doc.contact_value,
+                    "score": score
                 }
                 for doc, score in zip(retrieval_result.documents, retrieval_result.scores)
             ]
             
             return {
-                "answer": answer,
-                "sources": sources,
-                "confidence": confidence,
-                "metadata": {
-                    "retrieval_time_ms": retrieval_result.retrieval_time_ms,
-                    "documents_found": len(retrieval_result.documents),
-                    "context_length": len(context),
-                    "query": tool_input.query
+                "status": "success",
+                "data": {
+                    "answer": answer,
+                    "confidence": confidence,
+                    "sources": sources,
+                    "retrieval_metadata": {
+                        "method": retrieval_result.method,
+                        "expanded_queries": retrieval_result.expanded_queries,
+                        "filters_applied": retrieval_result.filters_applied,
+                        "threshold_used": retrieval_result.threshold_used,
+                        "metadata_overrides": retrieval_result.metadata_overrides,
+                        "retrieval_time_ms": retrieval_result.retrieval_time_ms
+                    }
                 }
             }
             
         except Exception as e:
-            logger.error(f"Error in RAG tool execution: {str(e)}")
-            return {
-                "answer": "Lo siento, ocurrió un error al procesar tu consulta. Por favor, contacta con un agente.",
-                "sources": [],
-                "confidence": 0.0,
-                "metadata": {
-                    "error": str(e),
-                    "query": tool_input.query
-                }
-            }
+            logger.error(f"Error in retrieval: {str(e)}")
+            raise
     
-    def _format_context(self, documents: List[Any]) -> str:
-        """Format retrieved documents into context string."""
+    def _format_context_for_rag(self, documents) -> str:
+        """Format retrieved documents for RAG prompt."""
         context_parts = []
         
-        for doc in documents[:4]:  # Limit to top 4 documents
-            # Extract metadata - handle both DocumentChunk objects and dict-like objects
-            if hasattr(doc, 'source'):
-                source = doc.source
-                section = getattr(doc, 'section', 'general')
-                updated_at = getattr(doc, 'updated_at', 'unknown')
-                content = doc.content
-            else:
-                # Handle dict-like objects
-                source = doc.get('source', 'unknown')
-                section = doc.get('section', 'general')
-                updated_at = doc.get('updated_at', 'unknown')
-                content = doc.get('content', '')
+        for doc in documents:
+            # Format each document with metadata
+            meta_info = f"[{doc.source} | {doc.section}"
+            if doc.subsection:
+                meta_info += f" > {doc.subsection}"
+            if doc.updated_at:
+                meta_info += f" | {doc.updated_at.strftime('%Y-%m-%d')}"
+            meta_info += "]"
             
-            # Format as specified in prompt
-            formatted_doc = f"[{source} | {section} | {updated_at}] {content}"
-            context_parts.append(formatted_doc)
+            context_parts.append(f"{meta_info}\n{doc.content}")
         
         return "\n\n".join(context_parts)
     
-    def _calculate_confidence(self, retrieval_result: Any, answer: str) -> float:
-        """Calculate confidence score based on retrieval and answer quality."""
-        if not retrieval_result.documents:
-            logger.debug("Confidence: 0.0 (no documents retrieved)")
+    async def _generate_answer(self, query: str, context: str) -> str:
+        """Generate answer using RAG prompt."""
+        try:
+            result = await self._rag_chain.ainvoke({
+                "question": query,
+                "context": context
+            })
+            
+            return result.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Error generating answer: {str(e)}")
+            return "Lo siento, no puedo generar una respuesta en este momento."
+    
+    def _calculate_confidence(self, scores: list) -> float:
+        """Calculate confidence based on retrieval scores."""
+        if not scores:
             return 0.0
         
-        # Base confidence from retrieval scores
-        avg_score = sum(retrieval_result.scores) / len(retrieval_result.scores) if retrieval_result.scores else 0.0
+        # Use the highest score as base confidence
+        max_score = max(scores)
         
-        # Adjust based on number of documents found
-        doc_bonus = min(0.2, len(retrieval_result.documents) * 0.05)
+        # Boost confidence if we have multiple high-scoring results
+        high_score_count = sum(1 for score in scores if score > 0.7)
+        if high_score_count > 1:
+            max_score = min(1.0, max_score + 0.1)
         
-        # Adjust based on answer length (longer answers might be more informative)
-        length_bonus = min(0.1, len(answer) / 1000)
-        
-        # Check if answer indicates uncertainty
-        uncertainty_phrases = [
-            "no encuentro", "no tengo", "no puedo", "lo siento",
-            "don't have", "can't find", "sorry", "not sure"
-        ]
-        
-        uncertainty_detected = any(phrase in answer.lower() for phrase in uncertainty_phrases)
-        uncertainty_penalty = -0.3 if uncertainty_detected else 0.0
-        
-        confidence = avg_score + doc_bonus + length_bonus + uncertainty_penalty
-        
-        # Debug detailed confidence breakdown
-        logger.debug(f"Confidence calculation breakdown:")
-        logger.debug(f"  - Base score (avg retrieval): {avg_score:.3f}")
-        logger.debug(f"  - Doc count bonus ({len(retrieval_result.documents)} docs): +{doc_bonus:.3f}")
-        logger.debug(f"  - Length bonus ({len(answer)} chars): +{length_bonus:.3f}")
-        logger.debug(f"  - Uncertainty penalty (detected: {uncertainty_detected}): {uncertainty_penalty:.3f}")
-        logger.debug(f"  - Raw confidence: {confidence:.3f}")
-        
-        # Clamp between 0.0 and 1.0
-        final_confidence = max(0.0, min(1.0, confidence))
-        logger.debug(f"  - Final confidence (clamped): {final_confidence:.3f}")
-        
-        return final_confidence
+        return max_score
     
 

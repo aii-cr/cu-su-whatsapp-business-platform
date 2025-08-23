@@ -16,8 +16,8 @@ from app.services.ai.rag.retriever import build_retriever
 class RAGInput(BaseModel):
     """Input schema for RAG tool."""
     query: str = Field(..., description="The query to search for relevant information")
-    tenant_id: str = Field(default="default", description="Tenant ID for filtering")
-    locale: str = Field(default="es", description="Language locale")
+    tenant_id: str = Field(default=None, description="Tenant ID for filtering (None disables filtering)")
+    locale: str = Field(default=None, description="Language locale (None disables filtering)")
     k: int = Field(default=6, description="Number of documents to retrieve")
 
 
@@ -44,12 +44,12 @@ class WriterRAGTool(BaseAgentTool):
         super().__init__(**kwargs)
         self._retriever = None
     
-    async def _get_retriever(self, tenant_id: str = "default", locale: str = "es", k: int = 6):
+    async def _get_retriever(self, tenant_id: str = None, locale: str = None, k: int = 6):
         """Get or create retriever instance."""
         if not self._retriever:
             self._retriever = build_retriever(
-                tenant_id=tenant_id,
-                locale=locale,
+                tenant_id=tenant_id,  # None disables filtering
+                locale=locale,        # None disables filtering
                 k=k
             )
         return self._retriever
@@ -57,8 +57,8 @@ class WriterRAGTool(BaseAgentTool):
     async def _arun(
         self,
         query: str,
-        tenant_id: str = "default",
-        locale: str = "es", 
+        tenant_id: str = None,
+        locale: str = None, 
         k: int = 6,
         run_manager=None
     ) -> str:

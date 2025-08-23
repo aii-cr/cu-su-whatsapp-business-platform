@@ -1,0 +1,397 @@
+{
+  "timestamp": "20250822_213009",
+  "test_results": [
+    {
+      "query": "¿Cuál es el precio del plan de 500 Mbps?",
+      "latency_ms": 4459.8939418792725,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.9924999999999999,
+        "section_match": true,
+        "keyword_matches": [
+          "500",
+          "₡33 410",
+          "plan"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 195,
+        "section": "Residencial",
+        "title": "Plan 500/500 Mbps (más popular)"
+      },
+      "generated_answer": "El precio es 33 colones.",
+      "context_preview": "[Plan 500/500 Mbps (más popular)]\nResidencial > Planes (es_CR)\nPlan residencial simétrico. Incluye Equipo Wi-Fi, Firewall y Soporte 24/7.\ntags: plan, 500, residencial, popular\nprecio: ₡33 410 IVI\n[Pla...",
+      "success": true
+    },
+    {
+      "query": "¿Cuánto cuesta el servicio de IPTV?",
+      "latency_ms": 3588.2890224456787,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.5459999999999999,
+        "section_match": true,
+        "keyword_matches": [],
+        "keyword_score": 0.0,
+        "content_quality": "good",
+        "content_length": 164,
+        "section": "IPTV",
+        "title": "¿Cuántos canales tiene el IPTV?"
+      },
+      "generated_answer": "El precio es 4 colones.",
+      "context_preview": "[¿Cuántos canales tiene el IPTV?]\nIPTV > FAQ (es_CR)\nEl servicio IPTV ofrece 88 canales. Consulta la 'Lista de canales' para verlos todos.\ntags: iptv, faq, cantidad\n[¿Cuáles son los canales disponible...",
+      "success": false
+    },
+    {
+      "query": "Precio de telefonía residencial",
+      "latency_ms": 6810.100793838501,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.749,
+        "section_match": true,
+        "keyword_matches": [
+          "₡3 590"
+        ],
+        "keyword_score": 0.5,
+        "content_quality": "good",
+        "content_length": 166,
+        "section": "Telefonía",
+        "title": "Costo mensual telefonía residencial"
+      },
+      "generated_answer": "El precio es 3 colones.",
+      "context_preview": "[Costo mensual telefonía residencial]\nTelefonía > Precios (es_CR)\nPrecio por añadir telefonía residencial.\ntags: precio, telefonia, residencial\nprecio: ₡3 590 IVI/mes\n[Plan 1/1 Gbps]\nResidencial > Pla...",
+      "success": true
+    },
+    {
+      "query": "¿Qué incluye el plan de 1 Gbps?",
+      "latency_ms": 4105.568408966064,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.9535,
+        "section_match": true,
+        "keyword_matches": [
+          "1 gbps",
+          "wi-fi",
+          "firewall"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 169,
+        "section": "Residencial",
+        "title": "Plan 1/1 Gbps"
+      },
+      "generated_answer": "[Plan 1/1 Gbps]\nResidencial > Planes (es_CR)\nPlan residencial simétrico.",
+      "context_preview": "[Plan 1/1 Gbps]\nResidencial > Planes (es_CR)\nPlan residencial simétrico. Incluye Equipo Wi-Fi, Firewall y Soporte 24/7.\ntags: plan, 1000, residencial\nprecio: ₡49 500 IVI\n[Plan 500/500 Mbps (más popula...",
+      "success": true
+    },
+    {
+      "query": "¿Cuántos canales tiene el IPTV?",
+      "latency_ms": 3444.0667629241943,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.946,
+        "section_match": true,
+        "keyword_matches": [
+          "88 canales",
+          "lista"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 164,
+        "section": "IPTV",
+        "title": "¿Cuántos canales tiene el IPTV?"
+      },
+      "generated_answer": "El servicio IPTV incluye 88 canales.",
+      "context_preview": "[¿Cuántos canales tiene el IPTV?]\nIPTV > FAQ (es_CR)\nEl servicio IPTV ofrece 88 canales. Consulta la 'Lista de canales' para verlos todos.\ntags: iptv, faq, cantidad\n[¿Cuáles son los canales disponible...",
+      "success": true
+    },
+    {
+      "query": "¿Qué servicios empresariales ofrecen?",
+      "latency_ms": 5402.822732925415,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.6943333333333334,
+        "section_match": true,
+        "keyword_matches": [
+          "seguridad"
+        ],
+        "keyword_score": 0.3333333333333333,
+        "content_quality": "good",
+        "content_length": 174,
+        "section": "Empresarial",
+        "title": "Seguridad"
+      },
+      "generated_answer": "[Seguridad]\nEmpresarial > Servicios (es_CR)\nProtección integral contra malware, phishing y ransomware; asegura continuidad y confidencialidad.",
+      "context_preview": "[Seguridad]\nEmpresarial > Servicios (es_CR)\nProtección integral contra malware, phishing y ransomware; asegura continuidad y confidencialidad.\ntags: seguridad, ciberseguridad\n[Empresarial (Sección del...",
+      "success": true
+    },
+    {
+      "query": "¿Cuál es el número de WhatsApp?",
+      "latency_ms": 3628.4685134887695,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.877,
+        "section_match": true,
+        "keyword_matches": [
+          "+506 7087-8240",
+          "whatsapp"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 118,
+        "section": "Contacto",
+        "title": "WhatsApp"
+      },
+      "generated_answer": "El número de WhatsApp es +506 7087-8240.",
+      "context_preview": "[WhatsApp]\nContacto > Canales (es_CR)\nCanal de WhatsApp para ventas y soporte.\ntags: whatsapp, contacto\n+506 7087-8240\n[Teléfono]\nContacto > Canales (es_CR)\nTeléfono principal de contacto y soporte.\nt...",
+      "success": true
+    },
+    {
+      "query": "Horario de atención administrativa",
+      "latency_ms": 4320.423364639282,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.8845,
+        "section_match": true,
+        "keyword_matches": [
+          "7:00 a. m.",
+          "5:00 p. m.",
+          "lunes",
+          "viernes"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 123,
+        "section": "Contacto",
+        "title": "Horario administrativo"
+      },
+      "generated_answer": "El horario administrativo es de lunes a viernes de 7:00 a.m. a 5:00 p.m.",
+      "context_preview": "[Horario administrativo]\nContacto > Horarios (es_CR)\nLunes a viernes, 7:00 a. m. – 5:00 p. m.\ntags: administrativo, horario\n[Soporte técnico 24/7]\nContacto > Horarios (es_CR)\nSoporte técnico disponibl...",
+      "success": true
+    },
+    {
+      "query": "¿Tienen soporte 24/7?",
+      "latency_ms": 2400.273323059082,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.5860000000000001,
+        "section_match": false,
+        "keyword_matches": [
+          "24/7",
+          "soporte técnico"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 124,
+        "section": "Empresarial",
+        "title": "Soporte 24/7"
+      },
+      "generated_answer": "[Soporte 24/7]\nEmpresarial > Servicios (es_CR)\nSoporte técnico especializado disponible en todo momento.",
+      "context_preview": "[Soporte 24/7]\nEmpresarial > Servicios (es_CR)\nSoporte técnico especializado disponible en todo momento.\ntags: soporte, 24/7\n[Soporte técnico 24/7]\nContacto > Horarios (es_CR)\nSoporte técnico disponib...",
+      "success": false
+    },
+    {
+      "query": "¿Cuánto tiempo toma la instalación?",
+      "latency_ms": 3863.187074661255,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 1.0,
+        "section_match": true,
+        "keyword_matches": [
+          "48",
+          "72",
+          "horas"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "excellent",
+        "content_length": 671,
+        "section": "Residencial",
+        "title": "¿Cuánto se tarda en hacer la instalación?"
+      },
+      "generated_answer": "La instalación se realiza entre 48 y 72 horas posteriores a la compra.",
+      "context_preview": "[¿Cuánto se tarda en hacer la instalación?]\nResidencial > FAQ (es_CR)\nPara planes residenciales, la instalación se realiza entre 48 y 72 horas posteriores a la compra.\nDurante la compra en el sitio we...",
+      "success": true
+    },
+    {
+      "query": "¿Cómo puedo verificar cobertura?",
+      "latency_ms": 4398.828983306885,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 1.0,
+        "section_match": true,
+        "keyword_matches": [
+          "data.cr/cobertura",
+          "dirección"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "excellent",
+        "content_length": 262,
+        "section": "Cobertura",
+        "title": "¿Cómo consultar cobertura?"
+      },
+      "generated_answer": "[¿Cómo consultar cobertura?]\nCobertura > Consulta (es_CR)\nIngresa a https://data.",
+      "context_preview": "[¿Cómo consultar cobertura?]\nCobertura > Consulta (es_CR)\nIngresa a https://data.cr/cobertura o comparte tu dirección exacta por este medio (Provincia, Cantón, Distrito, Condominio/Dirección exacta).\n...",
+      "success": true
+    },
+    {
+      "query": "¿Qué métodos de pago aceptan?",
+      "latency_ms": 3872.3647594451904,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.7,
+        "section_match": false,
+        "keyword_matches": [
+          "tarjeta",
+          "sinpe",
+          "transferencia"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "excellent",
+        "content_length": 1508,
+        "section": "Contratación",
+        "title": "¿Cómo contratar mi servicio en línea?"
+      },
+      "generated_answer": "[¿Cómo contratar mi servicio en línea?]\nContratación > Online (es_CR)\n1) Verifica tu cobertura primero: visita https://data.",
+      "context_preview": "[¿Cómo contratar mi servicio en línea?]\nContratación > Online (es_CR)\n1) Verifica tu cobertura primero: visita https://data.cr/cobertura o comparte la dirección exacta por WhatsApp (Provincia, Cantón,...",
+      "success": true
+    },
+    {
+      "query": "¿Qué es ONVO Pay?",
+      "latency_ms": 4704.774379730225,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.43333333333333335,
+        "section_match": false,
+        "keyword_matches": [
+          "tarjeta"
+        ],
+        "keyword_score": 0.3333333333333333,
+        "content_quality": "excellent",
+        "content_length": 1508,
+        "section": "Contratación",
+        "title": "¿Cómo contratar mi servicio en línea?"
+      },
+      "generated_answer": "[¿Cómo contratar mi servicio en línea?]\nContratación > Online (es_CR)\n1) Verifica tu cobertura primero: visita https://data.",
+      "context_preview": "[¿Cómo contratar mi servicio en línea?]\nContratación > Online (es_CR)\n1) Verifica tu cobertura primero: visita https://data.cr/cobertura o comparte la dirección exacta por WhatsApp (Provincia, Cantón,...",
+      "success": false
+    },
+    {
+      "query": "¿Qué velocidad tienen los planes?",
+      "latency_ms": 4689.919948577881,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.6,
+        "section_match": true,
+        "keyword_matches": [],
+        "keyword_score": 0.0,
+        "content_quality": "excellent",
+        "content_length": 671,
+        "section": "Residencial",
+        "title": "¿Cuánto se tarda en hacer la instalación?"
+      },
+      "generated_answer": "[¿Cuánto se tarda en hacer la instalación?]\nResidencial > FAQ (es_CR)\nPara planes residenciales, la instalación se realiza entre 48 y 72 horas posteriores a la compra.",
+      "context_preview": "[¿Cuánto se tarda en hacer la instalación?]\nResidencial > FAQ (es_CR)\nPara planes residenciales, la instalación se realiza entre 48 y 72 horas posteriores a la compra.\nDurante la compra en el sitio we...",
+      "success": false
+    },
+    {
+      "query": "¿Los planes son simétricos?",
+      "latency_ms": 4812.244415283203,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.7991666666666666,
+        "section_match": true,
+        "keyword_matches": [
+          "subida",
+          "bajada"
+        ],
+        "keyword_score": 0.6666666666666666,
+        "content_quality": "good",
+        "content_length": 155,
+        "section": "Residencial",
+        "title": "Velocidades simétricas"
+      },
+      "generated_answer": "[Velocidades simétricas]\nResidencial > Beneficios (es_CR)\nSube y descarga contenido al mismo tiempo sin pérdida de calidad.",
+      "context_preview": "[Velocidades simétricas]\nResidencial > Beneficios (es_CR)\nSube y descarga contenido al mismo tiempo sin pérdida de calidad.\ntags: simetrico, subida, bajada\n[Plan 1/1 Gbps]\nResidencial > Planes (es_CR)...",
+      "success": true
+    },
+    {
+      "query": "¿Quién es ADN?",
+      "latency_ms": 3398.5650539398193,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 1.0,
+        "section_match": true,
+        "keyword_matches": [
+          "american data networks",
+          "2005",
+          "telecomunicaciones"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "excellent",
+        "content_length": 500,
+        "section": "Compañía",
+        "title": "Descripción"
+      },
+      "generated_answer": "[Descripción]\nCompañía > Quiénes Somos (es_CR)\nAmerican Data Networks S.",
+      "context_preview": "[Descripción]\nCompañía > Quiénes Somos (es_CR)\nAmerican Data Networks S.A. (ADN) fundada en 2005. Equipo con más de 15 años de experiencia en telecomunicaciones.\nEnfoque 100 % en calidad de servicio y...",
+      "success": true
+    },
+    {
+      "query": "¿Cuál es la misión de ADN?",
+      "latency_ms": 4115.060567855835,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.6,
+        "section_match": true,
+        "keyword_matches": [],
+        "keyword_score": 0.0,
+        "content_quality": "excellent",
+        "content_length": 500,
+        "section": "Compañía",
+        "title": "Descripción"
+      },
+      "generated_answer": "[Descripción]\nCompañía > Quiénes Somos (es_CR)\nAmerican Data Networks S.",
+      "context_preview": "[Descripción]\nCompañía > Quiénes Somos (es_CR)\nAmerican Data Networks S.A. (ADN) fundada en 2005. Equipo con más de 15 años de experiencia en telecomunicaciones.\nEnfoque 100 % en calidad de servicio y...",
+      "success": false
+    },
+    {
+      "query": "¿Qué datos recopilan?",
+      "latency_ms": 3366.4517402648926,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.519,
+        "section_match": true,
+        "keyword_matches": [],
+        "keyword_score": 0.0,
+        "content_quality": "good",
+        "content_length": 146,
+        "section": "Privacidad",
+        "title": "Datos de uso"
+      },
+      "generated_answer": "[Datos de uso]\nPrivacidad > Datos (es_CR)\nInformación del uso del servicio de Internet: direcciones IP y historial de navegación.",
+      "context_preview": "[Datos de uso]\nPrivacidad > Datos (es_CR)\nInformación del uso del servicio de Internet: direcciones IP y historial de navegación.\ntags: datos, uso\n[Información técnica]\nPrivacidad > Datos (es_CR)\nDato...",
+      "success": false
+    },
+    {
+      "query": "¿Cómo protegen mis datos?",
+      "latency_ms": 3679.3525218963623,
+      "results_count": 6,
+      "analysis": {
+        "relevance_score": 0.9235,
+        "section_match": true,
+        "keyword_matches": [
+          "cifrado",
+          "controles",
+          "seguridad"
+        ],
+        "keyword_score": 1.0,
+        "content_quality": "good",
+        "content_length": 149,
+        "section": "Privacidad",
+        "title": "Seguridad de los datos"
+      },
+      "generated_answer": "[Seguridad de los datos]\nPrivacidad > Seguridad (es_CR)\nMedidas razonables: cifrado, controles de acceso y políticas internas.",
+      "context_preview": "[Seguridad de los datos]\nPrivacidad > Seguridad (es_CR)\nMedidas razonables: cifrado, controles de acceso y políticas internas.\ntags: seguridad, datos\n[Seguridad]\nEmpresarial > Servicios (es_CR)\nProtec...",
+      "success": true
+    }
+  ]
+}

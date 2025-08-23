@@ -248,11 +248,22 @@ class WhatsAppAgent:
         is_first_message = state.get("is_first_message", False)
         
         # Determine if this is truly the first interaction
-        if is_first_message or len(conversation_history) == 0:
+        # Check both the flag and actual conversation history
+        has_previous_messages = len(conversation_history) > 0
+        
+        # Log the context analysis for debugging
+        logger.info(f"Conversation context analysis for {state['conversation_id']}:")
+        logger.info(f"  - is_first_message flag: {is_first_message}")
+        logger.info(f"  - has_previous_messages: {has_previous_messages}")
+        logger.info(f"  - conversation_history length: {len(conversation_history)}")
+        logger.info(f"  - conversation_summary: {state.get('conversation_summary', '')}")
+        
+        if is_first_message and not has_previous_messages:
+            # This is genuinely the first message
             state["intent"] = "greeting"
             logger.info(f"First message detected for conversation {state['conversation_id']}")
         else:
-            # Check if we should continue the conversation naturally
+            # This is an ongoing conversation, don't add greetings
             state["intent"] = "continue"
             logger.info(
                 f"Continuing conversation {state['conversation_id']} "
@@ -372,7 +383,7 @@ class WhatsAppAgent:
         # In future, this could integrate with booking systems
         rag_result = await self.rag_tool.execute_with_timeout(
             query=state["user_text"],
-            tenant_id="default",
+            tenant_id=None,  # Disable filtering for now
             locale=state.get("customer_language", "es")
         )
         
@@ -395,7 +406,7 @@ class WhatsAppAgent:
         # In future, this could integrate with payment systems
         rag_result = await self.rag_tool.execute_with_timeout(
             query=state["user_text"],
-            tenant_id="default", 
+            tenant_id=None,  # Disable filtering for now
             locale=state.get("customer_language", "es")
         )
         
@@ -424,32 +435,55 @@ class WhatsAppAgent:
         """Finalize the response and add metadata."""
         state["node_history"] = state.get("node_history", []) + ["finalize_response"]
         
-        # Only add greeting if this is truly the first message and intent is greeting
-        if (state.get("intent") == "greeting" and 
+        # Only add greeting if this is genuinely the first message and intent is greeting
+        # AND there are no previous messages in the conversation
+        conversation_history = state.get("conversation_history", [])
+        has_previous_messages = len(conversation_history) > 0
+        
+        # Check if this is truly a new conversation (no previous messages AND first message flag)
+        is_truly_new_conversation = (
             state.get("is_first_message", False) and 
-            state.get("reply") != "NO_REPLY"):
+            not has_previous_messages
+        )
+        
+        # More explicit greeting logic - only add greeting for truly new conversations
+        should_add_greeting = (
+            is_truly_new_conversation and
+            state.get("intent") == "greeting" and
+            state.get("reply") != "NO_REPLY"
+        )
+        
+        if should_add_greeting:
             greeting = self._get_greeting(state.get("customer_language", "es"))
             state["reply"] = f"{greeting}\n\n{state.get('reply', '')}"
-        
-        # For continuing conversations, don't add any additional greetings
-        elif state.get("intent") == "continue" and state.get("reply") != "NO_REPLY":
-            # Just use the reply as-is, no additional greetings
-            pass
+            logger.info(f"Added greeting for new conversation {state['conversation_id']}")
+        else:
+            # For all other cases, don't add greetings
+            logger.info(f"No greeting added for conversation {state['conversation_id']} (new: {is_truly_new_conversation}, intent: {state.get('intent')}, has_history: {has_previous_messages})")
         
         # Ensure confidence is set
         if "confidence" not in state:
             state["confidence"] = 0.5
         
         # Set handoff flag based on confidence
-        requires_handoff = state["confidence"] < ai_config.confidence_threshold
+        # Lower the threshold for FAQ queries to be more permissive
+        current_threshold = ai_config.confidence_threshold
+        if state.get("intent") == "faq" or state.get("intent") == "continue":
+            # Be more permissive for FAQ queries
+            current_threshold = 0.3
+        
+        requires_handoff = state["confidence"] < current_threshold
         state["requires_human_handoff"] = requires_handoff
         
         # Debug confidence decision
         logger.info(f"Confidence decision analysis:")
         logger.info(f"  - Final confidence: {state['confidence']:.3f}")
-        logger.info(f"  - Threshold: {ai_config.confidence_threshold}")
+        logger.info(f"  - Threshold: {current_threshold} (adjusted for intent: {state.get('intent', 'unknown')})")
         logger.info(f"  - Requires handoff: {requires_handoff}")
         logger.info(f"  - Intent: {state.get('intent', 'unknown')}")
+        logger.info(f"  - Has previous messages: {has_previous_messages}")
+        logger.info(f"  - Is truly new conversation: {is_truly_new_conversation}")
+        logger.info(f"  - Should add greeting: {should_add_greeting}")
         
         # Truncate response if too long
         original_length = len(state.get("reply", ""))
@@ -496,7 +530,7 @@ class WhatsAppAgent:
             # Test RAG tool
             rag_health = await self.rag_tool.execute_with_timeout(
                 query="test query",
-                tenant_id="default",
+                tenant_id=None,  # Disable filtering for now
                 locale="es"
             )
             

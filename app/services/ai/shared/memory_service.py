@@ -111,26 +111,36 @@ class ConversationMemoryService:
             # Get messages from result
             messages = result.get("messages", [])
             
+            logger.info(f"Loaded {len(messages)} raw messages for conversation {conversation_id}")
+            
             # Format messages for memory
             history = []
             for msg in messages:
-                if msg.get("direction") == "inbound":
+                direction = msg.get("direction")
+                sender_role = msg.get("sender_role")
+                text_content = msg.get("text_content", "")
+                
+                logger.debug(f"Processing message: direction={direction}, sender_role={sender_role}, content_length={len(text_content)}")
+                
+                if direction == "inbound":
                     history.append({
                         "role": "user",
-                        "content": msg.get("text_content", ""),
+                        "content": text_content,
                         "timestamp": msg.get("timestamp"),
                         "message_id": str(msg.get("_id"))
                     })
-                elif msg.get("direction") == "outbound" and msg.get("sender_role") == "ai_assistant":
+                elif direction == "outbound" and sender_role == "ai_assistant":
                     history.append({
                         "role": "assistant", 
-                        "content": msg.get("text_content", ""),
+                        "content": text_content,
                         "timestamp": msg.get("timestamp"),
                         "message_id": str(msg.get("_id"))
                     })
             
             # Reverse to get chronological order
             history.reverse()
+            
+            logger.info(f"Formatted {len(history)} messages for conversation history (conversation: {conversation_id})")
             
             return history
             
