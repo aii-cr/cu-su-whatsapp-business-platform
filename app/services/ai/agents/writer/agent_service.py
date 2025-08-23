@@ -11,6 +11,47 @@ from app.services.ai.agents.writer.graphs.writer_agent import WriterAgent, Write
 from app.schemas.ai.writer_response import StructuredWriterResponse, WriterAgentResult
 
 
+def clean_markdown_to_plain_text(markdown_text: str) -> str:
+    """
+    Convert markdown text to plain text suitable for WhatsApp.
+    
+    Args:
+        markdown_text: Text that may contain markdown formatting
+        
+    Returns:
+        Plain text without markdown formatting
+    """
+    if not markdown_text:
+        return ""
+    
+    # Remove bold formatting (**text** -> text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', markdown_text)
+    
+    # Remove italic formatting (*text* -> text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    
+    # Remove code formatting (`text` -> text)
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    
+    # Remove strikethrough formatting (~~text~~ -> text)
+    text = re.sub(r'~~(.*?)~~', r'\1', text)
+    
+    # Remove header formatting (# text -> text)
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove link formatting ([text](url) -> text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    
+    # Remove image formatting (![alt](url) -> alt)
+    text = re.sub(r'!\[([^\]]*)\]\([^)]+\)', r'\1', text)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    text = text.strip()
+    
+    return text
+
+
 class WriterAgentService:
     """
     Service wrapper for the Writer Agent.
@@ -50,6 +91,9 @@ class WriterAgentService:
             if customer_match and reason_match:
                 customer_response = customer_match.group(1).strip()
                 reason = reason_match.group(1).strip()
+                
+                # Clean markdown from customer response
+                customer_response = clean_markdown_to_plain_text(customer_response)
                 
                 logger.info("Successfully parsed structured response")
                 return StructuredWriterResponse(

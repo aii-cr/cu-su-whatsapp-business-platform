@@ -4,7 +4,7 @@
  */
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LoadingSpinner } from '@/components/feedback/LoadingSpinner';
@@ -14,7 +14,6 @@ import {
   PaperAirplaneIcon,
   XMarkIcon,
   ArrowPathIcon,
-  CheckIcon,
   ExclamationTriangleIcon,
   ChevronDownIcon,
   ChevronRightIcon
@@ -43,8 +42,9 @@ export function WriterAgentModal({
   const [customQuery, setCustomQuery] = useState('');
   const [generatedResponse, setGeneratedResponse] = useState('');
   const [reasoningText, setReasoningText] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
   const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
+  
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const {
     isLoading,
@@ -62,21 +62,18 @@ export function WriterAgentModal({
     onSuccess: (response) => {
       setGeneratedResponse(response.response);
       setReasoningText('');
-      setIsEditing(true);
-      onResponseGenerated(response.response);
+      // Don't call onResponseGenerated here - only update the textarea
     },
     onStructuredSuccess: (response) => {
       if (response.structured_response) {
         setGeneratedResponse(response.structured_response.customer_response);
         setReasoningText(response.structured_response.reason);
-        setIsEditing(true);
-        onResponseGenerated(response.structured_response.customer_response);
+        // Don't call onResponseGenerated here - only update the textarea
       } else {
         // Fallback to raw response if structured parsing failed
         setGeneratedResponse(response.raw_response);
         setReasoningText('');
-        setIsEditing(true);
-        onResponseGenerated(response.raw_response);
+        // Don't call onResponseGenerated here - only update the textarea
       }
     },
     onError: (error) => {
@@ -84,13 +81,29 @@ export function WriterAgentModal({
     }
   });
 
+  // Handle click outside to close modal
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onOpenChange(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open, onOpenChange]);
+
   // Clear state when modal opens/closes
   useEffect(() => {
     if (open) {
       setCustomQuery('');
       setGeneratedResponse('');
       setReasoningText('');
-      setIsEditing(false);
       setIsReasoningExpanded(false);
       clearError();
       clearResponse();
@@ -141,7 +154,7 @@ export function WriterAgentModal({
 
   return (
     <div className={cn(styles.overlay, className)}>
-      <div className={styles.modal}>
+      <div ref={modalRef} className={styles.modal}>
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.titleSection}>
@@ -294,35 +307,13 @@ export function WriterAgentModal({
               <textarea
                 value={generatedResponse}
                 onChange={(e) => setGeneratedResponse(e.target.value)}
-                disabled={!isEditing}
-                className={cn(
-                  styles.responseTextarea,
-                  !isEditing && styles.responseTextareaReadOnly
-                )}
+                className={styles.responseTextarea}
                 rows={6}
                 placeholder="Generated response will appear here..."
                 style={{ whiteSpace: 'pre-wrap' }}
               />
               
               <div className={styles.responseActions}>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={styles.editButton}
-                >
-                  {isEditing ? (
-                    <>
-                      <CheckIcon className="w-4 h-4 mr-2" />
-                      Done Editing
-                    </>
-                  ) : (
-                    <>
-                      <ArrowPathIcon className="w-4 h-4 mr-2" />
-                      Edit Response
-                    </>
-                  )}
-                </Button>
-                
                 <Button
                   onClick={handleSendResponse}
                   disabled={!generatedResponse.trim()}
