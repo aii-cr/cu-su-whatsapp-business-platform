@@ -49,7 +49,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         # Check for maximum attempts before using tools
         if current_attempt >= 6:
             logger.warning(f"🛑 [GRAPH] Maximum attempts reached ({current_attempt}), forcing final response")
-            fallback_message = "Lo siento, no tengo la información específica que necesitas en este momento. Por favor espera que enseguida te responde un agente humano." if target_lang == "es" else "I'm sorry, I don't have the specific information you need right now. Please wait, a human agent will respond to you shortly."
+            fallback_message = "Lo siento, no tengo la información específica que necesitas en este momento. Por favor espera que enseguida te responde un agente humano."
             return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
         
         # Check if we have tool results with NO_CONTEXT_AVAILABLE in recent messages
@@ -58,16 +58,16 @@ def call_model(state: AgentState) -> Dict[str, Any]:
             if hasattr(msg, 'content') and isinstance(msg.content, str):
                 if "NO_CONTEXT_AVAILABLE" in msg.content and current_attempt > 1:
                     logger.warning(f"🔍 [GRAPH] Detected NO_CONTEXT_AVAILABLE, providing appropriate response")
-                    fallback_message = "Hola! Soy el asistente de ADN. En este momento estoy configurando mi base de conocimiento. Por favor espera que enseguida te responde un agente humano." if target_lang == "es" else "Hello! I'm ADN's assistant. I'm currently setting up my knowledge base. Please wait, a human agent will respond to you shortly."
+                    fallback_message = "Hola! Soy el asistente de ADN. En este momento estoy configurando mi base de conocimiento. Por favor espera que enseguida te responde un agente humano."
                     return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
         
         model = _build_model_with_tools()
 
         # Get current time context for Costa Rica
-        time_context = get_contextual_time_info(target_lang)
+        time_context = get_contextual_time_info("es")  # Time context in Spanish for Costa Rica
         
-        # Reescribe el primer mensaje como SystemMessage con idioma objetivo y contexto temporal.
-        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_lang, time_context=time_context)
+        # Reescribe el primer mensaje como SystemMessage con contexto temporal.
+        system_prompt = ADN_SYSTEM_PROMPT.format(time_context=time_context)
         messages = [SystemMessage(content=system_prompt)]
         messages.extend(state["messages"][1:] if state["messages"] else [])
         

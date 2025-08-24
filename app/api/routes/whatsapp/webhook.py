@@ -23,7 +23,7 @@ from app.services import message_service, conversation_service
 from app.services import websocket_service
 from app.services import sentiment_analyzer_service
 from app.services.websocket.websocket_service import manager
-from app.services.ai.agents.whatsapp.agent_service import agent_service
+from app.services.ai.agents.whatsapp_agent.agent_service import agent_service
 from app.core.error_handling import handle_database_error
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])

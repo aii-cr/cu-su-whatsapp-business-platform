@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.services.auth import require_permissions
 from app.db.models.auth import User
 from app.core.logger import logger
-from app.services.ai.agents.whatsapp.agent_service import agent_service
+from app.services.ai.agents.whatsapp_agent.agent_service import agent_service
 
 router = APIRouter(prefix="/ai/memory", tags=["AI Memory"])
 

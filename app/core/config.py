@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     LANGCHAIN_PROJECT: str = "whatsapp-business-platform"
     LANGCHAIN_API_KEY: str
     
+    # Cohere Settings
+    COHERE_API_KEY: str
+    
     # WhatsApp Business API Settings
     WHATSAPP_ACCESS_TOKEN: str 
     WHATSAPP_VERIFY_TOKEN: str 

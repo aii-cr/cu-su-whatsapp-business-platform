@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from app.core.logger import logger
-from app.services.ai.agents.whatsapp.agent_service import agent_service
+from app.services.ai.agents.whatsapp_agent.agent_service import agent_service
 from app.schemas import SuccessResponse
 from app.core.error_handling import handle_database_error
 from app.config.error_codes import get_error_response

@@ -17,7 +17,6 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.services.ai.shared.memory_service import memory_service
 from .agent_graph import build_graph
 from .prompts import ADN_SYSTEM_PROMPT
-from .timezone_utils import get_contextual_time_info
 from .telemetry import setup_tracing
 from app.core.logger import logger
 
@@ -41,13 +40,13 @@ def _infer_language(text: str) -> str:
 def _prepare_history_messages(history: List[dict], target_language: str) -> List:
     """Convierte historial en mensajes (inyecta system bilingüe)."""
     try:
-        logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with target language: {target_language}")
+        logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with automatic language detection")
         
-        # Get time context and format system prompt
-        time_context = get_contextual_time_info(target_language)
-        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_language, time_context=time_context)
+        # Get current time context for Costa Rica
+        from .timezone_utils import get_contextual_time_info
+        time_context = get_contextual_time_info("es")  # Time context in Spanish for Costa Rica
         
-        msgs: List = [SystemMessage(content=system_prompt)]
+        msgs: List = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(time_context=time_context))]
         
         for i, h in enumerate(history):
             role = h.get("role")
@@ -67,10 +66,8 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
         
     except Exception as e:
         logger.error(f"❌ [RUNNER] Failed to prepare history messages: {str(e)}")
-        # Return minimal system message with time context
-        time_context = get_contextual_time_info(target_language)
-        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_language, time_context=time_context)
-        return [SystemMessage(content=system_prompt)]
+        # Return minimal system message
+        return [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
 
 
 async def run_agent(conversation_id: str, user_text: str) -> str:
@@ -98,8 +95,8 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
             logger.info(f"📚 [RUNNER] Using full history: {len(history)} messages")
 
         # Step 3: Language detection
-        logger.info("🌐 [RUNNER] Detecting target language...")
-        target_language = _infer_language(user_text)
+        logger.info("🌐 [RUNNER] Using automatic language detection...")
+        target_language = "auto"  # Let the model handle language automatically
 
         # Step 4: Graph setup and input preparation
         logger.info("🏗️ [RUNNER] Building agent graph...")
@@ -123,33 +120,16 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         
         logger.info(f"✅ [RUNNER] Graph execution completed in {graph_execution_time:.2f}s")
         
-        # Debug: Log the complete result structure
-        logger.info(f"🔍 [RUNNER] Graph result keys: {list(result.keys())}")
-        logger.info(f"🔍 [RUNNER] Total messages in result: {len(result.get('messages', []))}")
-        
         # Step 6: Extract final answer
         ai_msgs = [m for m in result["messages"] if isinstance(m, AIMessage)]
-        logger.info(f"🔍 [RUNNER] Found {len(ai_msgs)} AI messages in result")
-        
         if ai_msgs:
-            # Debug: Log all AI messages to understand the structure
-            for i, msg in enumerate(ai_msgs):
-                content = getattr(msg, "content", "")
-                logger.info(f"🔍 [RUNNER] AI Message {i+1}: '{content[:100]}...'")
-            
-            # Find the last substantive response (non-helpfulness message)
+            # Find the last non-helpfulness message
             final_response = None
-            substantive_responses = []
-            
-            for msg in ai_msgs:
+            for msg in reversed(ai_msgs):
                 content = getattr(msg, "content", "")
-                if content and not content.startswith("HELPFULNESS:"):
-                    substantive_responses.append(content)
-                    logger.info(f"🔍 [RUNNER] Found substantive response: '{content[:50]}...'")
-            
-            if substantive_responses:
-                final_response = substantive_responses[-1]  # Get the last substantive response
-                logger.info(f"💬 [RUNNER] Found {len(substantive_responses)} substantive responses, using: '{final_response[:100]}...'")
+                if not content.startswith("HELPFULNESS:"):
+                    final_response = content
+                    break
             
             if final_response:
                 answer = final_response
@@ -160,7 +140,6 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
                     answer = "I'm sorry, I couldn't generate a complete response. Please wait, a human agent will respond to you shortly."
                 else:
                     answer = "Lo siento, no se pudo completar la respuesta. Por favor espera que enseguida te responde un agente humano."
-                logger.warning("⚠️ [RUNNER] No substantive response found in AI messages")
         else:
             # Detect language for appropriate fallback message  
             target_lang = _infer_language(user_text)
