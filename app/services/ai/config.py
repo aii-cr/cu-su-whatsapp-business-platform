@@ -33,7 +33,7 @@ class AIConfig(BaseModel):
     max_retries: int = 3
     timeout_seconds: int = 30
     confidence_threshold: float = 0.5
-    rag_retrieval_k: int = 6
+    rag_retrieval_k: int = 12
     max_context_tokens: int = 4000
 
     # WhatsApp
