@@ -5,7 +5,7 @@ Toolbelt del agente (por ahora solo RAG).
 
 from __future__ import annotations
 from typing import List, Any
-from .rag.retriever import retrieve_information
+from app.services.ai.shared.tools.rag.retriever import retrieve_information
 
 
 def get_tool_belt() -> List[Any]:

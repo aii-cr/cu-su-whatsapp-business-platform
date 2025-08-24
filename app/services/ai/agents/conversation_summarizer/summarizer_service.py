@@ -19,7 +19,7 @@ from app.services.ai.agents.conversation_summarizer.schemas import (
     SummarizationResult,
     StoredConversationSummary
 )
-from app.services.ai.shared.base_tools import validate_conversation_id
+from app.services.ai.shared.utils import validate_conversation_id
 from app.services import conversation_service, cursor_message_service, audit_service
 from app.services.base_service import BaseService
 

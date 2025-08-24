@@ -10,7 +10,7 @@ from langchain.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from app.core.logger import logger
-from app.services.ai.shared.base_tools import BaseAgentTool, ToolResult
+from app.services.ai.shared.utils import BaseAgentTool, ToolResult
 from app.db.client import database
 
 

@@ -15,7 +15,7 @@ from langchain_cohere.rerank import CohereRerank
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
-from ..models import get_embedding_model, get_chat_model
+from app.services.ai.shared.models import get_embedding_model, get_chat_model
 from app.services.ai.config import ai_config
 from app.core.logger import logger
 

@@ -20,7 +20,7 @@ from app.services.ai.agents.sentiment_analyzer.schemas import (
     SentimentWebSocketNotification
 )
 from app.services.ai.agents.sentiment_analyzer.config import sentiment_config
-from app.services.ai.shared.base_tools import validate_conversation_id
+from app.services.ai.shared.utils import validate_conversation_id
 from app.services import conversation_service, message_service, websocket_service, cursor_message_service
 from app.services.base_service import BaseService
 

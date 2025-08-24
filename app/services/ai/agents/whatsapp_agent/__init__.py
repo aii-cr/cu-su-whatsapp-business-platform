@@ -5,5 +5,6 @@ Incluye RAG híbrido con re-rank, LangSmith tracing, prompts bilingües y grafo 
 """
 
 from .runner import run_agent
+from .agent_service import agent_service
 
-__all__ = ["run_agent"]
+__all__ = ["run_agent", "agent_service"]
