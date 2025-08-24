@@ -116,20 +116,51 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         
         logger.info(f"✅ [RUNNER] Graph execution completed in {graph_execution_time:.2f}s")
         
+        # Debug: Log the complete result structure
+        logger.info(f"🔍 [RUNNER] Graph result keys: {list(result.keys())}")
+        logger.info(f"🔍 [RUNNER] Total messages in result: {len(result.get('messages', []))}")
+        
         # Step 6: Extract final answer
         ai_msgs = [m for m in result["messages"] if isinstance(m, AIMessage)]
+        logger.info(f"🔍 [RUNNER] Found {len(ai_msgs)} AI messages in result")
+        
         if ai_msgs:
-            # Find the last non-helpfulness message
-            final_response = None
-            for msg in reversed(ai_msgs):
+            # Debug: Log all AI messages to understand the structure
+            for i, msg in enumerate(ai_msgs):
                 content = getattr(msg, "content", "")
-                if not content.startswith("HELPFULNESS:"):
-                    final_response = content
-                    break
+                logger.info(f"🔍 [RUNNER] AI Message {i+1}: '{content[:100]}...'")
             
-            answer = final_response if final_response else "Lo siento, no pude generar respuesta."
+            # Find the last substantive response (non-helpfulness message)
+            final_response = None
+            substantive_responses = []
+            
+            for msg in ai_msgs:
+                content = getattr(msg, "content", "")
+                if content and not content.startswith("HELPFULNESS:"):
+                    substantive_responses.append(content)
+                    logger.info(f"🔍 [RUNNER] Found substantive response: '{content[:50]}...'")
+            
+            if substantive_responses:
+                final_response = substantive_responses[-1]  # Get the last substantive response
+                logger.info(f"💬 [RUNNER] Found {len(substantive_responses)} substantive responses, using: '{final_response[:100]}...'")
+            
+            if final_response:
+                answer = final_response
+            else:
+                # Detect language for appropriate fallback message
+                target_lang = _infer_language(user_text)
+                if target_lang == "en":
+                    answer = "I'm sorry, I couldn't generate a complete response. Please wait, a human agent will respond to you shortly."
+                else:
+                    answer = "Lo siento, no se pudo completar la respuesta. Por favor espera que enseguida te responde un agente humano."
+                logger.warning("⚠️ [RUNNER] No substantive response found in AI messages")
         else:
-            answer = "Lo siento, no pude generar respuesta."
+            # Detect language for appropriate fallback message  
+            target_lang = _infer_language(user_text)
+            if target_lang == "en":
+                answer = "I'm sorry, I couldn't process your request. Please wait, a human agent will respond to you shortly."
+            else:
+                answer = "Lo siento, no se pudo procesar tu solicitud. Por favor espera que enseguida te responde un agente humano."
             logger.warning("⚠️ [RUNNER] No AI messages found in result")
 
         logger.info(f"💬 [RUNNER] Final answer: '{answer[:100]}...'")
@@ -147,5 +178,10 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         execution_time = time.time() - start_time
         logger.error(f"❌ [RUNNER] Agent execution failed after {execution_time:.2f}s: {str(e)}")
         
-        # Return a helpful error message instead of raising
-        return "Lo siento, ocurrió un error procesando tu consulta. Por favor, intenta de nuevo o contacta a un asesor humano."
+        # Detect language for appropriate error message
+        target_lang = _infer_language(user_text)
+        
+        if target_lang == "en":
+            return "I'm sorry, I couldn't process your request right now. Please wait, a human agent will respond to you shortly."
+        else:
+            return "Lo siento, no se pudo procesar su solicitud ahora mismo. Por favor espera que enseguida te responde un agente humano."

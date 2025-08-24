@@ -45,6 +45,21 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         
         logger.info(f"🤖 [GRAPH] Agent node - conversation: {conversation_id}, attempt: {current_attempt + 1}, lang: {target_lang}")
         
+        # Check for maximum attempts before using tools
+        if current_attempt >= 6:
+            logger.warning(f"🛑 [GRAPH] Maximum attempts reached ({current_attempt}), forcing final response")
+            fallback_message = "Lo siento, no tengo la información específica que necesitas en este momento. Por favor espera que enseguida te responde un agente humano." if target_lang == "es" else "I'm sorry, I don't have the specific information you need right now. Please wait, a human agent will respond to you shortly."
+            return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
+        
+        # Check if we have tool results with NO_CONTEXT_AVAILABLE in recent messages
+        recent_messages = state["messages"][-3:] if len(state["messages"]) > 3 else state["messages"]
+        for msg in recent_messages:
+            if hasattr(msg, 'content') and isinstance(msg.content, str):
+                if "NO_CONTEXT_AVAILABLE" in msg.content and current_attempt > 1:
+                    logger.warning(f"🔍 [GRAPH] Detected NO_CONTEXT_AVAILABLE, providing appropriate response")
+                    fallback_message = "Hola! Soy el asistente de ADN. En este momento estoy configurando mi base de conocimiento. Por favor espera que enseguida te responde un agente humano." if target_lang == "es" else "Hello! I'm ADN's assistant. I'm currently setting up my knowledge base. Please wait, a human agent will respond to you shortly."
+                    return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
+        
         model = _build_model_with_tools()
 
         # Reescribe el primer mensaje como SystemMessage con idioma objetivo.
@@ -111,6 +126,19 @@ def helpfulness_node(state: AgentState) -> Dict[str, Any]:
         final_response = state["messages"][-1].content
         
         logger.info(f"🤔 [GRAPH] Evaluating helpfulness - query: '{initial_query[:50]}...', response: '{final_response[:50]}...'")
+        
+        # Check for simple greetings - these should be considered helpful
+        query_lower = initial_query.lower().strip()
+        greeting_patterns = ["hola", "hello", "hi", "hey", "buenos días", "buenas tardes", "buenas noches", "good morning", "good afternoon", "good evening"]
+        
+        if any(pattern in query_lower for pattern in greeting_patterns) and len(query_lower) < 20:
+            logger.info("🤔 [GRAPH] Detected simple greeting, considering response helpful")
+            return {"messages": [AIMessage(content="HELPFULNESS:Y")]}
+        
+        # Check if the response indicates empty knowledge base
+        if "configurando mi base de conocimiento" in final_response or "setting up my knowledge base" in final_response:
+            logger.info("🤔 [GRAPH] Detected knowledge base setup message, considering helpful")
+            return {"messages": [AIMessage(content="HELPFULNESS:Y")]}
         
         chain = HELPFULNESS_PROMPT | get_chat_model() | StrOutputParser()
         decision = chain.invoke({"initial_query": initial_query, "final_response": final_response})

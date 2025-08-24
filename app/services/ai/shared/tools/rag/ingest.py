@@ -134,7 +134,7 @@ def ingest_jsonl(paths: List[str], batch_size: int = 200) -> QdrantVectorStore:
 
         # Step 3: Ensure collection exists
         logger.info(f"🏗️ [INGEST] Ensuring collection '{ai_config.qdrant_collection_name}' exists...")
-        ensure_collection(client, ai_config.qdrant_collection_name, embeddings.dimension)
+        ensure_collection(client, ai_config.qdrant_collection_name, ai_config.openai_embedding_dimension)
 
         # Step 4: Load and split documents
         logger.info("📄 [INGEST] Loading JSONL documents...")
@@ -341,7 +341,7 @@ def ingest_jsonl_hybrid(paths: List[str], batch_size: int = 200) -> QdrantVector
 
         # Step 3: Ensure collection exists
         logger.info(f"🏗️ [INGEST] Ensuring collection '{ai_config.qdrant_collection_name}' exists...")
-        ensure_collection(client, ai_config.qdrant_collection_name, embeddings.dimension)
+        ensure_collection(client, ai_config.qdrant_collection_name, ai_config.openai_embedding_dimension)
 
         # Step 4: Load and split documents
         logger.info("📄 [INGEST] Loading JSONL documents...")

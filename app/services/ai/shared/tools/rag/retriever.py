@@ -7,7 +7,8 @@ Devuelve solo contexto (string) para que el LLM principal genere la respuesta.
 from __future__ import annotations
 from typing import Annotated, List, Optional
 
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models
+from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
 from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
@@ -20,8 +21,31 @@ from app.services.ai.config import ai_config
 from app.core.logger import logger
 
 
+def _ensure_collection(client: QdrantClient, collection: str, dim: int) -> None:
+    """Create collection with dense and sparse vectors if it doesn't exist."""
+    try:
+        if client.collection_exists(collection_name=collection):
+            logger.info(f"✅ [RAG] Collection '{collection}' already exists")
+            return
+            
+        logger.info(f"🏗️ [RAG] Creating new collection '{collection}' with dimension {dim}")
+        
+        client.create_collection(
+            collection_name=collection,
+            vectors_config={"dense": VectorParams(size=dim, distance=Distance.COSINE)},
+            sparse_vectors_config={"sparse": SparseVectorParams(index=models.SparseIndexParams(on_disk=False))},
+            optimizers_config=models.OptimizersConfigDiff(indexing_threshold=20000),
+        )
+        
+        logger.info(f"✅ [RAG] Collection '{collection}' created successfully")
+        
+    except Exception as e:
+        logger.error(f"❌ [RAG] Failed to ensure collection '{collection}': {str(e)}")
+        raise
+
+
 def _get_qdrant_store() -> QdrantVectorStore:
-    """Abre colección Qdrant con HYBRID retrieval."""
+    """Abre colección Qdrant con HYBRID retrieval, creándola si no existe."""
     try:
         logger.info(f"🔍 [RAG] Connecting to Qdrant collection: {ai_config.qdrant_collection_name}")
         
@@ -29,9 +53,21 @@ def _get_qdrant_store() -> QdrantVectorStore:
         embeddings = get_embedding_model()
         sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
         
+        # Create client to check/create collection
+        client = QdrantClient(
+            url=ai_config.qdrant_url,
+            api_key=ai_config.qdrant_api_key,
+            prefer_grpc=True,
+            timeout=ai_config.timeout_seconds,
+        )
+        
+        # Ensure collection exists
+        _ensure_collection(client, ai_config.qdrant_collection_name, ai_config.openai_embedding_dimension)
+        
+        # Now connect to the collection
         store = QdrantVectorStore.from_existing_collection(
             embedding=embeddings,
-            sparse_embedding=sparse_embeddings,  # This was missing!
+            sparse_embedding=sparse_embeddings,
             collection_name=ai_config.qdrant_collection_name,
             url=ai_config.qdrant_url,
             api_key=ai_config.qdrant_api_key,
@@ -138,7 +174,7 @@ def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
         
         if not docs:
             logger.warning("⚠️ [RAG] No documents found for query")
-            return "No se encontró información relevante en la base de conocimiento."
+            return "NO_CONTEXT_AVAILABLE: La base de conocimiento está vacía o no contiene información relevante para esta consulta."
             
         # Step 5: Format and return
         formatted_context = _format_docs(docs)
@@ -147,5 +183,13 @@ def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
         return formatted_context
         
     except Exception as e:
-        logger.error(f"❌ [RAG] Information retrieval failed: {str(e)}")
-        return f"Error al recuperar información: {str(e)}"
+        error_msg = str(e)
+        logger.error(f"❌ [RAG] Information retrieval failed: {error_msg}")
+        
+        # If it's a collection not found error, return no context signal
+        if "doesn't exist" in error_msg or "not found" in error_msg.lower():
+            logger.info("🏗️ [RAG] Collection doesn't exist yet, will be created on first use")
+            return "NO_CONTEXT_AVAILABLE: La base de conocimiento aún no ha sido inicializada. Será creada automáticamente."
+        
+        # For other errors, return error signal
+        return "ERROR_ACCESSING_KNOWLEDGE: No se pudo acceder a la información en este momento."
