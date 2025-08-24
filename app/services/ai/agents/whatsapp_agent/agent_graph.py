@@ -19,6 +19,7 @@ from .state import AgentState
 from .models import get_chat_model
 from .tools import get_tool_belt
 from .prompts import HELPFULNESS_PROMPT, ADN_SYSTEM_PROMPT
+from .timezone_utils import get_contextual_time_info
 from app.core.logger import logger
 
 
@@ -62,8 +63,12 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         
         model = _build_model_with_tools()
 
-        # Reescribe el primer mensaje como SystemMessage con idioma objetivo.
-        messages = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_lang))]
+        # Get current time context for Costa Rica
+        time_context = get_contextual_time_info(target_lang)
+        
+        # Reescribe el primer mensaje como SystemMessage con idioma objetivo y contexto temporal.
+        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_lang, time_context=time_context)
+        messages = [SystemMessage(content=system_prompt)]
         messages.extend(state["messages"][1:] if state["messages"] else [])
         
         logger.info(f"🤖 [GRAPH] Invoking model with {len(messages)} messages...")
@@ -128,10 +133,15 @@ def helpfulness_node(state: AgentState) -> Dict[str, Any]:
         logger.info(f"🤔 [GRAPH] Evaluating helpfulness - query: '{initial_query[:50]}...', response: '{final_response[:50]}...'")
         
         # Check for simple greetings - these should be considered helpful
+        # But exclude queries that also ask for information (like "hola, que servicios tienen?")
         query_lower = initial_query.lower().strip()
-        greeting_patterns = ["hola", "hello", "hi", "hey", "buenos días", "buenas tardes", "buenas noches", "good morning", "good afternoon", "good evening"]
+        greeting_patterns = ["hola", "hello", "hi", "hey", "buenas", "buenos días", "buenas tardes", "buenas noches", "good morning", "good afternoon", "good evening"]
         
-        if any(pattern in query_lower for pattern in greeting_patterns) and len(query_lower) < 20:
+        # Don't consider it a simple greeting if it contains question words or service-related terms
+        question_indicators = ["que", "what", "como", "how", "cuando", "when", "donde", "where", "servicios", "services", "planes", "plans", "precios", "prices", "?"]
+        has_questions = any(indicator in query_lower for indicator in question_indicators)
+        
+        if any(pattern in query_lower for pattern in greeting_patterns) and len(query_lower) < 20 and not has_questions:
             logger.info("🤔 [GRAPH] Detected simple greeting, considering response helpful")
             return {"messages": [AIMessage(content="HELPFULNESS:Y")]}
         

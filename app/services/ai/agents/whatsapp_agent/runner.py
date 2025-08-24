@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.services.ai.shared.memory_service import memory_service
 from .agent_graph import build_graph
 from .prompts import ADN_SYSTEM_PROMPT
+from .timezone_utils import get_contextual_time_info
 from .telemetry import setup_tracing
 from app.core.logger import logger
 
@@ -42,7 +43,11 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
     try:
         logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with target language: {target_language}")
         
-        msgs: List = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
+        # Get time context and format system prompt
+        time_context = get_contextual_time_info(target_language)
+        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_language, time_context=time_context)
+        
+        msgs: List = [SystemMessage(content=system_prompt)]
         
         for i, h in enumerate(history):
             role = h.get("role")
@@ -62,8 +67,10 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
         
     except Exception as e:
         logger.error(f"❌ [RUNNER] Failed to prepare history messages: {str(e)}")
-        # Return minimal system message
-        return [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
+        # Return minimal system message with time context
+        time_context = get_contextual_time_info(target_language)
+        system_prompt = ADN_SYSTEM_PROMPT.format(target_language=target_language, time_context=time_context)
+        return [SystemMessage(content=system_prompt)]
 
 
 async def run_agent(conversation_id: str, user_text: str) -> str:
