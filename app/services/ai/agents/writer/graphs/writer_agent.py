@@ -1,5 +1,5 @@
 """
-Writer Agent graph with helpfulness validation loop.
+Writer Agent graph with helpfulness validation loop and LangSmith tracing.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from langchain_openai import ChatOpenAI
 from app.core.logger import logger
 from app.services.ai.config import ai_config
 from app.services.ai.agents.writer.tools import get_writer_tool_belt
+from app.services.ai.agents.writer.telemetry import setup_tracing
 
 
 class WriterAgentState(TypedDict, total=False):
@@ -51,7 +52,10 @@ class WriterAgent:
     """
     
     def __init__(self, model_name: str = None):
-        """Initialize the Writer Agent."""
+        """Initialize the Writer Agent with LangSmith tracing."""
+        # Setup LangSmith tracing first
+        setup_tracing()
+        
         self.model_name = model_name or ai_config.openai_model
         
         # Initialize LLM for main generation
@@ -75,7 +79,7 @@ class WriterAgent:
         # Build the graph
         self.graph = self._build_graph()
         
-        logger.info(f"Writer Agent initialized with model: {self.model_name}")
+        logger.info(f"Writer Agent initialized with model: {self.model_name} (LangSmith tracing enabled)")
     
     def _load_system_prompt(self) -> str:
         """Load the system prompt from file."""

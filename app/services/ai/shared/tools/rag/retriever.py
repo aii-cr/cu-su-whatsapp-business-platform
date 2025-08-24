@@ -1,132 +1,104 @@
-# NEW CODE
+# OPTIMIZED CODE
 """
-Retriever híbrido: MMR + MultiQuery + Cohere Rerank (multilingual).
-Devuelve solo contexto (string) para que el LLM principal genere la respuesta.
+High-performance RAG retriever with caching, connection pooling, and async support.
+Optimized for speed while maintaining quality through intelligent query strategies.
 """
 
 from __future__ import annotations
-from typing import Annotated, List, Optional
+import asyncio
+import time
+from typing import Annotated, List, Optional, Dict, Any
 
-from qdrant_client import QdrantClient, models
-from qdrant_client.http.models import Distance, VectorParams, SparseVectorParams
-from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
-from langchain.retrievers.multi_query import MultiQueryRetriever
-from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
-from langchain_cohere.rerank import CohereRerank
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 
-from app.services.ai.shared.models import get_embedding_model, get_chat_model
+from app.services.ai.shared.connection_pool import connection_pool
+from app.services.ai.shared.retrieval_cache import retrieval_cache
+from app.services.ai.shared.performance_monitor import performance_monitor, RetrievalMetrics
 from app.services.ai.config import ai_config
 from app.core.logger import logger
 
 
-def _ensure_collection(client: QdrantClient, collection: str, dim: int) -> None:
-    """Create collection with dense and sparse vectors if it doesn't exist."""
+def _determine_retrieval_strategy(query: str) -> Dict[str, Any]:
+    """Determine optimal retrieval strategy based on query characteristics."""
+    query_lower = query.lower().strip()
+    query_len = len(query.split())
+    
+    # Fast strategy for simple/common queries
+    use_fast_mode = (
+        query_len <= 3 or  # Very short queries
+        any(term in query_lower for term in [
+            "hola", "hello", "hi", "precio", "price", "plan", "servicio", "service"
+        ])
+    )
+    
+    return {
+        "use_multiquery": not use_fast_mode,  # Skip MultiQuery for simple queries
+        "use_rerank": True,  # Always use rerank for quality
+        "cache_ttl": 600 if use_fast_mode else 300,  # Longer cache for simple queries
+        "strategy": "fast" if use_fast_mode else "comprehensive"
+    }
+
+
+async def _fast_retrieve(query: str, strategy: Dict[str, Any]) -> List[Document]:
+    """Fast retrieval path without MultiQuery for better performance."""
     try:
-        if client.collection_exists(collection_name=collection):
-            logger.info(f"✅ [RAG] Collection '{collection}' already exists")
-            return
-            
-        logger.info(f"🏗️ [RAG] Creating new collection '{collection}' with dimension {dim}")
+        # Try cache first
+        cached_results = retrieval_cache.get_cached_results(query, strategy)
+        if cached_results:
+            return cached_results
         
-        client.create_collection(
-            collection_name=collection,
-            vectors_config={"dense": VectorParams(size=dim, distance=Distance.COSINE)},
-            sparse_vectors_config={"sparse": SparseVectorParams(index=models.SparseIndexParams(on_disk=False))},
-            optimizers_config=models.OptimizersConfigDiff(indexing_threshold=20000),
-        )
+        logger.info(f"🚀 [RAG] Fast retrieval for query: '{query[:50]}...'")
         
-        logger.info(f"✅ [RAG] Collection '{collection}' created successfully")
+        # Use pooled retriever with compression
+        retriever = connection_pool.get_compression_retriever(use_multiquery=False)
+        
+        # Execute retrieval
+        docs = await asyncio.to_thread(retriever.get_relevant_documents, query)
+        
+        # Cache results
+        retrieval_cache.cache_results(query, docs, strategy, strategy["cache_ttl"])
+        
+        logger.info(f"✅ [RAG] Fast retrieval completed: {len(docs)} documents")
+        return docs
         
     except Exception as e:
-        logger.error(f"❌ [RAG] Failed to ensure collection '{collection}': {str(e)}")
+        logger.error(f"❌ [RAG] Fast retrieval failed: {str(e)}")
         raise
 
 
-def _get_qdrant_store() -> QdrantVectorStore:
-    """Abre colección Qdrant con HYBRID retrieval, creándola si no existe."""
+async def _comprehensive_retrieve(query: str, strategy: Dict[str, Any]) -> List[Document]:
+    """Comprehensive retrieval with MultiQuery for complex queries."""
     try:
-        logger.info(f"🔍 [RAG] Connecting to Qdrant collection: {ai_config.qdrant_collection_name}")
+        # Try cache first
+        cached_results = retrieval_cache.get_cached_results(query, strategy)
+        if cached_results:
+            return cached_results
         
-        # Setup embeddings
-        embeddings = get_embedding_model()
-        sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
+        logger.info(f"🎯 [RAG] Comprehensive retrieval for query: '{query[:50]}...'")
         
-        # Create client to check/create collection
-        client = QdrantClient(
-            url=ai_config.qdrant_url,
-            api_key=ai_config.qdrant_api_key,
-            prefer_grpc=True,
-            timeout=ai_config.timeout_seconds,
+        # Use pooled retriever with MultiQuery
+        retriever = connection_pool.get_compression_retriever(use_multiquery=True)
+        
+        # Execute retrieval with timeout
+        docs = await asyncio.wait_for(
+            asyncio.to_thread(retriever.get_relevant_documents, query),
+            timeout=15.0  # 15 second timeout for comprehensive retrieval
         )
         
-        # Ensure collection exists
-        _ensure_collection(client, ai_config.qdrant_collection_name, ai_config.openai_embedding_dimension)
+        # Cache results
+        retrieval_cache.cache_results(query, docs, strategy, strategy["cache_ttl"])
         
-        # Now connect to the collection
-        store = QdrantVectorStore.from_existing_collection(
-            embedding=embeddings,
-            sparse_embedding=sparse_embeddings,
-            collection_name=ai_config.qdrant_collection_name,
-            url=ai_config.qdrant_url,
-            api_key=ai_config.qdrant_api_key,
-            prefer_grpc=True,
-            retrieval_mode=RetrievalMode.HYBRID,
-            vector_name="dense",
-            sparse_vector_name="sparse",
-        )
+        logger.info(f"✅ [RAG] Comprehensive retrieval completed: {len(docs)} documents")
+        return docs
         
-        logger.info("✅ [RAG] Qdrant store connection established successfully")
-        return store
-        
+    except asyncio.TimeoutError:
+        logger.warning("⏰ [RAG] Comprehensive retrieval timed out, falling back to fast mode")
+        # Fallback to fast retrieval on timeout
+        strategy["use_multiquery"] = False
+        return await _fast_retrieve(query, strategy)
     except Exception as e:
-        logger.error(f"❌ [RAG] Failed to connect to Qdrant store: {str(e)}")
-        raise
-
-
-def _build_multiquery_retriever(store: QdrantVectorStore):
-    """MMR retriever envuelto por MultiQuery para mayor recall/robustez."""
-    try:
-        logger.info(f"🔍 [RAG] Building MultiQuery retriever with k={ai_config.rag_retrieval_k}")
-        
-        base = store.as_retriever(
-            search_type="mmr",
-            search_kwargs={"k": ai_config.rag_retrieval_k, "fetch_k": max(12, ai_config.rag_retrieval_k * 2)},
-        )
-        
-        llm = get_chat_model()
-        retriever = MultiQueryRetriever.from_llm(retriever=base, llm=llm, include_original=True)
-        
-        logger.info("✅ [RAG] MultiQuery retriever built successfully")
-        return retriever
-        
-    except Exception as e:
-        logger.error(f"❌ [RAG] Failed to build MultiQuery retriever: {str(e)}")
-        raise
-
-
-def _compress_with_cohere(base_retriever) -> ContextualCompressionRetriever:
-    """Aplica Cohere Rerank (multilingual) como compresor contextual."""
-    try:
-        logger.info("🔍 [RAG] Setting up Cohere rerank compressor...")
-        
-        compressor = CohereRerank(
-            cohere_api_key=ai_config.cohere_api_key,
-            model="rerank-multilingual-v3.0",   # para ES/EN
-            top_n=min(8, ai_config.rag_retrieval_k * 2),
-        )
-        
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, 
-            base_retriever=base_retriever
-        )
-        
-        logger.info("✅ [RAG] Cohere rerank compressor setup successfully")
-        return compression_retriever
-        
-    except Exception as e:
-        logger.error(f"❌ [RAG] Failed to setup Cohere compressor: {str(e)}")
+        logger.error(f"❌ [RAG] Comprehensive retrieval failed: {str(e)}")
         raise
 
 
@@ -152,23 +124,36 @@ def _format_docs(docs: List[Document]) -> str:
 
 
 @tool("adn_retrieve", return_direct=False)
-def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
-    """Recupera contexto sobre ADN (planes, precios, addons, IPTV, cobertura, proceso)."""
+async def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
+    """
+    High-performance RAG retrieval with intelligent strategy selection.
+    Uses caching and connection pooling for optimal speed while maintaining quality.
+    """
+    start_time = time.time()
+    strategy = None
+    cache_hit = False
+    docs = []
+    error = None
+    
     try:
-        logger.info(f"🔍 [RAG] Starting information retrieval for query: '{query[:100]}...'")
+        logger.info(f"🔍 [RAG] Starting optimized retrieval for query: '{query[:100]}...'")
         
-        # Step 1: Get Qdrant store
-        store = _get_qdrant_store()
+        # Step 1: Determine optimal retrieval strategy
+        strategy = _determine_retrieval_strategy(query)
+        logger.info(f"📋 [RAG] Using {strategy['strategy']} strategy (multiquery: {strategy['use_multiquery']})")
         
-        # Step 2: Build MultiQuery retriever
-        multi = _build_multiquery_retriever(store)
-        
-        # Step 3: Add Cohere rerank compression
-        retriever = _compress_with_cohere(multi)
-        
-        # Step 4: Retrieve documents
-        logger.info("🔍 [RAG] Executing retrieval with hybrid search + rerank...")
-        docs = retriever.get_relevant_documents(query) or []
+        # Step 2: Check cache first
+        cached_results = retrieval_cache.get_cached_results(query, strategy)
+        if cached_results:
+            docs = cached_results
+            cache_hit = True
+            logger.info(f"🎯 [RAG] Cache hit! Retrieved {len(docs)} documents from cache")
+        else:
+            # Step 3: Execute retrieval based on strategy
+            if strategy["use_multiquery"]:
+                docs = await _comprehensive_retrieve(query, strategy)
+            else:
+                docs = await _fast_retrieve(query, strategy)
         
         logger.info(f"📊 [RAG] Retrieved {len(docs)} documents for query")
         
@@ -176,20 +161,46 @@ def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
             logger.warning("⚠️ [RAG] No documents found for query")
             return "NO_CONTEXT_AVAILABLE: La base de conocimiento está vacía o no contiene información relevante para esta consulta."
             
-        # Step 5: Format and return
+        # Step 4: Format and return
         formatted_context = _format_docs(docs)
         
-        logger.info(f"✅ [RAG] Information retrieval completed successfully")
+        logger.info(f"✅ [RAG] Optimized retrieval completed successfully")
         return formatted_context
         
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"❌ [RAG] Information retrieval failed: {error_msg}")
+        error = str(e)
+        logger.error(f"❌ [RAG] Optimized retrieval failed: {error}")
         
         # If it's a collection not found error, return no context signal
-        if "doesn't exist" in error_msg or "not found" in error_msg.lower():
+        if "doesn't exist" in error or "not found" in error.lower():
             logger.info("🏗️ [RAG] Collection doesn't exist yet, will be created on first use")
             return "NO_CONTEXT_AVAILABLE: La base de conocimiento aún no ha sido inicializada. Será creada automáticamente."
         
         # For other errors, return error signal
+        return "ERROR_ACCESSING_KNOWLEDGE: No se pudo acceder a la información en este momento."
+        
+    finally:
+        # Record performance metrics
+        end_time = time.time()
+        total_time_ms = (end_time - start_time) * 1000
+        
+        metrics = RetrievalMetrics(
+            query=query,
+            strategy=strategy["strategy"] if strategy else "unknown",
+            total_time_ms=total_time_ms,
+            cache_hit=cache_hit,
+            documents_found=len(docs),
+            error=error
+        )
+        
+        performance_monitor.record_retrieval(metrics)
+
+
+# Backward compatibility - sync wrapper
+def retrieve_information_sync(query: str) -> str:
+    """Synchronous wrapper for backward compatibility."""
+    try:
+        return asyncio.run(retrieve_information(query))
+    except Exception as e:
+        logger.error(f"❌ [RAG] Sync wrapper failed: {str(e)}")
         return "ERROR_ACCESSING_KNOWLEDGE: No se pudo acceder a la información en este momento."
