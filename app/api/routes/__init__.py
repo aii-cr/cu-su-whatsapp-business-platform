@@ -23,6 +23,7 @@ from .whatsapp.chat.tags import router as tags_router
 from .whatsapp.webhook import router as webhook_router
 from .business import router as business_router
 from .ai import agent_router, memory_router, summarizer_router, writer_router
+from .reservations import router as reservations_router
 
 # Create main API router
 api_router = APIRouter()
@@ -42,6 +43,9 @@ api_router.include_router(tags_router)
 
 # Include business routes
 api_router.include_router(business_router)
+
+# Include reservations routes (open endpoints)
+api_router.include_router(reservations_router)
 
 # Include AI routes
 api_router.include_router(agent_router)

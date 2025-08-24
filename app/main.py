@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
+from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 
@@ -227,13 +228,49 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Handle request validation errors."""
     logger.warning(f"Validation error on {request.method} {request.url.path}: {exc.errors()}")
     
+    # Convert validation errors to serializable format
+    serializable_errors = []
+    for error in exc.errors():
+        serializable_error = {
+            "loc": error["loc"],
+            "msg": str(error["msg"]),
+            "type": error["type"]
+        }
+        serializable_errors.append(serializable_error)
+    
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
             "error_code": ErrorCode.VALIDATION_ERROR,
             "error_message": "Request validation failed",
-            "details": exc.errors(),
+            "details": serializable_errors,
+            "request_id": getattr(request.state, "correlation_id", None)
+        }
+    )
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle Pydantic validation errors."""
+    logger.warning(f"Pydantic validation error on {request.method} {request.url.path}: {exc.errors()}")
+    
+    # Convert validation errors to serializable format
+    serializable_errors = []
+    for error in exc.errors():
+        serializable_error = {
+            "loc": error["loc"],
+            "msg": str(error["msg"]),
+            "type": error["type"]
+        }
+        serializable_errors.append(serializable_error)
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error_code": ErrorCode.VALIDATION_ERROR,
+            "error_message": "Request validation failed",
+            "details": serializable_errors,
             "request_id": getattr(request.state, "correlation_id", None)
         }
     )
@@ -245,6 +282,18 @@ async def general_exception_handler(request: Request, exc: Exception):
         f"Unhandled exception on {request.method} {request.url.path}: {str(exc)}",
         exc_info=True
     )
+    
+    # Handle ValueError specifically to avoid JSON serialization issues
+    if isinstance(exc, ValueError):
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "success": False,
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "error_message": str(exc),
+                "request_id": getattr(request.state, "correlation_id", None)
+            }
+        )
     
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
