@@ -20,6 +20,10 @@ from app.core.logger import logger
 from app.services.ai.config import ai_config
 from app.services.ai.agents.writer.tools import get_writer_tool_belt
 from app.services.ai.agents.writer.telemetry import setup_tracing
+from app.services.ai.agents.writer.prompts.prompts import (
+    PREBUILT_CHAT_PROMPT,
+    CUSTOM_CHAT_PROMPT
+)
 
 
 class WriterAgentState(TypedDict, total=False):
@@ -27,6 +31,7 @@ class WriterAgentState(TypedDict, total=False):
     # Input
     user_query: str
     conversation_id: str
+    mode: str  # "prebuilt" or "custom"
     
     # Processing
     messages: List[Dict[str, Any]]
@@ -34,6 +39,7 @@ class WriterAgentState(TypedDict, total=False):
     information_retrieved: bool
     last_customer_message: str  # Store the last customer message for RAG
     conversation_context: str   # Store the full conversation context
+    customer_name: str  # Extracted customer name
     
     # Output
     response: str
@@ -81,10 +87,12 @@ class WriterAgent:
         
         logger.info(f"Writer Agent initialized with model: {self.model_name} (LangSmith tracing enabled)")
     
-    def _load_system_prompt(self) -> str:
-        """Load the system prompt from file."""
-        prompt_path = Path(__file__).parent.parent / "prompts" / "writer_system.md"
-        return prompt_path.read_text(encoding="utf-8")
+    def _get_chat_prompt_template(self, mode: str):
+        """Get the appropriate ChatPromptTemplate based on mode."""
+        if mode == "prebuilt":
+            return PREBUILT_CHAT_PROMPT
+        else:
+            return CUSTOM_CHAT_PROMPT
     
     def _build_graph(self) -> StateGraph:
         """Build the Writer Agent graph with helpfulness validation loop."""
@@ -138,14 +146,16 @@ class WriterAgent:
     async def generate_response(
         self,
         user_query: str,
-        conversation_id: str = None
+        conversation_id: str = None,
+        mode: str = "custom"
     ) -> WriterAgentState:
         """
         Generate a response using the Writer Agent.
         
         Args:
-            user_query: The human agent's request
+            user_query: The human agent's request or customer query
             conversation_id: Optional conversation ID for context
+            mode: "prebuilt" for contextual responses, "custom" for agent requests
             
         Returns:
             Final state with generated response
@@ -154,11 +164,13 @@ class WriterAgent:
         initial_state: WriterAgentState = {
             "user_query": user_query,
             "conversation_id": conversation_id or "",
+            "mode": mode,
             "messages": [],
             "context_retrieved": False,
             "information_retrieved": False,
             "last_customer_message": "",
             "conversation_context": "",
+            "customer_name": "",
             "iteration_count": 0,
             "processing_start_time": datetime.now().isoformat(),
             "node_history": []
@@ -264,72 +276,169 @@ class WriterAgent:
             logger.error(f"Error extracting last customer message: {str(e)}")
             return ""
     
+    def _extract_customer_name_from_context(self, conversation_context: str) -> str:
+        """
+        Extract customer name from conversation context.
+        Simple extraction logic for real customer names.
+        """
+        if not conversation_context:
+            return ""
+        
+        try:
+            lines = conversation_context.split('\n')
+            
+            # Look for customer name in structured format
+            for line in lines:
+                line = line.strip()
+                if line.startswith("Customer: ") or line.startswith("Cliente: "):
+                    # Extract potential name from the beginning of the message
+                    message_part = line.split(": ", 1)[1] if ": " in line else ""
+                    words = message_part.split()
+                    if words and len(words[0]) > 1:
+                        potential_name = words[0].strip(".,!?")
+                        if self._is_valid_customer_name(potential_name):
+                            return potential_name
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extracting customer name: {str(e)}")
+            return ""
+    
+    def _is_valid_customer_name(self, name: str) -> bool:
+        """Validate if a name appears to be a real customer name."""
+        if not name or len(name.strip()) == 0:
+            return False
+        
+        name_lower = name.lower().strip()
+        
+        # List of invalid name patterns
+        invalid_patterns = [
+            "user", "cliente", "admin", "techsupport", "whatsapp", "bot", "system",
+            "test", "demo", "sample", "example", "null", "undefined", "unknown",
+            "customer", "support", "help", "info", "contact"
+        ]
+        
+        # Check if it's just numbers
+        if name.strip().isdigit():
+            return False
+        
+        # Check if it's too short (likely a username)
+        if len(name.strip()) < 2:
+            return False
+        
+        # Check if it contains obvious invalid patterns
+        for pattern in invalid_patterns:
+            if pattern in name_lower:
+                return False
+        
+        # Check if it's mostly numbers with few letters (like User123)
+        digit_count = sum(c.isdigit() for c in name)
+        if len(name) > 0 and digit_count / len(name) > 0.7:
+            return False
+        
+        return True
+    
     # Node implementations
     
     async def _start_processing(self, state: WriterAgentState) -> WriterAgentState:
-        """Initialize processing and retrieve conversation context if needed."""
+        """Initialize processing and create proper LangChain prompt."""
         state["node_history"] = state.get("node_history", []) + ["start_processing"]
         state["iteration_count"] = 0
         
-        # Initialize messages with system prompt
-        system_prompt = self._load_system_prompt()
+        mode = state.get("mode", "custom")
+        conversation_id = state.get("conversation_id")
+        user_query = state["user_query"]
         
-        # Add conversation ID context to the system prompt
+        logger.info(f"Starting processing in {mode} mode with query: '{user_query[:100]}...'")
+        
+        # Always retrieve conversation context if conversation_id is provided
         conversation_context = ""
-        if state.get("conversation_id"):
-            conversation_context = f"\n\nIMPORTANT: The conversation ID for this request is: {state['conversation_id']}"
-            conversation_context += "\nWhen using the conversation context tool, always use this exact conversation ID."
+        if conversation_id:
+            await self._retrieve_conversation_context(state)
+            conversation_context = state.get("conversation_context", "")
         
-        state["messages"] = [
-            {"role": "system", "content": system_prompt + conversation_context},
-            {"role": "user", "content": state["user_query"]}
-        ]
+        # Determine the correct query and context based on mode
+        if mode == "prebuilt":
+            # Prebuilt mode: use last customer message as query
+            query = state.get("last_customer_message", user_query)
+            context = f"Conversation Context:\n{conversation_context}" if conversation_context else "No conversation context available."
+            logger.info(f"Prebuilt mode: using last customer message as query: '{query[:100]}...'")
+        else:
+            # Custom mode: use user query as query (this is the FIX!)
+            query = user_query
+            context = f"Conversation Context (for reference):\n{conversation_context}" if conversation_context else "No conversation context provided."
+            logger.info(f"Custom mode: using user query as query: '{query[:100]}...'")
         
-        # For contextual requests, immediately retrieve conversation context
-        if ("current conversation context" in state["user_query"].lower() and 
-            state.get("conversation_id")):
-            
-            logger.info("Retrieving conversation context for contextual request")
-            
-            # Get conversation context tool
-            conversation_tool = None
-            for tool in self.tools:
-                if tool.name == "get_conversation_context":
-                    conversation_tool = tool
-                    break
-            
-            if conversation_tool:
-                try:
-                    # Retrieve conversation context
-                    context_result = await conversation_tool.ainvoke({
-                        "conversation_id": state["conversation_id"],
-                        "include_metadata": True
-                    })
-                    
-                    # Store the conversation context
-                    state["conversation_context"] = context_result
-                    state["context_retrieved"] = True
-                    
-                    # Extract the last customer message for RAG queries
-                    last_customer_msg = self._extract_last_customer_message(context_result)
-                    state["last_customer_message"] = last_customer_msg
-                    
-                    # Add context to messages
-                    state["messages"].append({
-                        "role": "user",
-                        "content": f"Conversation Context:\n{context_result}"
-                    })
-                    
-                    logger.info(f"Retrieved conversation context with {len(context_result)} characters")
-                    
-                except Exception as e:
-                    logger.error(f"Error retrieving conversation context: {str(e)}")
-                    state["messages"].append({
-                        "role": "user",
-                        "content": "Error: Could not retrieve conversation context. Please proceed without historical context."
-                    })
+        # Get the appropriate chat prompt template
+        chat_prompt = self._get_chat_prompt_template(mode)
+        
+        # Format the prompt with the correct parameters
+        formatted_messages = chat_prompt.format_messages(
+            query=query,
+            context=context
+        )
+        
+        # Convert to the format expected by our message handling
+        state["messages"] = []
+        for msg in formatted_messages:
+            if hasattr(msg, 'type'):
+                if msg.type == "system":
+                    state["messages"].append({"role": "system", "content": msg.content})
+                elif msg.type == "human":
+                    state["messages"].append({"role": "user", "content": msg.content})
+                elif msg.type == "ai":
+                    state["messages"].append({"role": "assistant", "content": msg.content})
+        
+        logger.info(f"Initialized {mode} mode with conversation context: {bool(conversation_context)}")
+        logger.info(f"Generated {len(state['messages'])} messages for LLM")
         
         return state
+    
+    async def _retrieve_conversation_context(self, state: WriterAgentState) -> None:
+        """Retrieve conversation context and extract relevant information."""
+        conversation_id = state.get("conversation_id")
+        if not conversation_id:
+            return
+        
+        logger.info(f"Retrieving conversation context for conversation: {conversation_id}")
+        
+        # Get conversation context tool
+        conversation_tool = None
+        for tool in self.tools:
+            if tool.name == "get_conversation_context":
+                conversation_tool = tool
+                break
+        
+        if not conversation_tool:
+            logger.warning("Conversation context tool not found")
+            return
+        
+        try:
+            # Retrieve conversation context
+            context_result = await conversation_tool.ainvoke({
+                "conversation_id": conversation_id,
+                "include_metadata": True
+            })
+            
+            # Store the conversation context
+            state["conversation_context"] = context_result
+            state["context_retrieved"] = True
+            
+            # Extract the last customer message
+            last_customer_msg = self._extract_last_customer_message(context_result)
+            state["last_customer_message"] = last_customer_msg
+            
+            # Extract customer name (simple extraction)
+            customer_name = self._extract_customer_name_from_context(context_result)
+            if customer_name:
+                state["customer_name"] = customer_name
+            
+            logger.info(f"Retrieved conversation context: {len(context_result)} chars, last message: '{last_customer_msg[:50]}...', customer: {customer_name or 'N/A'}")
+            
+        except Exception as e:
+            logger.error(f"Error retrieving conversation context: {str(e)}")
+            state["conversation_context"] = "Error: Could not retrieve conversation context."
     
     async def _call_model(self, state: WriterAgentState) -> WriterAgentState:
         """Call the model with current messages."""
@@ -346,23 +455,14 @@ class WriterAgent:
             return state
         
         try:
-            # Build conversation context from previous exchanges
+            # Build conversation from state messages
             messages = []
             
-            # Start with system message including conversation ID context
-            system_prompt = self._load_system_prompt()
-            if state.get("conversation_id"):
-                system_prompt += f"\n\nIMPORTANT: The conversation ID for this request is: {state['conversation_id']}\nWhen using the conversation context tool, always use this exact conversation ID."
-            
-            messages.append(SystemMessage(content=system_prompt))
-            
-            # Add the initial user query
-            messages.append(HumanMessage(content=state["user_query"]))
-            
-            # Add conversation history from tool results and responses
+            # Convert state messages to LangChain message objects
             for msg in state["messages"]:
-                if msg["role"] == "user" and "Tool" in msg.get("content", ""):
-                    # Add tool results as user messages
+                if msg["role"] == "system":
+                    messages.append(SystemMessage(content=msg["content"]))
+                elif msg["role"] == "user":
                     messages.append(HumanMessage(content=msg["content"]))
                 elif (msg["role"] == "assistant" and 
                       msg.get("content") and 
@@ -371,54 +471,7 @@ class WriterAgent:
                     # Add assistant responses (but not tool calls or helpfulness evals)
                     messages.append(AIMessage(content=msg["content"]))
             
-            # For contextual requests, ensure we have conversation context
-            if ("current conversation context" in state["user_query"].lower() and 
-                not state.get("context_retrieved") and 
-                state.get("conversation_id")):
-                
-                # Force context retrieval for contextual requests
-                logger.info("Forcing conversation context retrieval for contextual request")
-                state["context_retrieved"] = True
-                
-                # Create a direct tool call for conversation context
-                fake_response = type('Response', (), {
-                    'content': "I need to get the conversation context first.",
-                    'tool_calls': [{
-                        'name': 'get_conversation_context',
-                        'args': {
-                            'conversation_id': state['conversation_id'],
-                            'include_metadata': True
-                        }
-                    }]
-                })()
-                
-                state["messages"].append({
-                    "role": "assistant", 
-                    "content": fake_response.content,
-                    "tool_calls": fake_response.tool_calls
-                })
-                
-                return state
-            
-            # If we have context but no information retrieved yet, suggest using RAG
-            if (state.get("context_retrieved") and 
-                not state.get("information_retrieved") and 
-                state.get("last_customer_message") and
-                state["iteration_count"] == 1):
-                
-                # Add a hint to use RAG with the last customer message
-                hint_message = f"""
-Based on the conversation context, I can see the last customer message is: "{state['last_customer_message']}"
-
-I should use the retrieve_information tool to get relevant information about what the customer is asking for.
-"""
-                
-                state["messages"].append({
-                    "role": "user",
-                    "content": hint_message
-                })
-            
-            logger.info(f"Calling model with {len(messages)} messages (iteration {state['iteration_count']})")
+            logger.info(f"Calling model with {len(messages)} messages (iteration {state['iteration_count']}, mode: {state.get('mode', 'unknown')})")
             
             # Call model with tools
             response = await self.llm_with_tools.ainvoke(messages)
@@ -441,7 +494,7 @@ I should use the retrieve_information tool to get relevant information about wha
         return state
     
     async def _action_node(self, state: WriterAgentState) -> WriterAgentState:
-        """Execute tool calls with enhanced RAG query handling."""
+        """Execute tool calls."""
         state["node_history"] = state.get("node_history", []) + ["action"]
         
         try:
@@ -456,7 +509,7 @@ I should use the retrieve_information tool to get relevant information about wha
                 tool_name = tool_call.get("name")
                 tool_args = tool_call.get("args", {})
                 
-                logger.info(f"Executing tool: {tool_name}")
+                logger.info(f"Executing tool: {tool_name} in {state.get('mode', 'unknown')} mode")
                 
                 # Fix conversation_id for conversation context tool
                 if tool_name == "get_conversation_context" and "conversation_id" in tool_args:
@@ -464,29 +517,13 @@ I should use the retrieve_information tool to get relevant information about wha
                         tool_args["conversation_id"] = state["conversation_id"]
                         logger.info(f"Fixed conversation_id from 'current' to '{state['conversation_id']}'")
                 
-                # Enhanced RAG query handling
-                if tool_name == "retrieve_information":
-                    # Use the last customer message for RAG queries if available
-                    if state.get("last_customer_message") and tool_args.get("query"):
-                        # Check if the query is too generic (like just "services")
-                        current_query = tool_args["query"].strip().lower()
-                        last_customer_msg = state["last_customer_message"].strip().lower()
-                        
-                        # If the query is too short or generic, use the last customer message
-                        if (len(current_query) < 10 or 
-                            current_query in ["services", "servicios", "info", "information", "help", "ayuda"]):
-                            
-                            # Use the full last customer message for better RAG results
-                            tool_args["query"] = state["last_customer_message"]
-                            logger.info(f"Enhanced RAG query from '{current_query}' to '{state['last_customer_message'][:100]}...'")
-                
-                # Track context retrieval
+                # Track tool usage
                 if tool_name == "get_conversation_context":
                     state["context_retrieved"] = True
                 elif tool_name in ["search_knowledge_base", "rag_search", "retrieve_information"]:
                     state["information_retrieved"] = True
                 
-                # Find the tool
+                # Find and execute the tool
                 tool = None
                 for t in self.tools:
                     if t.name == tool_name:
@@ -496,17 +533,11 @@ I should use the retrieve_information tool to get relevant information about wha
                 if tool:
                     try:
                         # Execute the tool
-                        if hasattr(tool, 'ainvoke'):
-                            result = await tool.ainvoke(tool_args)
-                        else:
-                            result = await tool.ainvoke(tool_args)
+                        result = await tool.ainvoke(tool_args)
                         
                         # Check if tool execution failed
                         if isinstance(result, str) and "Error" in result:
                             logger.warning(f"Tool {tool_name} returned error: {result}")
-                            # For failed conversation context, provide fallback
-                            if tool_name == "get_conversation_context":
-                                result = "Unable to retrieve conversation context. Please proceed without historical context."
                         
                         # Add tool result to messages
                         state["messages"].append({

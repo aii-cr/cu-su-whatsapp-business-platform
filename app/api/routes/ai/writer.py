@@ -52,23 +52,32 @@ async def generate_response(
             f"'{request.query[:100]}...' for conversation {request.conversation_id}"
         )
         
-        # Generate response (using legacy method for now to maintain compatibility)
-        result = await writer_agent_service.generate_response_legacy(
+        # Generate response using custom mode (agent-driven requests)
+        result = await writer_agent_service.generate_response(
             user_query=request.query,
-            conversation_id=request.conversation_id
+            conversation_id=request.conversation_id,
+            mode="custom"
         )
         
+        # Convert WriterAgentResult to dict for API response
+        response_dict = {
+            "success": result.success,
+            "response": result.raw_response,
+            "metadata": result.metadata,
+            "error": result.error
+        }
+        
         # Log the result
-        if result["success"]:
+        if result.success:
             logger.info(
                 f"Writer Agent response generated successfully "
-                f"(iterations: {result['metadata'].get('iterations', 0)}, "
-                f"time: {result['metadata'].get('processing_time_ms', 0)}ms)"
+                f"(iterations: {result.metadata.get('iterations', 0)}, "
+                f"time: {result.metadata.get('processing_time_ms', 0)}ms)"
             )
         else:
-            logger.warning(f"Writer Agent failed: {result.get('error', 'unknown error')}")
+            logger.warning(f"Writer Agent failed: {result.error}")
         
-        return WriterResponse(**result)
+        return WriterResponse(**response_dict)
         
     except Exception as e:
         logger.error(f"Error in Writer Agent generate endpoint: {str(e)}")
@@ -101,22 +110,32 @@ async def generate_contextual_response(
             f"for conversation {request.conversation_id}"
         )
         
-        # Generate contextual response (using legacy method for now to maintain compatibility)
-        result = await writer_agent_service.generate_contextual_response_legacy(
-            conversation_id=request.conversation_id
+        # Generate contextual response using prebuilt mode
+        result = await writer_agent_service.generate_response(
+            user_query="Generate the best possible response for current conversation context",
+            conversation_id=request.conversation_id,
+            mode="prebuilt"
         )
         
+        # Convert WriterAgentResult to dict for API response
+        response_dict = {
+            "success": result.success,
+            "response": result.raw_response,
+            "metadata": result.metadata,
+            "error": result.error
+        }
+        
         # Log the result
-        if result["success"]:
+        if result.success:
             logger.info(
                 f"Contextual response generated successfully "
-                f"(iterations: {result['metadata'].get('iterations', 0)}, "
-                f"time: {result['metadata'].get('processing_time_ms', 0)}ms)"
+                f"(iterations: {result.metadata.get('iterations', 0)}, "
+                f"time: {result.metadata.get('processing_time_ms', 0)}ms)"
             )
         else:
-            logger.warning(f"Contextual response failed: {result.get('error', 'unknown error')}")
+            logger.warning(f"Contextual response failed: {result.error}")
         
-        return WriterResponse(**result)
+        return WriterResponse(**response_dict)
         
     except Exception as e:
         logger.error(f"Error in Writer Agent contextual endpoint: {str(e)}")
@@ -149,10 +168,11 @@ async def generate_structured_response(
             f"'{request.query[:100]}...' for conversation {request.conversation_id}"
         )
         
-        # Generate structured response
+        # Generate structured response using custom mode
         result = await writer_agent_service.generate_response(
             user_query=request.query,
-            conversation_id=request.conversation_id
+            conversation_id=request.conversation_id,
+            mode="custom"
         )
         
         # Log the result

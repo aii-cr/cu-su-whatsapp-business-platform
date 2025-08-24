@@ -111,7 +111,8 @@ class WriterAgentService:
     async def generate_response(
         self,
         user_query: str,
-        conversation_id: Optional[str] = None
+        conversation_id: Optional[str] = None,
+        mode: str = "custom"
     ) -> WriterAgentResult:
         """
         Generate a response using the Writer Agent.
@@ -119,6 +120,7 @@ class WriterAgentService:
         Args:
             user_query: The human agent's request or query
             conversation_id: Optional conversation ID for context
+            mode: "prebuilt" for contextual responses, "custom" for agent requests
             
         Returns:
             WriterAgentResult with structured response and metadata
@@ -129,7 +131,8 @@ class WriterAgentService:
             # Run the Writer Agent
             result: WriterAgentState = await self.agent.generate_response(
                 user_query=user_query,
-                conversation_id=conversation_id
+                conversation_id=conversation_id,
+                mode=mode
             )
             
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
