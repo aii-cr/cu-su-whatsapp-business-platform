@@ -25,8 +25,13 @@ def _get_qdrant_store() -> QdrantVectorStore:
     try:
         logger.info(f"🔍 [RAG] Connecting to Qdrant collection: {ai_config.qdrant_collection_name}")
         
+        # Setup embeddings
+        embeddings = get_embedding_model()
+        sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
+        
         store = QdrantVectorStore.from_existing_collection(
-            embedding=get_embedding_model(),
+            embedding=embeddings,
+            sparse_embedding=sparse_embeddings,  # This was missing!
             collection_name=ai_config.qdrant_collection_name,
             url=ai_config.qdrant_url,
             api_key=ai_config.qdrant_api_key,
