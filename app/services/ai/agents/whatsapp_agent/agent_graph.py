@@ -116,9 +116,9 @@ def helpfulness_node(state: AgentState) -> Dict[str, Any]:
             logger.info("🔄 [GRAPH] Maximum attempts reached (3), ending helpfulness loop")
             return {"messages": [AIMessage(content="HELPFULNESS:END")]}
             
-        # Find the first human query in this conversation
+        # Find the LAST human query in this conversation (not the first!)
         initial_query = ""
-        for m in state["messages"]:
+        for m in reversed(state["messages"]):  # Search backwards to get the LATEST query
             if getattr(m, "type", None) == "human" or getattr(m, "role", "") == "user":
                 initial_query = getattr(m, "content", "")
                 break
