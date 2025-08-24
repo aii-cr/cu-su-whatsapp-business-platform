@@ -141,7 +141,7 @@ async def trigger_knowledge_base_ingestion():
     try:
         logger.info("Manual knowledge base ingestion requested")
         
-        from app.services.ai.rag.ingest import ingest_documents
+        from app.services.ai.shared.tools.rag.ingest import ingest_documents
         
         result = await ingest_documents()
         

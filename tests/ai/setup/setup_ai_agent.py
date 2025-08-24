@@ -50,7 +50,7 @@ async def initialize_knowledge_base():
     print("🧠 Initializing knowledge base...")
     
     try:
-        from app.services.ai.rag.ingest import ingest_documents
+        from app.services.ai.shared.tools.rag.ingest import ingest_documents
         
         result = await ingest_documents()
         

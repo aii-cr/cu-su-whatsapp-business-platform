@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -46,20 +46,15 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         
         logger.info(f"🤖 [GRAPH] Agent node - conversation: {conversation_id}, attempt: {current_attempt + 1}, lang: {target_lang}")
         
-        # Check for maximum attempts before using tools
-        if current_attempt >= 6:
+        # Check for maximum attempts before using tools (reduced from 6 to 3)
+        if current_attempt >= 3:
             logger.warning(f"🛑 [GRAPH] Maximum attempts reached ({current_attempt}), forcing final response")
             fallback_message = "Lo siento, no tengo la información específica que necesitas en este momento. Por favor espera que enseguida te responde un agente humano."
             return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
         
-        # Check if we have tool results with NO_CONTEXT_AVAILABLE in recent messages
-        recent_messages = state["messages"][-3:] if len(state["messages"]) > 3 else state["messages"]
-        for msg in recent_messages:
-            if hasattr(msg, 'content') and isinstance(msg.content, str):
-                if "NO_CONTEXT_AVAILABLE" in msg.content and current_attempt > 1:
-                    logger.warning(f"🔍 [GRAPH] Detected NO_CONTEXT_AVAILABLE, providing appropriate response")
-                    fallback_message = "Hola! Soy el asistente de ADN. En este momento estoy configurando mi base de conocimiento. Por favor espera que enseguida te responde un agente humano."
-                    return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
+        # DISABLE ERROR DETECTION - Let the agent work like Writer agent
+        # The Writer agent doesn't have this logic and works perfectly
+        # This was causing false positives and premature fallbacks
         
         model = _build_model_with_tools()
 
@@ -185,17 +180,95 @@ def helpfulness_decision(state: AgentState):
         return "end"  # Default to ending on error
 
 
+async def action_node(state: AgentState) -> Dict[str, Any]:
+    """Execute tool calls with proper error handling."""
+    try:
+        last_message = state["messages"][-1]
+        tool_calls = getattr(last_message, "tool_calls", [])
+        
+        if not tool_calls:
+            logger.warning("🔧 [GRAPH] Action node called but no tool calls found")
+            return state
+        
+        tools = get_tool_belt()
+        tool_results = []
+        
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name")
+            tool_args = tool_call.get("args", {})
+            
+            logger.info(f"🔧 [GRAPH] Executing tool: {tool_name} with args: {tool_args}")
+            
+            # Find the tool
+            tool = None
+            for t in tools:
+                if hasattr(t, 'name') and t.name == tool_name:
+                    tool = t
+                    break
+            
+            if tool:
+                try:
+                    # Execute the tool ASYNC (like Writer agent does)
+                    result = await tool.ainvoke(tool_args)
+                    
+                    # Check if tool execution returned an error (like Writer agent does)
+                    if isinstance(result, str) and result.startswith(("ERROR_ACCESSING_KNOWLEDGE:", "NO_CONTEXT_AVAILABLE:")):
+                        logger.warning(f"🔧 [GRAPH] Tool {tool_name} returned error: {result}")
+                    else:
+                        logger.info(f"🔧 [GRAPH] Tool {tool_name} executed successfully, result length: {len(str(result))}")
+                        
+                    tool_results.append({
+                        "role": "tool",
+                        "content": str(result),
+                        "tool_call_id": tool_call.get("id"),
+                        "name": tool_name
+                    })
+                    
+                except Exception as tool_error:
+                    logger.error(f"❌ [GRAPH] Tool {tool_name} failed: {str(tool_error)}")
+                    tool_results.append({
+                        "role": "tool", 
+                        "content": f"ERROR_ACCESSING_KNOWLEDGE: Tool execution failed - {str(tool_error)}",
+                        "tool_call_id": tool_call.get("id"),
+                        "name": tool_name
+                    })
+            else:
+                logger.warning(f"🔧 [GRAPH] Tool {tool_name} not found")
+                tool_results.append({
+                    "role": "tool",
+                    "content": f"ERROR: Tool {tool_name} not found",
+                    "tool_call_id": tool_call.get("id"),
+                    "name": tool_name
+                })
+        
+        # Convert tool results to ToolMessage objects for LangGraph compatibility
+        tool_messages = []
+        for result in tool_results:
+            tool_messages.append(ToolMessage(
+                content=result["content"],
+                tool_call_id=result.get("tool_call_id")
+            ))
+        
+        # Add tool results to state
+        return {"messages": state["messages"] + tool_messages}
+        
+    except Exception as e:
+        logger.error(f"❌ [GRAPH] Action node failed: {str(e)}")
+        # Add error message as a regular AI message
+        error_message = AIMessage(content=f"ERROR_ACCESSING_KNOWLEDGE: {str(e)}")
+        return {"messages": state["messages"] + [error_message]}
+
+
 def build_graph():
     """Compila grafo."""
     try:
         logger.info("🏗️ [GRAPH] Building agent graph...")
         
         graph = StateGraph(AgentState)
-        tool_node = ToolNode(get_tool_belt())
 
-        # Add nodes
+        # Add nodes (using custom action node instead of ToolNode)
         graph.add_node("agent", call_model)
-        graph.add_node("action", tool_node)
+        graph.add_node("action", action_node)
         graph.add_node("helpfulness", helpfulness_node)
 
         # Set entry point

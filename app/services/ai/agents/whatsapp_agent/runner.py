@@ -110,7 +110,7 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         logger.info(f"🎯 [RUNNER] Executing agent graph with {len(messages)} messages...")
         
         graph_start_time = time.time()
-        result = graph.invoke({
+        result = await graph.ainvoke({
             "messages": messages,
             "conversation_id": conversation_id,
             "attempts": 0,
