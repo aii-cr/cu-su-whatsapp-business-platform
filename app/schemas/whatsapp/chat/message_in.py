@@ -19,6 +19,7 @@ class TemplateMessageSend(BaseModel):
     """Schema for sending a template message. Accepts either conversation_id or customer_phone."""
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
     customer_phone: Optional[str] = Field(None, description="Customer phone number (WhatsApp ID)")
+    customer_name: Optional[str] = Field(None, description="Customer name (for new conversations)")
     template_name: str = Field(..., description="Template name")
     language_code: str = Field("en_US", description="Template language code")
     parameters: List[Dict[str, Any]] = Field(default_factory=list, description="Template parameters")

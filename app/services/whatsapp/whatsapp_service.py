@@ -106,21 +106,43 @@ class WhatsAppService:
         if parameters:
             template_payload["components"] = []
             
-            # For the portal_notification template, we know it has 1 header parameter
-            # We'll send the first parameter to header, and any remaining to body
-            if len(parameters) > 0:
-                # Add header component with first parameter
+            # Handle different template structures
+            if template_name == "start_conversation":
+                # start_conversation has no header parameters, only body parameters
                 template_payload["components"].append({
-                    "type": "header",
-                    "parameters": [parameters[0]]
+                    "type": "body",
+                    "parameters": parameters
                 })
-                
-                # Add body component with remaining parameters (if any)
-                if len(parameters) > 1:
+            elif template_name == "portal_notification":
+                # portal_notification has 1 header parameter and remaining go to body
+                if len(parameters) > 0:
+                    # Add header component with first parameter
                     template_payload["components"].append({
-                        "type": "body",
-                        "parameters": parameters[1:]
+                        "type": "header",
+                        "parameters": [parameters[0]]
                     })
+                    
+                    # Add body component with remaining parameters (if any)
+                    if len(parameters) > 1:
+                        template_payload["components"].append({
+                            "type": "body",
+                            "parameters": parameters[1:]
+                        })
+            else:
+                # Default behavior: first parameter to header, rest to body
+                if len(parameters) > 0:
+                    # Add header component with first parameter
+                    template_payload["components"].append({
+                        "type": "header",
+                        "parameters": [parameters[0]]
+                    })
+                    
+                    # Add body component with remaining parameters (if any)
+                    if len(parameters) > 1:
+                        template_payload["components"].append({
+                            "type": "body",
+                            "parameters": parameters[1:]
+                        })
         
         payload = {
             "messaging_product": "whatsapp",

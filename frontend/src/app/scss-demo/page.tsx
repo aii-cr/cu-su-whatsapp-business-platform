@@ -46,7 +46,7 @@ export default function SCSSDemoPage() {
             
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Neon Glow</h3>
-              <EnhancedButton effect="neon" variant="primary" icon={<Zap className="w-4 h-4" />}>
+              <EnhancedButton effect="neon" variant="default" icon={<Zap className="w-4 h-4" />}>
                 Neon Button
               </EnhancedButton>
             </div>
@@ -86,13 +86,16 @@ export default function SCSSDemoPage() {
           <Card className="p-6">
             <h2 className="text-2xl font-semibold mb-6">Tailwind Only</h2>
             <div className="space-y-4">
-              <Button variant="default" icon={<Phone className="w-4 h-4" />}>
+              <Button variant="default">
+                <Phone className="w-4 h-4 mr-2" />
                 Call Now
               </Button>
-              <Button variant="outline" icon={<Mail className="w-4 h-4" />}>
+              <Button variant="outline">
+                <Mail className="w-4 h-4 mr-2" />
                 Send Email
               </Button>
-              <Button variant="secondary" icon={<Settings className="w-4 h-4" />}>
+              <Button variant="secondary">
+                <Settings className="w-4 h-4 mr-2" />
                 Settings
               </Button>
               <p className="text-sm text-muted-foreground mt-4">

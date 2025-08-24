@@ -96,7 +96,42 @@
   overflow: hidden;
 }
 
-// Glass morphism effect
+// Glass morphism effects
+@mixin glass-modal($blur: $glass-blur-medium) {
+  background: rgb(var(--background) / 0.85);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: $glass-border-radius;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+@mixin glass-section($blur: $glass-blur-light) {
+  background: rgb(var(--surface) / 0.8);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: $glass-border-radius-sm;
+}
+
+@mixin glass-card($blur: $glass-blur-light) {
+  background: rgb(var(--background) / 0.8);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: $glass-border-radius-sm;
+  transition: all $transition-normal;
+  
+  &:hover {
+    background: rgb(var(--background) / 0.9);
+    border-color: rgb(var(--border) / 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
 @mixin glass-effect($blur: 10px, $opacity: 0.1) {
   background: rgba(255, 255, 255, $opacity);
   backdrop-filter: blur($blur);

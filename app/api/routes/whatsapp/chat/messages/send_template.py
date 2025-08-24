@@ -1,6 +1,7 @@
 """Send template message endpoint."""
 
 from datetime import datetime, timezone
+from typing import Dict, Any, Optional, List
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -73,7 +74,7 @@ async def send_template_message(
                 # Create new conversation
                 new_conversation = await conversation_service.create_conversation(
                     customer_phone=customer_phone,
-                    customer_name=None,  # Will be updated when customer responds
+                    customer_name=template_data.customer_name,  # Use provided customer name
                     department_id=None,  # Default department or assign based on rules
                     assigned_agent_id=current_user.id,
                     created_by=current_user.id
@@ -103,12 +104,6 @@ async def send_template_message(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=ErrorCode.WHATSAPP_API_ERROR,
             )
-        except Exception as e:
-            logger.error(f"Unexpected error sending template: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=ErrorCode.INTERNAL_SERVER_ERROR,
-            )
 
         if not whatsapp_response:
             logger.error(f"WhatsApp response is None or empty: {whatsapp_response}")
@@ -127,6 +122,13 @@ async def send_template_message(
 
         logger.info(f"WhatsApp message ID: {whatsapp_message_id}")
 
+        # Render template content for display
+        rendered_template = await render_template_content(
+            template_data.template_name,
+            template_data.parameters,
+            template_data.language_code
+        )
+
         # Create message record using service
         logger.info("About to create message...")
         try:
@@ -142,6 +144,7 @@ async def send_template_message(
                     "name": template_data.template_name,
                     "language": template_data.language_code,
                     "parameters": template_data.parameters,
+                    "rendered_content": rendered_template,
                 },
                 whatsapp_message_id=whatsapp_message_id,
                 is_automated=False,
@@ -210,3 +213,66 @@ async def send_template_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=ErrorCode.INTERNAL_SERVER_ERROR,
         )
+
+
+async def render_template_content(
+    template_name: str, 
+    parameters: Optional[List[Dict[str, Any]]], 
+    language_code: str
+) -> Dict[str, Any]:
+    """
+    Render template content for display in the frontend.
+    
+    Args:
+        template_name: Name of the template
+        parameters: Template parameters
+        language_code: Template language code
+        
+    Returns:
+        Dictionary with rendered template content
+    """
+    try:
+        # For start_conversation template, we know the structure
+        if template_name == "start_conversation":
+            # Extract parameters
+            customer_name = "Customer"
+            service_name = "service"
+            
+            if parameters and len(parameters) >= 2:
+                customer_name = parameters[0].get("text", "Customer")
+                service_name = parameters[1].get("text", "service")
+            elif parameters and len(parameters) == 1:
+                customer_name = parameters[0].get("text", "Customer")
+            
+            # Render template content based on the WhatsApp template structure
+            rendered_content = {
+                "header": f"Hi {customer_name}!",
+                "body": f"This is American Data Networks 📡. We'd like to make sure your services are working well 📟. How has your experience with {service_name} been lately? If you've had any issues, reply here and we'll fix them right away ⚡. Thanks for choosing us!",
+                "footer": "American Data Networks"
+            }
+            
+            return rendered_content
+        
+        # For other templates, provide a generic structure
+        else:
+            # Generic template rendering
+            body_text = f"Template: {template_name}"
+            if parameters:
+                param_texts = [param.get("text", "") for param in parameters if param.get("text")]
+                if param_texts:
+                    body_text += f" - {', '.join(param_texts)}"
+            
+            return {
+                "body": body_text,
+                "footer": None,
+                "header": None
+            }
+            
+    except Exception as e:
+        logger.error(f"Error rendering template content: {str(e)}")
+        # Fallback content
+        return {
+            "body": f"Template message: {template_name}",
+            "header": None,
+            "footer": None
+        }

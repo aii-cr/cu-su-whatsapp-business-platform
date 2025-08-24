@@ -342,25 +342,63 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
               }
             )}
           >
+            {/* Template message content */}
+            {message.type === 'template' && message.template_data && (
+              <div className="space-y-3">
+                {/* Template Header (optional) */}
+                {message.template_data.rendered_content?.header && (
+                  <div className={cn(
+                    "text-sm font-medium pb-2 border-b",
+                    shouldAlignRight ? "border-white/20" : "border-slate-200 dark:border-slate-600"
+                  )}>
+                    {renderMarkdown(message.template_data.rendered_content.header)}
+                  </div>
+                )}
+                
+                {/* Template Body */}
+                {message.template_data.rendered_content?.body && (
+                  <div className="text-sm leading-relaxed">
+                    {renderMarkdown(message.template_data.rendered_content.body)}
+                  </div>
+                )}
+                
+                {/* Template Footer (optional) */}
+                {message.template_data.rendered_content?.footer && (
+                  <div className={cn(
+                    "text-xs opacity-75 pt-2 border-t",
+                    shouldAlignRight ? "border-white/20" : "border-slate-200 dark:border-slate-600"
+                  )}>
+                    {message.template_data.rendered_content.footer}
+                  </div>
+                )}
+                
+                {/* Template Name Badge */}
+                <div className="flex justify-end mt-2">
+                  <Badge variant="secondary" className={cn(
+                    "text-xs",
+                    shouldAlignRight 
+                      ? "bg-white/20 text-white border-white/30" 
+                      : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600"
+                  )}>
+                    📄 {message.template_data.name}
+                  </Badge>
+                </div>
+              </div>
+            )}
+
             {/* Media content */}
-            {message.type !== 'text' && <MediaContent />}
+            {message.type !== 'text' && message.type !== 'template' && <MediaContent />}
 
             {/* Text content */}
-            {message.text_content && (
-              <div className={cn(
-                'text-sm leading-relaxed',
-                message.type !== 'text' && 'mt-2'
-              )}>
+            {message.type === 'text' && message.text_content && (
+              <div className="text-sm leading-relaxed">
                 {renderMarkdown(message.text_content)}
               </div>
             )}
             
             {/* Fallback for content object */}
-            {!message.text_content && message.content?.text && (
-              <div className={cn(
-                'text-sm leading-relaxed',
-                message.type !== 'text' && 'mt-2'
-              )}>
+            {message.type === 'text' && !message.text_content && message.content?.text && (
+              <div className="text-sm leading-relaxed">
                 {renderMarkdown(message.content.text)}
               </div>
             )}

@@ -17,7 +17,7 @@ import { ConversationFilters as ConversationFiltersComponent } from '@/features/
 import { ConversationListItem } from '@/features/conversations/components/ConversationListItem';
 import { useUsers, User } from '@/features/users/hooks/useUsers';
 import { useDashboardWebSocket } from '@/hooks/useDashboardWebSocket';
-import { NewConversationModal } from '@/components/conversations/NewConversationModal';
+import { NewConversationModal } from '@/features/conversations/components/NewConversationModal';
 import { 
   PlusIcon, 
   ChatBubbleLeftRightIcon,
@@ -249,7 +249,10 @@ export default function ConversationsPage() {
       <NewConversationModal
         isOpen={isNewConversationModalOpen}
         onClose={() => setIsNewConversationModalOpen(false)}
-        onSuccess={() => window.location.reload()}
+        onSuccess={() => {
+          // The modal will handle query invalidation for real-time updates
+          console.log('New conversation created successfully');
+        }}
       />
     </div>
   );

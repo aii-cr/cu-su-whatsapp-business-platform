@@ -14,7 +14,7 @@ class SentimentAnalyzerConfig(BaseModel):
     # Analysis Settings
     analysis_interval_messages: int = Field(1, description="Analyze sentiment every N customer messages")
     max_message_length: int = Field(1000, description="Maximum message length to analyze")
-    min_message_length: int = Field(5, description="Minimum message length to analyze")
+    min_message_length: int = Field(1, description="Minimum message length to analyze")
     
     # Sentiment Emojis
     sentiment_emojis: List[str] = Field(
