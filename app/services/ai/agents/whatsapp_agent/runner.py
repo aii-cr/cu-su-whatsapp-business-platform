@@ -15,8 +15,8 @@ import time
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 from app.services.ai.shared.memory_service import memory_service
-from .agent_graph import build_graph
-from .prompts import ADN_SYSTEM_PROMPT
+from .graph.agent_graph import build_graph
+from .core.prompts import ADN_SYSTEM_PROMPT
 from .telemetry import setup_tracing
 from app.core.logger import logger
 
@@ -114,7 +114,15 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
             "messages": messages,
             "conversation_id": conversation_id,
             "attempts": 0,
-            "target_language": target_language
+            "target_language": target_language,
+            "stage": "idle",
+            "contract": {
+                "selection": {},
+                "customer": {},
+                "booking": {},
+                "confirmations": {"selection_confirmed": False, "booking_confirmed": False, "email_sent": False}
+            },
+            "system_snapshot": None
         })
         graph_execution_time = time.time() - graph_start_time
         

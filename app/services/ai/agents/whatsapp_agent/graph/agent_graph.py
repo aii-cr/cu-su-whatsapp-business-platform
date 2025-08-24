@@ -15,11 +15,11 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from .state import AgentState
-from .models import get_chat_model
-from .tools import get_tool_belt
-from .prompts import HELPFULNESS_PROMPT, ADN_SYSTEM_PROMPT
-from .timezone_utils import get_contextual_time_info
+from ..core.state import AgentState
+from ..models import get_chat_model
+from ..tools.toolbelt import get_tool_belt
+from ..core.prompts import HELPFULNESS_PROMPT, ADN_SYSTEM_PROMPT
+from ..timezone_utils import get_contextual_time_info
 from app.core.logger import logger
 
 
@@ -38,51 +38,55 @@ def _build_model_with_tools():
 
 
 def call_model(state: AgentState) -> Dict[str, Any]:
-    """Invoca el LLM con sistema bilingüe + mensajes acumulados."""
+    """
+    Invoca el LLM con sistema + snapshot de estado para forzar el flujo.
+    """
     try:
         conversation_id = state.get("conversation_id", "unknown")
         current_attempt = state.get("attempts", 0)
         target_lang = state.get("target_language", "es")
-        
-        logger.info(f"🤖 [GRAPH] Agent node - conversation: {conversation_id}, attempt: {current_attempt + 1}, lang: {target_lang}")
-        
-        # Check for maximum attempts before using tools (reduced from 6 to 3)
+
         if current_attempt >= 3:
-            logger.warning(f"🛑 [GRAPH] Maximum attempts reached ({current_attempt}), forcing final response")
-            fallback_message = "Lo siento, no tengo la información específica que necesitas en este momento. Por favor espera que enseguida te responde un agente humano."
+            fallback_message = ("Lo siento, no tengo la información específica que necesitas en este momento. "
+                                "Por favor espera que enseguida te responde un agente humano.")
             return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
-        
-        # DISABLE ERROR DETECTION - Let the agent work like Writer agent
-        # The Writer agent doesn't have this logic and works perfectly
-        # This was causing false positives and premature fallbacks
-        
+
         model = _build_model_with_tools()
 
-        # Get current time context for Costa Rica
-        time_context = get_contextual_time_info("es")  # Time context in Spanish for Costa Rica
-        
-        # Reescribe el primer mensaje como SystemMessage con contexto temporal.
+        # Contexto temporal + snapshot de stage/contrato
+        time_context = get_contextual_time_info("es")
         system_prompt = ADN_SYSTEM_PROMPT.format(time_context=time_context)
-        messages = [SystemMessage(content=system_prompt)]
-        messages.extend(state["messages"][1:] if state["messages"] else [])
-        
-        logger.info(f"🤖 [GRAPH] Invoking model with {len(messages)} messages...")
+
+        # Construir snapshot mínimo que el modelo pueda leer sin tokens excesivos
+        stage = state.get("stage", "idle")
+        contract = state.get("contract", {})
+        snapshot = {
+            "stage": stage,
+            "selection": contract.get("selection"),
+            "customer": {k: contract.get("customer", {}).get(k) for k in ("full_name", "email", "mobile_number", "identification_number")},
+            "booking": contract.get("booking"),
+            "confirmations": contract.get("confirmations"),
+        }
+
+        snapshot_msg = SystemMessage(content=f"[FLOW_SNAPSHOT]\n{snapshot}")
+
+        # Mensajes: system + snapshot + historial del usuario/agente
+        messages = [SystemMessage(content=system_prompt), snapshot_msg]
+        messages.extend(state["messages"][1:] if state.get("messages") else [])
+
         response = model.invoke(messages)
-        
-        # Log if the model wants to use tools
+
+        # Logueo de tool calls vs respuesta directa
         tool_calls = getattr(response, "tool_calls", None)
         if tool_calls:
-            logger.info(f"🔧 [GRAPH] Model wants to use {len(tool_calls)} tools: {[tc.get('name', 'unknown') for tc in tool_calls]}")
+            logger.info(f"🔧 [GRAPH] Model calls: {[tc.get('name') for tc in tool_calls]}")
         else:
-            logger.info(f"💬 [GRAPH] Model generated direct response: {response.content[:100]}...")
-        
-        result = {"messages": [response], "attempts": current_attempt + 1}
-        logger.info(f"✅ [GRAPH] Agent node completed successfully")
-        return result
-        
+            logger.info(f"💬 [GRAPH] Direct response: {response.content[:100]}...")
+
+        return {"messages": [response], "attempts": current_attempt + 1}
+
     except Exception as e:
         logger.error(f"❌ [GRAPH] Agent node failed: {str(e)}")
-        # Return a failure response instead of raising
         return {"messages": [AIMessage(content=f"Error en el agente: {str(e)}")], "attempts": state.get("attempts", 0) + 1}
 
 
