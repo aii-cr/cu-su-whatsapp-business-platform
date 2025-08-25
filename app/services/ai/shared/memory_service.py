@@ -235,30 +235,13 @@ class ConversationMemoryService:
             Context dictionary with history, summary, and session data
         """
         try:
-            memory = await self.get_conversation_memory(conversation_id)
+            # Load conversation history from database first
+            history = await self.load_conversation_history(conversation_id)
+            
+            # Get session data
             session_data = self.get_session_data(conversation_id)
             
-            # Get memory messages
-            memory_messages = memory.chat_memory.messages if memory.chat_memory.messages else []
-            
-            # Convert to our format
-            history = []
-            for msg in memory_messages:
-                if isinstance(msg, HumanMessage):
-                    history.append({
-                        "role": "user",
-                        "content": msg.content,
-                        "timestamp": datetime.now().isoformat(),
-                        "message_id": f"memory_{len(history)}"
-                    })
-                elif isinstance(msg, AIMessage):
-                    history.append({
-                        "role": "assistant",
-                        "content": msg.content,
-                        "timestamp": datetime.now().isoformat(),
-                        "message_id": f"memory_{len(history)}"
-                    })
-            
+            # Create summary from loaded history
             summary = self.create_conversation_summary(history)
             
             # Format last_activity for JSON serialization
@@ -266,13 +249,15 @@ class ConversationMemoryService:
             if last_activity:
                 last_activity = last_activity.isoformat()
             
+            logger.info(f"Loaded conversation context for {conversation_id}: {len(history)} messages")
+            
             return {
                 "conversation_id": conversation_id,
                 "history": history,
                 "summary": summary,
                 "session_data": session_data,
                 "last_activity": last_activity,
-                "memory_size": len(memory_messages)
+                "memory_size": len(history)
             }
         except Exception as e:
             logger.error(f"Error getting conversation context for {conversation_id}: {str(e)}")
