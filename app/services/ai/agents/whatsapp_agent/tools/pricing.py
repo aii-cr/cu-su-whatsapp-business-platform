@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Cálculo determinista de cotización y validación de selección (sin avanzar estado).
+Deterministic quote calculation and selection validation (without advancing state).
 """
 
 from __future__ import annotations
@@ -11,15 +11,15 @@ from pydantic import BaseModel, Field, field_validator
 from app.services.ai.agents.whatsapp_agent.tools.catalog import _PLANS, _IPTV_PRICE, _TELEFONIA_PRICE
 
 class QuoteInput(BaseModel):
-    plan: Annotated[str, Field(description="Plan ID (1-4) o nombre ('1 Gbps', '500 Mbps', etc.)")]
-    iptv_count: Annotated[int, Field(ge=0, le=10, description="Cantidad de IPTV (0-10)")]
-    telefonia: Annotated[bool, Field(description="True si incluye Telefonía VoIP")]
+    plan: Annotated[str, Field(description="Plan ID (1-4) or name ('1 Gbps', '500 Mbps', etc.)")]
+    iptv_count: Annotated[int, Field(ge=0, le=10, description="IPTV quantity (0-10)")]
+    telefonia: Annotated[bool, Field(description="True if includes VoIP Telephony")]
 
     @field_validator("plan")
     @classmethod
     def plan_non_empty(cls, v: str) -> str:
         if not v or not str(v).strip():
-            raise ValueError("plan requerido")
+            raise ValueError("plan required")
         return v
 
 def _resolve_plan(plan_input: str) -> Optional[tuple[int, str, int]]:
@@ -44,7 +44,7 @@ def _as_int_crc(d: Decimal) -> int:
 @tool("quote_selection", return_direct=False)
 def quote_selection(plan: str, iptv_count: int, telefonia: bool) -> str:
     """
-    Valida selección y devuelve desglose de precios en CRC (JSON string). No persiste estado.
+    Validates selection and returns price breakdown in CRC (JSON string). Does not persist state.
     """
     from pydantic import ValidationError
     import json
@@ -56,7 +56,7 @@ def quote_selection(plan: str, iptv_count: int, telefonia: bool) -> str:
 
     resolved = _resolve_plan(payload.plan)
     if not resolved:
-        return json.dumps({"ok": False, "errors": [{"loc": ["plan"], "msg": "Plan inválido", "type": "value_error"}]}, ensure_ascii=False)
+        return json.dumps({"ok": False, "errors": [{"loc": ["plan"], "msg": "Invalid plan", "type": "value_error"}]}, ensure_ascii=False)
 
     plan_id, plan_name, base_crc = resolved
 

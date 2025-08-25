@@ -190,8 +190,9 @@ async def ingest_documents() -> IngestionResult:
         
         # Define JSONL paths
         jsonl_paths = [
-            "/home/sa/dev/cu-su-backend/RAG_data/adn_master_company.jsonl",
-            "/home/sa/dev/cu-su-backend/RAG_data/adn_iptv_channels.jsonl"
+            "/home/sa/dev/cu-su-backend/app/services/ai/shared/tools/rag/rag_data/adn_master_company_en_2025-08-24.jsonl",
+            # "/home/sa/dev/cu-su-backend/RAG_data/adn_master_company.jsonl",
+            # "/home/sa/dev/cu-su-backend/RAG_data/adn_iptv_channels.jsonl"
         ]
         
         # Check that files exist

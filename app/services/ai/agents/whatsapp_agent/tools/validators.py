@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Validación de datos del cliente. Devuelve payload normalizado + errores por campo.
+Customer data validation. Returns normalized payload + errors by field.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class CustomerInput(BaseModel):
     @classmethod
     def id_chars(cls, v: str) -> str:
         if not re.fullmatch(r"[A-Za-z0-9\-]+", v):
-            raise ValueError("Sólo alfanumérico y guiones")
+            raise ValueError("Only alphanumeric and hyphens")
         return v
 
     @field_validator("mobile_number")
@@ -31,7 +31,7 @@ class CustomerInput(BaseModel):
         v = v.strip()
         m = _CR_PHONE.match(v)
         if not m:
-            raise ValueError("Formato inválido, ej: +506 8888 8888")
+            raise ValueError("Invalid format, e.g: +506 8888 8888")
         # Normalize to international +506########
         digits = "".join(m.groups())
         return f"+506{digits}"
@@ -39,7 +39,7 @@ class CustomerInput(BaseModel):
 @tool("validate_customer_info", return_direct=False)
 def validate_customer_info(full_name: str, identification_number: str, email: str, mobile_number: str) -> str:
     """
-    Valida y normaliza la información del cliente. Devuelve JSON con ok/errors y payload.
+    Validates and normalizes customer information. Returns JSON with ok/errors and payload.
     """
     from pydantic import ValidationError
     try:

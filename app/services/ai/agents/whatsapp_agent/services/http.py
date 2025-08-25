@@ -1,6 +1,6 @@
 # NEW CODE
 """
-HTTP cliente compartido con timeouts y reintentos seguros (httpx).
+Shared HTTP client with safe timeouts and retries (httpx).
 """
 
 from __future__ import annotations

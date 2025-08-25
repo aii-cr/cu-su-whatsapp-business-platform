@@ -1,10 +1,10 @@
 # NEW CODE
 """
-Ejecución del agente por conversación:
+Agent execution by conversation:
 - LangSmith tracing
-- Carga memoria Mongo
-- Detección de idioma simple
-- Invocación del grafo
+- Mongo memory loading
+- Simple language detection
+- Graph invocation
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from app.core.logger import logger
 
 
 def _infer_language(text: str) -> str:
-    """Heurística ligera para detectar 'en' vs 'es'."""
+    """Light heuristic to detect 'en' vs 'es'."""
     try:
         t = text.lower()
         en_hits = sum(1 for w in ("the","and","what","how","price","channel","plan","install","coverage") if w in t)
@@ -38,7 +38,7 @@ def _infer_language(text: str) -> str:
 
 
 def _prepare_history_messages(history: List[dict], target_language: str) -> List:
-    """Convierte historial en mensajes (inyecta system bilingüe)."""
+    """Converts history to messages (injects bilingual system)."""
     try:
         logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with automatic language detection")
         
@@ -71,7 +71,7 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
 
 
 async def run_agent(conversation_id: str, user_text: str) -> str:
-    """Ejecuta el agente para una conversación y retorna la respuesta."""
+    """Executes the agent for a conversation and returns the response."""
     start_time = time.time()
     
     try:
@@ -89,7 +89,7 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         
         original_history_len = len(history)
         if len(history) > 10 and ctx.get("summary"):
-            history = [{"role": "assistant", "content": f"Resumen: {ctx['summary']}"}] + history[-6:]
+            history = [{"role": "assistant", "content": f"Summary: {ctx['summary']}"}] + history[-6:]
             logger.info(f"📚 [RUNNER] Compressed history from {original_history_len} to {len(history)} messages")
         else:
             logger.info(f"📚 [RUNNER] Using full history: {len(history)} messages")

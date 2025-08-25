@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Herramientas para slots y reservas de instalación (usando services.http).
+Tools for installation slots and bookings (using services.http).
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ from app.services.ai.agents.whatsapp_agent.services.http import reservations_htt
 @tool("get_available_slots", return_direct=False)
 async def get_available_slots() -> str:
     """
-    Obtiene slots disponibles para las próximas 4 semanas. Devuelve JSON con 'available_slots' y 'period'.
+    Gets available slots for the next 4 weeks. Returns JSON with 'available_slots' and 'period'.
     """
     status, data = await reservations_http.get_json("/available-slots")
     if status != 200:
         return json.dumps({"ok": False, "status": status, "error": "Failed to fetch slots"}, ensure_ascii=False)
 
-    # Reordenar fechas por cercanía (aunque backend ya viene ordenado)
+    # Reorder dates by proximity (although backend already comes ordered)
     days = sorted(data.get("available_slots", {}).items(), key=lambda x: x[0])
-    closest_preview = days[:5]  # cortesía para el LLM al momento de ofrecer
+    closest_preview = days[:5]  # courtesy for the LLM when offering
     data["closest_preview"] = dict(closest_preview)
     data["ok"] = True
     return json.dumps(data, ensure_ascii=False)
@@ -36,7 +36,7 @@ async def book_installation(
     service_type: Annotated[str, "Defaults to 'fiber_installation'"] = "fiber_installation",
 ) -> str:
     """
-    Reserva una instalación si el slot sigue libre. Devuelve JSON con datos de confirmación o error frontend-friendly.
+    Books an installation if the slot is still available. Returns JSON with confirmation data or frontend-friendly error.
     """
     payload = {
         "date": date,
@@ -51,7 +51,7 @@ async def book_installation(
     }
     status, data = await reservations_http.post_json("/book", payload)
     if status != 200 or not data.get("success"):
-        # Normalizar errores 409/422/500 en un formato común
+        # Normalize 409/422/500 errors into a common format
         err = {
             "ok": False,
             "status": status,

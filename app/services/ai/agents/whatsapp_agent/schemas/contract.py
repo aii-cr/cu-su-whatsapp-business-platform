@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Esquemas Pydantic del contrato (para futuras persistencias/serialización).
+Pydantic contract schemas (for future persistence/serialization).
 """
 
 from __future__ import annotations

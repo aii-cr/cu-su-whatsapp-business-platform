@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Catálogo inmutable de planes y adicionales (precios I.V.I en CRC).
+Immutable catalog of plans and add-ons (I.V.I prices in CRC).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ _TELEFONIA_PRICE = 3590
 @tool("list_plans_catalog", return_direct=False)
 def list_plans_catalog() -> str:
     """
-    Devuelve el catálogo de planes y adicionales (JSON string) para que el LLM lo lea/verbalice.
+    Returns the catalog of plans and add-ons (JSON string) for the LLM to read/verbalize.
     """
     data = {
         "plans": [{"id": pid, "name": p["name"], "price_crc": p["price_crc"]} for pid, p in _PLANS.items()],
@@ -28,9 +28,9 @@ def list_plans_catalog() -> str:
             "telefonia": {"unit_price_crc": _TELEFONIA_PRICE, "allowed_values": [0, 1]},
         },
         "notes": [
-            "Todos los planes incluyen equipo Wi-Fi, firewall y soporte 24/7.",
-            "IPTV: ₡4.590 I.V.I por dispositivo (máximo 10).",
-            "Telefonía VoIP: ₡3.590 I.V.I (máximo 1).",
+            "All plans include Wi-Fi equipment, firewall and 24/7 support.",
+            "IPTV: ₡4,590 I.V.I per device (maximum 10).",
+            "VoIP Telephony: ₡3,590 I.V.I (maximum 1).",
         ],
     }
     # Simple JSON string so the model can quote details exactly.

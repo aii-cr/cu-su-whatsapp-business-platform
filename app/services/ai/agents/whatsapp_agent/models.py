@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Modelos de chat y embeddings - ahora importa desde shared para evitar imports circulares.
+Chat and embedding models - now imports from shared to avoid circular imports.
 """
 
 from __future__ import annotations

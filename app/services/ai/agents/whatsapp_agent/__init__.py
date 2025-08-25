@@ -1,7 +1,7 @@
 # NEW CODE
 """
-Paquete del agente WhatsApp de American Data Networks (ADN).
-Incluye RAG híbrido con re-rank, LangSmith tracing, prompts bilingües y grafo del agente.
+American Data Networks (ADN) WhatsApp agent package.
+Includes hybrid RAG with re-rank, LangSmith tracing, bilingual prompts and agent graph.
 """
 
 from .runner import run_agent

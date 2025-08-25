@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Inicializa LangSmith tracing (tracing v2) desde la configuración.
+Initialize LangSmith tracing (tracing v2) from configuration.
 """
 
 import os
@@ -9,7 +9,7 @@ from app.core.logger import logger
 
 
 def setup_tracing() -> None:
-    """Configura variables de entorno para LangSmith (tracing v2)."""
+    """Sets up environment variables for LangSmith (tracing v2)."""
     try:
         logger.info("🔍 [TELEMETRY] Setting up LangSmith tracing...")
         

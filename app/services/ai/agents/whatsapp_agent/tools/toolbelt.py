@@ -1,15 +1,15 @@
 # NEW CODE
 """
-Toolbelt del agente: RAG + herramientas transaccionales.
+Agent toolbelt: RAG + transactional tools.
 """
 
 from __future__ import annotations
 from typing import List, Any
 
-# RAG (tu herramienta existente)
+# RAG (your existing tool)
 from app.services.ai.shared.tools.rag.retriever import retrieve_information as adn_retrieve
 
-# Herramientas nuevas
+# New tools
 from app.services.ai.agents.whatsapp_agent.tools.pricing import quote_selection
 from app.services.ai.agents.whatsapp_agent.tools.validators import validate_customer_info
 from app.services.ai.agents.whatsapp_agent.tools.reservations import get_available_slots, book_installation
@@ -18,13 +18,13 @@ from app.services.ai.agents.whatsapp_agent.tools.catalog import list_plans_catal
 
 
 def get_tool_belt() -> List[Any]:
-    """Lista de herramientas disponibles para bind_tools."""
+    """List of available tools for bind_tools."""
     return [
         adn_retrieve,              # RAG
-        list_plans_catalog,        # Catálogo planes
-        quote_selection,           # Cotización/validación selección
-        validate_customer_info,    # Validación datos cliente
-        get_available_slots,       # Slots disponibles
-        book_installation,         # Reservar instalación
-        send_confirmation_email,   # Enviar correo confirmación
+        list_plans_catalog,        # Plans catalog
+        quote_selection,           # Quote/validate selection
+        validate_customer_info,    # Validate customer data
+        get_available_slots,       # Available slots
+        book_installation,         # Book installation
+        send_confirmation_email,   # Send confirmation email
     ]

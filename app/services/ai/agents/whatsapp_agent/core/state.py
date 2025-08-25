@@ -1,7 +1,7 @@
 # NEW CODE
 """
-Definición del estado del agente para LangGraph + contrato transaccional.
-Incluye 'stage' para forzar el flujo: selection -> customer -> schedule -> booked -> emailed -> done.
+Agent state definition for LangGraph + transactional contract.
+Includes 'stage' to force flow: selection -> customer -> schedule -> booked -> emailed -> done.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ class ContractState(TypedDict, total=False):
 Stage = Literal["idle", "selection", "customer", "schedule", "booked", "emailed", "done"]
 
 class AgentState(TypedDict, total=False):
-    """Estado completo del agente de WhatsApp."""
+    """Complete WhatsApp agent state."""
     messages: Annotated[List[AnyMessage], add_messages]
     conversation_id: str
     attempts: int
@@ -58,5 +58,5 @@ class AgentState(TypedDict, total=False):
     summary: Optional[str]
     stage: Stage
     contract: ContractState
-    # Campo auxiliar para inyectar snapshot al prompt
+    # Auxiliary field to inject snapshot into prompt
     system_snapshot: Optional[str]

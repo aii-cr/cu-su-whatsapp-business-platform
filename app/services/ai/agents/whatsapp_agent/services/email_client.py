@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Abstracción mínima de email. Cambia la implementación a tu proveedor real.
+Minimal email abstraction. Change the implementation to your real provider.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ class EmailClient:
         self.sender = sender
 
     async def send(self, to: str, subject: str, text: str, cc: Optional[Sequence[str]] = None) -> bool:
-        # TODO: reemplazar con tu integración real (SES, SendGrid, SMTP)
+        # TODO: replace with your real integration (SES, SendGrid, SMTP)
         try:
             logger.info(f"[EMAIL] Sending to {to} | subject='{subject}'\n{text}")
             return True

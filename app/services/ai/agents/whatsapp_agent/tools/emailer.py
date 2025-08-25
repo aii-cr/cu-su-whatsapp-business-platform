@@ -1,6 +1,6 @@
 # NEW CODE
 """
-Herramienta para enviar el correo de confirmación en inglés.
+Tool to send confirmation email in English.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ async def send_confirmation_email(
     confirmation_number: Annotated[str, "Booking confirmation number"],
 ) -> str:
     """
-    Envía el email de confirmación en inglés. Devuelve JSON con ok: true/false.
+    Sends confirmation email in English. Returns JSON with ok: true/false.
     """
     body = _EMAIL_TEMPLATE.format(
         full_name=full_name,

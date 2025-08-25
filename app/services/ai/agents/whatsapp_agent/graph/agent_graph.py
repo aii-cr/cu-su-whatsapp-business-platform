@@ -1,9 +1,9 @@
 # NEW CODE
 """
-Grafo del agente:
-- agent: LLM con tools
+Agent graph:
+- agent: LLM with tools
 - action: ToolNode
-- helpfulness: verificador Y/N
+- helpfulness: Y/N verifier
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from app.core.logger import logger
 
 
 def _build_model_with_tools():
-    """Devuelve chat model bind a herramientas."""
+    """Returns chat model bound to tools."""
     try:
         logger.info("🤖 [GRAPH] Building model with tools...")
         model = get_chat_model()
@@ -39,7 +39,7 @@ def _build_model_with_tools():
 
 def call_model(state: AgentState) -> Dict[str, Any]:
     """
-    Invoca el LLM con sistema + snapshot de estado para forzar el flujo.
+    Invokes the LLM with system + state snapshot to force the flow.
     """
     try:
         conversation_id = state.get("conversation_id", "unknown")
@@ -47,17 +47,17 @@ def call_model(state: AgentState) -> Dict[str, Any]:
         target_lang = state.get("target_language", "es")
 
         if current_attempt >= 3:
-            fallback_message = ("Lo siento, no tengo la información específica que necesitas en este momento. "
-                                "Por favor espera que enseguida te responde un agente humano.")
+            fallback_message = ("I'm sorry, I don't have the specific information you need at this moment. "
+                                "Please wait, a human agent will respond to you shortly.")
             return {"messages": [AIMessage(content=fallback_message)], "attempts": current_attempt + 1}
 
         model = _build_model_with_tools()
 
-        # Contexto temporal + snapshot de stage/contrato
+        # Temporal context + stage/contract snapshot
         time_context = get_contextual_time_info("es")
         system_prompt = ADN_SYSTEM_PROMPT.format(time_context=time_context)
 
-        # Construir snapshot mínimo que el modelo pueda leer sin tokens excesivos
+        # Build minimal snapshot that the model can read without excessive tokens
         stage = state.get("stage", "idle")
         contract = state.get("contract", {})
         snapshot = {
@@ -70,13 +70,13 @@ def call_model(state: AgentState) -> Dict[str, Any]:
 
         snapshot_msg = SystemMessage(content=f"[FLOW_SNAPSHOT]\n{snapshot}")
 
-        # Mensajes: system + snapshot + historial del usuario/agente
+        # Messages: system + snapshot + user/agent history
         messages = [SystemMessage(content=system_prompt), snapshot_msg]
         messages.extend(state["messages"][1:] if state.get("messages") else [])
 
         response = model.invoke(messages)
 
-        # Logueo de tool calls vs respuesta directa
+        # Log tool calls vs direct response
         tool_calls = getattr(response, "tool_calls", None)
         if tool_calls:
             logger.info(f"🔧 [GRAPH] Model calls: {[tc.get('name') for tc in tool_calls]}")
@@ -87,11 +87,11 @@ def call_model(state: AgentState) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"❌ [GRAPH] Agent node failed: {str(e)}")
-        return {"messages": [AIMessage(content=f"Error en el agente: {str(e)}")], "attempts": state.get("attempts", 0) + 1}
+        return {"messages": [AIMessage(content=f"Agent error: {str(e)}")], "attempts": state.get("attempts", 0) + 1}
 
 
 def route_to_action_or_helpfulness(state: AgentState):
-    """Ruta: ejecutar herramientas o evaluar utilidad."""
+    """Route: execute tools or evaluate helpfulness."""
     try:
         last_message = state["messages"][-1]
         tool_calls = getattr(last_message, "tool_calls", None)
@@ -109,7 +109,7 @@ def route_to_action_or_helpfulness(state: AgentState):
 
 
 def helpfulness_node(state: AgentState) -> Dict[str, Any]:
-    """Evalúa Y/N con tope de intentos para evitar loops."""
+    """Evaluates Y/N with attempt limit to avoid loops."""
     try:
         attempts = state.get("attempts", 0)
         conversation_id = state.get("conversation_id", "unknown")
@@ -164,7 +164,7 @@ def helpfulness_node(state: AgentState) -> Dict[str, Any]:
 
 
 def helpfulness_decision(state: AgentState):
-    """Cierra en Y/END o continúa."""
+    """Closes on Y/END or continues."""
     try:
         text = getattr(state["messages"][-1], "content", "")
         conversation_id = state.get("conversation_id", "unknown")
@@ -264,7 +264,7 @@ async def action_node(state: AgentState) -> Dict[str, Any]:
 
 
 def build_graph():
-    """Compila grafo."""
+    """Compiles graph."""
     try:
         logger.info("🏗️ [GRAPH] Building agent graph...")
         
