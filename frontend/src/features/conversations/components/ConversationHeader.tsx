@@ -159,8 +159,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
             
             <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
               <span className="truncate">
-                {(conversation.customer?.phone || conversation.customer_phone) && `${conversation.customer?.phone || conversation.customer_phone} • `}
-                Last seen {formatRelativeTime(conversation.updated_at)}
+                {conversation.customer?.phone || conversation.customer_phone}
               </span>
             </div>
             
@@ -238,28 +237,6 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
             </Button>
           )}
           
-          {onVideoCall && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={onVideoCall}
-              aria-label="Video call"
-            >
-              <VideoCameraIcon className="w-5 h-5" />
-            </Button>
-          )}
-          
-          {onViewInfo && (
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={onViewInfo}
-              aria-label="View contact info"
-            >
-              <InformationCircleIcon className="w-5 h-5" />
-            </Button>
-          )}
-          
           <DropdownMenu
             trigger={
               <Button 
@@ -279,25 +256,12 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
                 Edit Tags
               </div>
             </DropdownMenuItem>
-            {onAIContext && (
-              <DropdownMenuItem onClick={onAIContext}>
-                <div className="flex items-center gap-2">
-                  <CpuChipIcon className="h-4 w-4" />
-                  AI Context
-                </div>
-              </DropdownMenuItem>
-            )}
             {onSummarize && (
               <DropdownMenuItem onClick={onSummarize}>
                 <div className="flex items-center gap-2">
                   <DocumentTextIcon className="h-4 w-4" />
                   Summarize Conversation
                 </div>
-              </DropdownMenuItem>
-            )}
-            {onMoreActions && (
-              <DropdownMenuItem onClick={onMoreActions}>
-                More Options
               </DropdownMenuItem>
             )}
           </DropdownMenu>
