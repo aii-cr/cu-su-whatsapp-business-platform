@@ -284,7 +284,7 @@ async def action_node(state: AgentState) -> Dict[str, Any]:
 def route_after_action(state: AgentState):
     """
     If we already emitted a final user-facing payload (e.g., slots list),
-    go straight to helpfulness to end the turn; otherwise return to agent.
+    skip helpfulness and go straight to END; otherwise return to agent.
     """
     last_action = state.get("last_action", "")
     has_final_message = False
@@ -296,8 +296,8 @@ def route_after_action(state: AgentState):
             has_final_message = True
     
     if has_final_message:
-        logger.info(f"🔄 [GRAPH] Routing to helpfulness after emitting final message (last_action: {last_action})")
-        return "helpfulness"
+        logger.info(f"🔄 [GRAPH] Emitted final message - going directly to END to skip helpfulness check (last_action: {last_action})")
+        return "end"
     else:
         logger.info(f"🔄 [GRAPH] Routing back to agent (last_action: {last_action})")
         return "agent"
@@ -326,7 +326,7 @@ def build_graph():
         
         # NEW: post-action conditional routing (short-circuit when we already emitted the final message)
         graph.add_conditional_edges("action", route_after_action, 
-                                    {"agent": "agent", "helpfulness": "helpfulness"})
+                                    {"agent": "agent", "end": END})
         
         compiled_graph = graph.compile()
         logger.info("✅ [GRAPH] Agent graph compiled successfully")
