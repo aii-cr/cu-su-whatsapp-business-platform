@@ -79,8 +79,8 @@ const renderMarkdown = (text: string): React.ReactNode => {
 // AI Indicator component
 const AIIndicator = () => (
   <div className="flex items-center space-x-1 text-xs text-blue-100/90 mb-1">
-    <span className="text-sm">🤖</span>
-    <span className="font-medium">AI Assistant</span>
+    <span role="img" aria-label="robot" className="text-sm">{'🤖'}</span>
+    <span className="font-medium">AI Agent</span>
   </div>
 );
 
@@ -140,8 +140,18 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
     const isSystem = message.sender_role === 'system';
     const isOutbound = message.direction === 'outbound'; // Agent message
     const isInbound = message.direction === 'inbound'; // Customer message
-    const isAI = message.sender_role === 'ai_assistant'; // AI assistant message
+    const isAI = message.sender_role === 'ai_assistant' || message.is_automated; // AI assistant message
     
+    // Debug logging for AI messages
+    if (isOutbound) {
+      console.log(`🔍 [MESSAGE_BUBBLE] Message ${message._id}:`, {
+        sender_role: message.sender_role,
+        is_automated: message.is_automated,
+        isAI: isAI,
+        direction: message.direction
+      });
+    }
+
     // Override isOwn based on direction for correct alignment
     const shouldAlignRight = isOutbound; // Agent messages go right
 
@@ -436,7 +446,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           <div className="ml-2 flex-shrink-0">
             <Avatar
               size="sm"
-              fallback={isAI ? '🤖' : (message.sender_name?.charAt(0) || 'A')}
+              fallback={isAI ? '✨' : (message.sender_name?.charAt(0) || 'A')}
               className="mt-1"
             />
           </div>
