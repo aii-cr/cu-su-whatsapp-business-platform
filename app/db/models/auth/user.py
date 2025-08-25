@@ -63,8 +63,8 @@ class User(BaseModel):
     )
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[PyObjectId] = Field(None, description="User ID who created this user")
     updated_by: Optional[PyObjectId] = Field(None, description="User ID who last updated this user")
     
@@ -118,7 +118,7 @@ class UserUpdate(BaseModel):
     max_concurrent_chats: Optional[int] = Field(None, ge=1, le=20)
     auto_assignment_enabled: Optional[bool] = None
     notification_preferences: Optional[Dict[str, bool]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserResponse(BaseModel):
     """Schema for user responses (excludes sensitive data)."""

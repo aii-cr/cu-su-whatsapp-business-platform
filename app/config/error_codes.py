@@ -14,12 +14,13 @@ class ErrorCode(str, Enum):
     AUTH_INVALID_CREDENTIALS = "AUTH_1001"
     AUTH_TOKEN_EXPIRED = "AUTH_1002"
     AUTH_TOKEN_INVALID = "AUTH_1003"
-    AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_1004"
-    AUTH_USER_NOT_FOUND = "AUTH_1005"
-    AUTH_USER_INACTIVE = "AUTH_1006"
-    AUTH_PASSWORD_WEAK = "AUTH_1007"
-    AUTH_EMAIL_ALREADY_EXISTS = "AUTH_1008"
-    AUTH_LOGIN_REQUIRED = "AUTH_1009"
+    AUTH_TOKEN_MISSING = "AUTH_1004"
+    AUTH_INSUFFICIENT_PERMISSIONS = "AUTH_1005"
+    AUTH_USER_NOT_FOUND = "AUTH_1006"
+    AUTH_USER_INACTIVE = "AUTH_1007"
+    AUTH_PASSWORD_WEAK = "AUTH_1008"
+    AUTH_EMAIL_ALREADY_EXISTS = "AUTH_1009"
+    AUTH_LOGIN_REQUIRED = "AUTH_1010"
     
     # User Management Errors (1100-1199)
     USER_NOT_FOUND = "USER_1101"
@@ -62,11 +63,14 @@ class ErrorCode(str, Enum):
     CONVERSATION_ALREADY_ACTIVE = "CONV_2105"
     CONVERSATION_ACCESS_DENIED = "CONV_2106"
     INVALID_CONVERSATION_ID = "CONV_2107"
+    CONVERSATION_ALREADY_ASSIGNED = "CONV_2108"
     MESSAGE_NOT_FOUND = "MSG_2105"
     MESSAGE_SEND_FAILED = "MSG_2106"
     MESSAGE_INVALID_TYPE = "MSG_2107"
     MESSAGE_TOO_LARGE = "MSG_2108"
     MESSAGE_INVALID_CONTENT = "MSG_2109"
+    INVALID_CURSOR = "MSG_2110"
+    INVALID_ID = "MSG_2111"
     
     # Media & File Errors (2200-2299)
     MEDIA_NOT_FOUND = "MEDIA_2201"
@@ -117,6 +121,7 @@ class ErrorCode(str, Enum):
     CONFIGURATION_ERROR = "SYS_9004"
     FEATURE_NOT_IMPLEMENTED = "SYS_9005"
     MAINTENANCE_MODE = "SYS_9006"
+    WRITER_AGENT_ERROR = "SYS_9007"
 
 
 # Error messages mapping
@@ -136,6 +141,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Invalid authentication token",
         "status_code": 401,
         "detail": "The provided token is malformed or invalid"
+    },
+    ErrorCode.AUTH_TOKEN_MISSING: {
+        "message": "Authentication token is missing",
+        "status_code": 401,
+        "detail": "Please provide an authentication token"
     },
     ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS: {
         "message": "Insufficient permissions to perform this action",
@@ -235,6 +245,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "status_code": 400,
         "detail": "The provided conversation ID is not valid"
     },
+    ErrorCode.CONVERSATION_ALREADY_ASSIGNED: {
+        "message": "Conversation already assigned",
+        "status_code": 400,
+        "detail": "This conversation is already assigned to another agent"
+    },
     ErrorCode.MESSAGE_TOO_LARGE: {
         "message": "Message content exceeds size limit",
         "status_code": 413,
@@ -295,6 +310,11 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "status_code": 500,
         "detail": "An unexpected error occurred. Please try again"
     },
+    ErrorCode.WRITER_AGENT_ERROR: {
+        "message": "Writer Agent error",
+        "status_code": 500,
+        "detail": "An error occurred while generating response with Writer Agent"
+    },
     ErrorCode.SERVICE_UNAVAILABLE: {
         "message": "Service temporarily unavailable",
         "status_code": 503,
@@ -304,6 +324,40 @@ ERROR_MESSAGES: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Feature not implemented",
         "status_code": 501,
         "detail": "This feature is not yet available"
+    },
+    
+    # Tag Management
+    ErrorCode.TAG_NOT_FOUND: {
+        "message": "Tag not found",
+        "status_code": 404,
+        "detail": "The requested tag does not exist"
+    },
+    ErrorCode.TAG_ALREADY_EXISTS: {
+        "message": "Tag already exists",
+        "status_code": 409,
+        "detail": "A tag with this name already exists"
+    },
+    ErrorCode.TAG_INVALID_DATA: {
+        "message": "Invalid tag data",
+        "status_code": 422,
+        "detail": "The tag data provided is invalid or incomplete"
+    },
+    ErrorCode.TAG_ASSIGNMENT_FAILED: {
+        "message": "Tag assignment failed",
+        "status_code": 422,
+        "detail": "Unable to assign tag to conversation"
+    },
+    
+    # Message Pagination
+    ErrorCode.INVALID_CURSOR: {
+        "message": "Invalid cursor provided",
+        "status_code": 400,
+        "detail": "The pagination cursor is invalid or malformed"
+    },
+    ErrorCode.INVALID_ID: {
+        "message": "Invalid ID provided",
+        "status_code": 400,
+        "detail": "The provided ID is invalid or malformed"
     },
 }
 

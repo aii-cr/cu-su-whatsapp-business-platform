@@ -24,6 +24,7 @@ class ConversationWithMessagesResponse(BaseModel):
     messages_limit: int
     messages_offset: int
     has_more_messages: bool
+    initial_unread_count: int  # WhatsApp-like unread count for banner display
 
 @router.get("/{conversation_id}/with-messages", response_model=ConversationWithMessagesResponse)
 async def get_conversation_with_messages(
@@ -128,7 +129,8 @@ async def get_conversation_with_messages(
             messages_total=result["messages_total"],
             messages_limit=messages_limit,
             messages_offset=messages_offset,
-            has_more_messages=result["messages_total"] > (messages_offset + len(result["messages"]))
+            has_more_messages=result["messages_total"] > (messages_offset + len(result["messages"])),
+            initial_unread_count=result["initial_unread_count"]
         )
         
     except HTTPException:

@@ -45,27 +45,43 @@ class ConversationClose(BaseModel):
     send_survey: bool = Field(True, description="Whether to send survey to customer")
     notes: Optional[str] = Field(None, max_length=1000, description="Closing notes")
 
+# Tag Summary for conversations
+class ConversationTagSummary(BaseModel):
+    id: str
+    name: str
+    slug: str
+    display_name: Optional[str] = None
+    category: str
+    color: str
+    usage_count: int = 0
+
 # Conversation Response
 class ConversationResponse(BaseModel):
     id: PyObjectId = Field(alias="_id")
     customer_phone: str
     customer_name: Optional[str] = None
-    customer_type: str
-    status: str
-    priority: str
-    channel: str
+    customer_type: str = "individual"
+    status: str = "pending"
+    priority: str = "normal"
+    channel: str = "whatsapp"
     department_id: Optional[PyObjectId] = None
     assigned_agent_id: Optional[PyObjectId] = None
     last_message_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    archived_at: Optional[datetime] = None
+    deleted_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
-    tags: List[str] = []
+    tags: List[ConversationTagSummary] = []
     message_count: int = 0
     unread_count: int = 0
     response_time_minutes: Optional[int] = None
     resolution_time_minutes: Optional[int] = None
     metadata: Dict[str, Any] = {}
+    # Sentiment Analysis
+    current_sentiment_emoji: Optional[str] = None
+    sentiment_confidence: Optional[float] = None
+    last_sentiment_analysis_at: Optional[datetime] = None
 
     class Config:
         populate_by_name = True
@@ -131,12 +147,12 @@ class ConversationStatsResponse(BaseModel):
     active_conversations: int
     closed_conversations: int
     unassigned_conversations: int
-    conversations_by_status: Dict[str, int]
-    conversations_by_priority: Dict[str, int]
-    conversations_by_channel: Dict[str, int]
-    average_response_time_minutes: float
-    average_resolution_time_minutes: float
-    customer_satisfaction_rate: float
+    conversations_by_status: Dict[str, int] = {}
+    conversations_by_priority: Dict[str, int] = {}
+    conversations_by_channel: Dict[str, int] = {}
+    average_response_time_minutes: float = 0.0
+    average_resolution_time_minutes: float = 0.0
+    customer_satisfaction_rate: float = 0.0
 
 # Conversation Activity
 class ConversationActivity(BaseModel):

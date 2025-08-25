@@ -5,7 +5,7 @@ Tracks all system activities, changes, and user actions for compliance and monit
 
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from enum import Enum
 from app.db.models.base import PyObjectId
@@ -137,11 +137,11 @@ class AuditLog(BaseModel):
     )
     
     # Timestamp
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the action occurred")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When the action occurred")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Indexing fields
-    date_partition: str = Field(default_factory=lambda: datetime.utcnow().strftime("%Y%m%d"))
+    date_partition: str = Field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y%m%d"))
     
     class Config:
         populate_by_name = True

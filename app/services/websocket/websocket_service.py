@@ -5,9 +5,10 @@ Handles WebSocket connections and broadcasts message updates to connected client
 
 import json
 import asyncio
-from typing import Dict, Set, Optional, Any
+from typing import Dict, Set, Optional, Any, List
 from datetime import datetime, timezone
 from fastapi import WebSocket, WebSocketDisconnect
+from bson import ObjectId
 from app.core.logger import logger
 from app.db.models.base import PyObjectId
 
@@ -101,9 +102,12 @@ class ConnectionManager:
         """Send a message to a specific user."""
         if user_id in self.active_connections:
             disconnected = set()
+            message_sent = False
             for connection in self.active_connections[user_id]:
                 try:
                     await connection.send_text(json.dumps(message))
+                    message_sent = True
+                    logger.info(f"✅ [WEBSOCKET] Message sent to user {user_id}: {message.get('type', 'unknown')}")
                 except Exception as e:
                     logger.error(f"Error sending message to user {user_id}: {str(e)}")
                     disconnected.add(connection)
@@ -111,17 +115,29 @@ class ConnectionManager:
             # Remove disconnected connections
             for connection in disconnected:
                 self.active_connections[user_id].discard(connection)
+            
+            if not message_sent:
+                logger.warning(f"⚠️ [WEBSOCKET] No active connections for user {user_id} to send message: {message.get('type', 'unknown')}")
+        else:
+            logger.warning(f"⚠️ [WEBSOCKET] User {user_id} not found in active connections. Available users: {list(self.active_connections.keys())}")
     
     async def broadcast_to_conversation(self, message: dict, conversation_id: str):
         """Broadcast a message to all users subscribed to a conversation."""
         logger.info(f"🔔 [WEBSOCKET] Broadcasting to conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Message type: {message.get('type', 'unknown')}")
         logger.info(f"🔔 [WEBSOCKET] Available conversation subscribers: {list(self.conversation_subscribers.keys())}")
         logger.info(f"🔔 [WEBSOCKET] Active connections: {list(self.active_connections.keys())}")
         
         if conversation_id in self.conversation_subscribers:
             subscribers = self.conversation_subscribers[conversation_id]
             logger.info(f"🔔 [WEBSOCKET] Found {len(subscribers)} subscribers for conversation {conversation_id}: {list(subscribers)}")
+            
+            if len(subscribers) == 0:
+                logger.warning(f"⚠️ [WEBSOCKET] No active subscribers for conversation {conversation_id}")
+                return
+                
             for user_id in subscribers:
+                logger.info(f"🔔 [WEBSOCKET] Sending message to user {user_id} for conversation {conversation_id}")
                 await self.send_personal_message(message, user_id)
         else:
             logger.warning(f"❌ [WEBSOCKET] No subscribers found for conversation {conversation_id}")
@@ -148,9 +164,28 @@ class ConnectionManager:
     async def broadcast_to_dashboard(self, message: dict):
         """Broadcast a message to all dashboard subscribers."""
         logger.info(f"🏠 [DASHBOARD] Broadcasting to {len(self.dashboard_subscribers)} dashboard subscribers")
+        logger.info(f"🏠 [DASHBOARD] Dashboard subscribers: {list(self.dashboard_subscribers)}")
+        logger.info(f"🏠 [DASHBOARD] Active connections: {list(self.active_connections.keys())}")
+        
         for user_id in list(self.dashboard_subscribers):
             if user_id in self.active_connections:
+                logger.info(f"🏠 [DASHBOARD] Sending message to user {user_id}: {message.get('type', 'unknown')}")
                 await self.send_personal_message(message, user_id)
+            else:
+                logger.warning(f"⚠️ [DASHBOARD] User {user_id} is subscribed but not connected")
+
+    async def broadcast_conversation_assignment_update(self, conversation_id: str, assigned_agent_id: str, agent_name: str):
+        """Broadcast conversation assignment update to all dashboard subscribers."""
+        message = {
+            "type": "conversation_assignment_updated",
+            "conversation_id": conversation_id,
+            "assigned_agent_id": assigned_agent_id,
+            "agent_name": agent_name,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        logger.info(f"🔔 [WEBSOCKET] Broadcasting conversation assignment update for {conversation_id} to {len(self.dashboard_subscribers)} dashboard subscribers")
+        await self.broadcast_to_dashboard(message)
     
     def increment_unread_count(self, user_id: str, conversation_id: str):
         """Increment unread message count for a user and conversation."""
@@ -200,6 +235,9 @@ class WebSocketService:
     @staticmethod
     async def notify_new_message(conversation_id: str, message_data: dict):
         """Notify all subscribers about a new message."""
+        logger.info(f"🔔 [WEBSOCKET] notify_new_message called for conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Message data: {message_data}")
+        
         # Convert ObjectId fields to strings for JSON serialization
         serialized_message = {}
         for key, value in message_data.items():
@@ -209,8 +247,14 @@ class WebSocketService:
                 serialized_message[key] = str(value)
             elif key == 'sender_id':
                 serialized_message[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_message[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'read_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_message[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_message[key] = value
+                else:
+                    serialized_message[key] = None
             elif key == 'whatsapp_data':
                 # Handle nested whatsapp_data object
                 if isinstance(value, dict):
@@ -225,6 +269,8 @@ class WebSocketService:
                     serialized_message[key] = value
             elif isinstance(value, datetime):
                 serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):  # Catch any other datetime-like objects
+                serialized_message[key] = value.isoformat()
             else:
                 serialized_message[key] = value
         
@@ -235,8 +281,10 @@ class WebSocketService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        logger.info(f"🔔 [WEBSOCKET] Sending notification: {notification}")
+        
         await manager.broadcast_to_conversation(notification, str(conversation_id))
-        logger.info(f"Broadcasted new message notification for conversation {conversation_id}")
+        logger.info(f"🔔 [WEBSOCKET] Broadcasted new message notification for conversation {conversation_id}")
     
     @staticmethod
     async def notify_message_status_update(conversation_id: str, message_id: str, status: str):
@@ -251,6 +299,77 @@ class WebSocketService:
         
         await manager.broadcast_to_conversation(notification, str(conversation_id))
         logger.info(f"Broadcasted status update for message {message_id} in conversation {conversation_id}")
+        
+        # Invalidate Redis cache for this conversation to ensure fresh data
+        try:
+            from app.services.cache.redis_service import redis_service
+            await redis_service.invalidate_conversation_cache(conversation_id)
+            logger.info(f"🔴 [CACHE] Invalidated cache for conversation {conversation_id} after status update")
+        except Exception as e:
+            logger.warning(f"🔴 [CACHE] Failed to invalidate cache for conversation {conversation_id}: {str(e)}")
+
+    @staticmethod
+    async def notify_message_status_update_optimized(conversation_id: str, message_id: str, status: str, message_data: dict = None):
+        """
+        Optimized message status update notification that includes message data
+        to avoid unnecessary cache invalidation and query refetching.
+        """
+        # Serialize message_data to handle ObjectId and datetime fields
+        serialized_message_data = None
+        if message_data:
+            serialized_message_data = {}
+            for key, value in message_data.items():
+                if key == '_id':
+                    serialized_message_data[key] = str(value)
+                elif key == 'conversation_id':
+                    serialized_message_data[key] = str(value)
+                elif key == 'sender_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif key == 'reply_to_message_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif key == 'media_id':
+                    serialized_message_data[key] = str(value) if value else None
+                elif isinstance(value, datetime):
+                    serialized_message_data[key] = value.isoformat()
+                elif hasattr(value, 'isoformat'):
+                    serialized_message_data[key] = value.isoformat()
+                else:
+                    serialized_message_data[key] = value
+        
+        notification = {
+            "type": "message_status_update",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "status": status,
+            "message_data": serialized_message_data,  # Include serialized message data
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        logger.info(f"🔔 [WEBSOCKET] Broadcasting status update notification: {notification}")
+        logger.info(f"🔔 [WEBSOCKET] Message data in notification: {serialized_message_data}")
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"Broadcasted optimized status update for message {message_id} in conversation {conversation_id}")
+    
+    @staticmethod
+    async def notify_message_read_status(
+        conversation_id: str, 
+        message_ids: List[str], 
+        read_by_user_id: str, 
+        read_by_user_name: str
+    ):
+        """Notify about message read status updates when inbound messages are marked as read."""
+        notification = {
+            "type": "messages_read",
+            "conversation_id": str(conversation_id),
+            "message_ids": message_ids,
+            "read_by_user_id": read_by_user_id,
+            "read_by_user_name": read_by_user_name,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"Broadcasted read status update for {len(message_ids)} messages in conversation {conversation_id} by {read_by_user_name}")
     
     @staticmethod
     async def notify_conversation_update(conversation_id: str, update_data: dict):
@@ -286,10 +405,22 @@ class WebSocketService:
         for key, value in conversation_data.items():
             if key == '_id':
                 serialized_conversation[key] = str(value)
-            elif key == 'assigned_to':
+            elif key == 'assigned_to' or key == 'assigned_agent_id' or key == 'department_id' or key == 'created_by':
                 serialized_conversation[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_conversation[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'last_message_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_conversation[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_conversation[key] = value
+                else:
+                    serialized_conversation[key] = None
+            elif isinstance(value, datetime):
+                # Catch any other datetime objects
+                serialized_conversation[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                # Catch any other datetime-like objects
+                serialized_conversation[key] = value.isoformat()
             else:
                 serialized_conversation[key] = value
         
@@ -322,10 +453,22 @@ class WebSocketService:
         for key, value in conversation_data.items():
             if key == '_id':
                 serialized_conversation[key] = str(value)
-            elif key == 'assigned_agent_id':
+            elif key == 'assigned_agent_id' or key == 'department_id' or key == 'created_by':
                 serialized_conversation[key] = str(value) if value else None
-            elif key == 'created_at' or key == 'updated_at':
-                serialized_conversation[key] = value.isoformat() if value else None
+            elif key == 'created_at' or key == 'updated_at' or key == 'last_message_at':
+                # Handle both datetime objects and string timestamps
+                if hasattr(value, 'isoformat'):
+                    serialized_conversation[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_conversation[key] = value
+                else:
+                    serialized_conversation[key] = None
+            elif isinstance(value, datetime):
+                # Catch any other datetime objects
+                serialized_conversation[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                # Catch any other datetime-like objects
+                serialized_conversation[key] = value.isoformat()
             else:
                 serialized_conversation[key] = value
         
@@ -353,10 +496,164 @@ class WebSocketService:
         logger.info(f"Sent unread count update to user {user_id} for conversation {conversation_id}: {count}")
     
     @staticmethod
+    async def notify_ai_response(conversation_id: str, message_data: dict):
+        """Notify about AI-generated response."""
+        # Serialize message data for JSON compatibility
+        serialized_message = {}
+        for key, value in message_data.items():
+            if key == '_id' or key == 'conversation_id':
+                serialized_message[key] = str(value)
+            elif key == 'timestamp' or key == 'created_at':
+                # Handle datetime serialization
+                if hasattr(value, 'isoformat'):
+                    serialized_message[key] = value.isoformat()
+                elif isinstance(value, str):
+                    serialized_message[key] = value
+                else:
+                    serialized_message[key] = datetime.now(timezone.utc).isoformat()
+            elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                serialized_message[key] = value.isoformat()
+            else:
+                serialized_message[key] = value
+        
+        notification = {
+            "type": "ai_response",
+            "conversation_id": str(conversation_id),
+            "message": serialized_message,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Broadcasted AI response notification for conversation {conversation_id}")
+    
+    @staticmethod
+    async def notify_autoreply_toggled(conversation_id: str, enabled: bool, changed_by: str = None):
+        """Notify about auto-reply toggle changes."""
+        notification = {
+            "type": "autoreply_toggled",
+            "conversation_id": str(conversation_id),
+            "ai_autoreply_enabled": enabled,
+            "changed_by": changed_by,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Broadcast to conversation subscribers
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        
+        # Also broadcast to dashboard subscribers
+        await manager.broadcast_to_dashboard(notification)
+        
+        logger.info(f"🔔 [WS] Broadcasted auto-reply toggle notification for conversation {conversation_id}: {enabled}")
+
+    @staticmethod
+    async def notify_ai_processing_started(conversation_id: str, message_id: str):
+        """Notify that AI agent has started processing a message."""
+        notification = {
+            "type": "ai_processing_started",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI processing started for conversation {conversation_id}")
+
+    @staticmethod
+    async def notify_ai_agent_activity(conversation_id: str, activity_type: str, activity_description: str, metadata: dict = None):
+        """Notify about AI agent activity during processing (e.g., using RAG, tools, etc.)."""
+        notification = {
+            "type": "ai_agent_activity",
+            "conversation_id": str(conversation_id),
+            "activity_type": activity_type,  # e.g., "rag_search", "tool_execution", "intent_detection"
+            "activity_description": activity_description,  # e.g., "Using internal knowledge", "Detecting intent"
+            "metadata": metadata or {},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI agent activity for conversation {conversation_id}: {activity_type} - {activity_description}")
+
+    @staticmethod
+    async def notify_ai_processing_completed(conversation_id: str, message_id: str, success: bool, response_sent: bool):
+        """Notify that AI agent has completed processing a message."""
+        notification = {
+            "type": "ai_processing_completed",
+            "conversation_id": str(conversation_id),
+            "message_id": str(message_id),
+            "success": success,
+            "response_sent": response_sent,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        logger.info(f"🤖 [WS] Notified AI processing completed for conversation {conversation_id}: success={success}, response_sent={response_sent}")
+    
+    @staticmethod
+    async def notify_sentiment_update(conversation_id: str, sentiment_emoji: str, confidence: float, message_id: str):
+        """Notify about sentiment analysis updates."""
+        notification = {
+            "type": "sentiment_update",
+            "conversation_id": str(conversation_id),
+            "sentiment_emoji": sentiment_emoji,
+            "confidence": confidence,
+            "message_id": str(message_id),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Broadcast to conversation subscribers
+        await manager.broadcast_to_conversation(notification, str(conversation_id))
+        
+        # Also broadcast to dashboard subscribers
+        await manager.broadcast_to_dashboard(notification)
+        
+        logger.info(f"😊 [WS] Broadcasted sentiment update for conversation {conversation_id}: {sentiment_emoji} (confidence: {confidence:.2f})")
+    
+    @staticmethod
     async def reset_unread_count_for_user(user_id: str, conversation_id: str):
         """Reset unread count when user reads messages."""
         manager.reset_unread_count(user_id, conversation_id)
         await WebSocketService.notify_unread_count_update(user_id, conversation_id, 0)
+
+    @staticmethod
+    async def handle_conversation_assignment_change(conversation_id: str, new_assigned_agent_id: str = None):
+        """
+        Handle unread count updates when conversation assignment changes.
+        This ensures unread counts are properly recalculated when conversations are claimed or reassigned.
+        """
+        try:
+            from app.db.client import database
+            db = await database.get_database()
+            
+            # Calculate the correct unread count from database
+            unread_count = await db.messages.count_documents({
+                "conversation_id": ObjectId(conversation_id),
+                "direction": "inbound",
+                "status": "received"
+            })
+            
+            # Clear unread counts for all dashboard subscribers for this conversation
+            for user_id in list(manager.dashboard_subscribers):
+                if user_id in manager.unread_counts and conversation_id in manager.unread_counts[user_id]:
+                    # Only clear if this user is not the new assigned agent
+                    if new_assigned_agent_id is None or user_id != new_assigned_agent_id:
+                        manager.unread_counts[user_id][conversation_id] = 0
+                        await WebSocketService.notify_unread_count_update(user_id, conversation_id, 0)
+                        logger.info(f"📊 [UNREAD] Cleared unread count for user {user_id} after assignment change")
+            
+            # Set unread count for the new assigned agent if there are unread messages
+            if new_assigned_agent_id and unread_count > 0:
+                if new_assigned_agent_id not in manager.unread_counts:
+                    manager.unread_counts[new_assigned_agent_id] = {}
+                manager.unread_counts[new_assigned_agent_id][conversation_id] = unread_count
+                await WebSocketService.notify_unread_count_update(new_assigned_agent_id, conversation_id, unread_count)
+                logger.info(f"📊 [UNREAD] Set unread count for newly assigned agent {new_assigned_agent_id}: {unread_count}")
+            
+            logger.info(f"📊 [UNREAD] Handled assignment change for conversation {conversation_id}, unread count: {unread_count}")
+            
+        except Exception as e:
+            logger.error(f"❌ [UNREAD] Error handling conversation assignment change: {str(e)}")
 
     @staticmethod
     async def notify_incoming_message_processed(
@@ -373,28 +670,104 @@ class WebSocketService:
             # 1. Always notify about the new message to conversation subscribers
             await WebSocketService.notify_new_message(conversation_id, message)
             
-            # 2. Update unread counts for dashboard subscribers
-            active_viewers = manager.conversation_subscribers.get(conversation_id, set())
+            # 2. Invalidate Redis cache for this conversation
+            try:
+                from app.services.whatsapp.message.cursor_message_service import cursor_message_service
+                await cursor_message_service.invalidate_conversation_cache(conversation_id)
+                logger.info(f"🔴 [CACHE] Invalidated cache for conversation {conversation_id} after new message")
+            except Exception as cache_error:
+                logger.warning(f"🔴 [CACHE] Failed to invalidate cache for conversation {conversation_id}: {str(cache_error)}")
             
-            for subscriber_id in manager.dashboard_subscribers:
-                # Only increment if they're not currently viewing this conversation
-                if subscriber_id not in active_viewers:
-                    manager.increment_unread_count(subscriber_id, conversation_id)
-                    # Notify about unread count update
-                    unread_count = manager.unread_counts.get(subscriber_id, {}).get(conversation_id, 0)
-                    await WebSocketService.notify_unread_count_update(subscriber_id, conversation_id, unread_count)
+            # 3. Update unread counts - always calculate from database for accuracy
+            try:
+                from app.db.client import database
+                db = await database.get_database()
+                
+                # Get conversation to find assigned agent
+                conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+                
+                # Calculate the correct unread count from database
+                unread_count = await db.messages.count_documents({
+                    "conversation_id": ObjectId(conversation_id),
+                    "direction": "inbound",
+                    "status": "received"
+                })
+                
+                if conversation and conversation.get("assigned_agent_id"):
+                    assigned_agent_id = str(conversation["assigned_agent_id"])
+                    active_viewers = manager.conversation_subscribers.get(conversation_id, set())
+                    
+                    # Only update unread count for assigned agent if they're not currently viewing
+                    if assigned_agent_id not in active_viewers:
+                        # Set the unread count directly from database calculation
+                        if assigned_agent_id not in manager.unread_counts:
+                            manager.unread_counts[assigned_agent_id] = {}
+                        manager.unread_counts[assigned_agent_id][conversation_id] = unread_count
+                        
+                        await WebSocketService.notify_unread_count_update(assigned_agent_id, conversation_id, unread_count)
+                        logger.info(f"📊 [UNREAD] Set unread count for assigned agent {assigned_agent_id}: {unread_count}")
+                    else:
+                        logger.info(f"📊 [UNREAD] Assigned agent {assigned_agent_id} is currently viewing conversation, not updating unread count")
+                        
+                        # If agent is viewing, auto-mark the message as read
+                        try:
+                            from app.db.models.whatsapp.chat.message import MessageStatus
+                            from datetime import datetime, timezone
+                            
+                            # Update the message status to read
+                            result = await db.messages.update_one(
+                                {"_id": ObjectId(message["_id"])},
+                                {
+                                    "$set": {
+                                        "status": MessageStatus.READ,
+                                        "read_at": datetime.now(timezone.utc),
+                                        "updated_at": datetime.now(timezone.utc)
+                                    }
+                                }
+                            )
+                            
+                            if result.modified_count > 0:
+                                logger.info(f"📖 [AUTO_READ] Auto-marked message {message['_id']} as read for viewing agent {assigned_agent_id}")
+                                
+                                # Notify about the read status update
+                                await WebSocketService.notify_message_read_status(
+                                    conversation_id,
+                                    message_ids=[str(message["_id"])],
+                                    read_by_user_id=assigned_agent_id,
+                                    read_by_user_name="Agent"
+                                )
+                                
+                                # Reset unread count since message was auto-read
+                                manager.unread_counts[assigned_agent_id][conversation_id] = 0
+                                await WebSocketService.notify_unread_count_update(assigned_agent_id, conversation_id, 0)
+                        except Exception as auto_read_error:
+                            logger.error(f"❌ [AUTO_READ] Error auto-marking message as read: {str(auto_read_error)}")
+                else:
+                    logger.info(f"📊 [UNREAD] No assigned agent found for conversation {conversation_id}")
+                    # For unassigned conversations, update unread count for all dashboard subscribers
+                    for user_id in list(manager.dashboard_subscribers):
+                        if user_id in manager.active_connections:
+                            # Set the unread count directly from database calculation
+                            if user_id not in manager.unread_counts:
+                                manager.unread_counts[user_id] = {}
+                            manager.unread_counts[user_id][conversation_id] = unread_count
+                            
+                            await WebSocketService.notify_unread_count_update(user_id, conversation_id, unread_count)
+                            logger.info(f"📊 [UNREAD] Set unread count for dashboard subscriber {user_id}: {unread_count}")
+            except Exception as e:
+                logger.error(f"❌ [UNREAD] Error updating unread count: {str(e)}")
             
-            # 3. If this is a new conversation, notify dashboard subscribers
+            # 4. If this is a new conversation, notify dashboard subscribers
             if is_new_conversation and conversation:
                 logger.info(f"🆕 [CONVERSATION] Broadcasting new conversation creation for {conversation_id}")
                 await WebSocketService.notify_new_conversation(conversation)
                 await WebSocketService.notify_conversation_list_update(conversation, "created")
             
-            # 4. If conversation status was updated, notify dashboard
+            # 5. If conversation status was updated, notify dashboard
             if conversation and conversation.get("status") == "waiting":
                 await WebSocketService.notify_conversation_list_update(conversation, "status_changed")
             
-            # 5. Update dashboard stats
+            # 6. Update dashboard stats
             try:
                 from app.services import conversation_service
                 stats = await conversation_service.get_conversation_stats()

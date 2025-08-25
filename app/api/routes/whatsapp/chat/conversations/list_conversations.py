@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import Optional
+from bson import ObjectId
 
 from app.config.error_codes import ErrorCode
 from app.core.logger import logger
@@ -51,14 +52,36 @@ async def list_conversations(
         List of conversations with pagination info
     """
     try:
+        # Convert string IDs to ObjectId if provided
+        department_obj_id = None
+        assigned_agent_obj_id = None
+        
+        if department_id:
+            try:
+                department_obj_id = ObjectId(department_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid department ID format"
+                )
+        
+        if assigned_agent_id:
+            try:
+                assigned_agent_obj_id = ObjectId(assigned_agent_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid assigned agent ID format"
+                )
+        
         # Get conversations using service
         result = await conversation_service.list_conversations(
             search=search,
             status=status,
             priority=priority,
             channel=channel,
-            department_id=department_id,
-            assigned_agent_id=assigned_agent_id,
+            department_id=department_obj_id,
+            assigned_agent_id=assigned_agent_obj_id,
             customer_type=customer_type,
             has_unread=has_unread,
             sort_by=sort_by,
@@ -77,6 +100,8 @@ async def list_conversations(
             pages=result["pages"]
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving conversations: {str(e)}")
         raise handle_database_error(e, "list_conversations", "conversations") 

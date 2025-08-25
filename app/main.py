@@ -7,14 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
+from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-import time
-import uuid
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.core.logger import logger, log_api_request, log_api_response, setup_logging
-from app.core.middleware import setup_middleware
+from app.core.logger import logger, setup_logging
+from app.core.middleware import CorrelationMiddleware, SessionActivityMiddleware, RequestLoggingMiddleware
 from app.api.routes import api_router
 from app.db.client import database
 from app.config.error_codes import ErrorCode
@@ -64,7 +63,7 @@ app = FastAPI(
     
     A comprehensive backend for WhatsApp Business messaging platform with:
     
-    * **Authentication & Authorization**: JWT-based auth with RBAC
+    * **Authentication & Authorization**: Cookie-based session auth with RBAC
     * **Conversation Management**: Full conversation lifecycle with agent assignment
     * **Message Handling**: Support for all WhatsApp message types (text, media, interactive)
     * **WhatsApp Integration**: Webhook processing and Cloud API integration
@@ -75,14 +74,15 @@ app = FastAPI(
     
     ### Getting Started
     
-    1. Obtain access token via `/auth/users/login`
-    2. Include `Authorization: Bearer <token>` header in requests
+    1. Login via `/auth/users/login` to get session cookie
+    2. Session cookie is automatically included in subsequent requests
     3. Use `/whatsapp/webhook` for WhatsApp webhook integration
     4. Monitor system health via `/health` endpoint
     
     ### Authentication
     
-    Most endpoints require authentication. Use the login endpoint to obtain JWT tokens.
+    Most endpoints require authentication. Use the login endpoint to obtain session cookies.
+    Sessions expire after 160 minutes or 15 minutes of inactivity.
     """,
     docs_url=settings.DOCS_URL if settings.ENVIRONMENT != "production" else None,
     redoc_url=settings.REDOC_URL if settings.ENVIRONMENT != "production" else None,
@@ -103,51 +103,98 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.CORS_ALLOW_METHODS,
-    allow_headers=settings.CORS_ALLOW_HEADERS,
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-Correlation-ID",
+        "X-Response-Time",
+        "Cache-Control",
+        "Pragma",
+        "Expires",
+        "Last-Modified",
+        "If-Modified-Since",
+        "If-None-Match",
+        "ETag",
+        "Range",
+        "If-Range",
+        "Accept-Ranges",
+        "Content-Range",
+        "Content-Disposition",
+        "Content-Encoding",
+        "Content-Length",
+        "Transfer-Encoding",
+        "Connection",
+        "Upgrade",
+        "Sec-WebSocket-Key",
+        "Sec-WebSocket-Version",
+        "Sec-WebSocket-Protocol",
+        "Sec-WebSocket-Extensions",
+        "Sec-WebSocket-Accept",
+        "Cookie",
+        "Set-Cookie",
+        "X-Forwarded-For",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Host",
+        "X-Real-IP",
+        "X-Forwarded-Port",
+        "X-Forwarded-Server",
+        "X-Forwarded-Ssl",
+        "X-Forwarded-Prefix",
+        "X-Original-URI",
+        "X-Original-Method",
+        "X-Original-Host",
+        "X-Original-Port",
+        "X-Original-Proto",
+        "X-Original-Server",
+        "X-Original-Ssl",
+        "X-Original-Prefix",
+        "X-Original-URI",
+        "X-Original-Method",
+        "X-Original-Host",
+        "X-Original-Port",
+        "X-Original-Proto",
+        "X-Original-Server",
+        "X-Original-Ssl",
+        "X-Original-Prefix",
+        "*"
+    ],
+    expose_headers=[
+        "X-Correlation-ID",
+        "X-Response-Time",
+        "X-Request-ID",
+        "Content-Length",
+        "Content-Range",
+        "Content-Disposition",
+        "Content-Encoding",
+        "Content-Type",
+        "Cache-Control",
+        "ETag",
+        "Last-Modified",
+        "Expires",
+        "Pragma",
+        "Set-Cookie",
+        "X-Powered-By",
+        "Server",
+        "Date",
+        "Connection",
+        "Keep-Alive",
+        "Transfer-Encoding",
+        "Upgrade",
+        "Sec-WebSocket-Accept",
+        "Sec-WebSocket-Protocol",
+        "Sec-WebSocket-Extensions"
+    ],
+    max_age=86400,  # 24 hours
 )
 
-# Setup custom middleware (correlation ID, user context)
-setup_middleware(app)
-
-# Request tracking middleware
-@app.middleware("http")
-async def add_request_tracking(request: Request, call_next):
-    """Add request tracking and logging."""
-    start_time = time.time()
-    request_id = str(uuid.uuid4())
-    
-    # Add request ID to headers
-    request.state.request_id = request_id
-    
-    # Log request
-    log_api_request(
-        method=request.method,
-        path=request.url.path,
-        request_id=request_id,
-        user_agent=request.headers.get("user-agent"),
-        ip_address=request.client.host if request.client else None
-    )
-    
-    # Process request
-    response = await call_next(request)
-    
-    # Calculate response time
-    response_time = time.time() - start_time
-    
-    # Add headers
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-Response-Time"] = f"{response_time:.3f}"
-    
-    # Log response
-    log_api_response(
-        method=request.method,
-        path=request.url.path,
-        status_code=response.status_code,
-        response_time=response_time,
-        request_id=request_id
-    )
-    
-    return response
+# Setup custom middleware (correlation ID, session activity, request logging)
+app.add_middleware(CorrelationMiddleware)
+app.add_middleware(SessionActivityMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Global exception handlers
 @app.exception_handler(HTTPException)
@@ -159,7 +206,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "success": False,
             "error_code": getattr(exc, "detail", "HTTP_ERROR"),
             "error_message": exc.detail,
-            "request_id": getattr(request.state, "request_id", None)
+            "request_id": getattr(request.state, "correlation_id", None)
         }
     )
 
@@ -172,7 +219,7 @@ async def starlette_exception_handler(request: Request, exc: StarletteHTTPExcept
             "success": False,
             "error_code": f"HTTP_{exc.status_code}",
             "error_message": exc.detail,
-            "request_id": getattr(request.state, "request_id", None)
+            "request_id": getattr(request.state, "correlation_id", None)
         }
     )
 
@@ -181,14 +228,50 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Handle request validation errors."""
     logger.warning(f"Validation error on {request.method} {request.url.path}: {exc.errors()}")
     
+    # Convert validation errors to serializable format
+    serializable_errors = []
+    for error in exc.errors():
+        serializable_error = {
+            "loc": error["loc"],
+            "msg": str(error["msg"]),
+            "type": error["type"]
+        }
+        serializable_errors.append(serializable_error)
+    
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
             "error_code": ErrorCode.VALIDATION_ERROR,
             "error_message": "Request validation failed",
-            "details": exc.errors(),
-            "request_id": getattr(request.state, "request_id", None)
+            "details": serializable_errors,
+            "request_id": getattr(request.state, "correlation_id", None)
+        }
+    )
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle Pydantic validation errors."""
+    logger.warning(f"Pydantic validation error on {request.method} {request.url.path}: {exc.errors()}")
+    
+    # Convert validation errors to serializable format
+    serializable_errors = []
+    for error in exc.errors():
+        serializable_error = {
+            "loc": error["loc"],
+            "msg": str(error["msg"]),
+            "type": error["type"]
+        }
+        serializable_errors.append(serializable_error)
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error_code": ErrorCode.VALIDATION_ERROR,
+            "error_message": "Request validation failed",
+            "details": serializable_errors,
+            "request_id": getattr(request.state, "correlation_id", None)
         }
     )
 
@@ -200,13 +283,25 @@ async def general_exception_handler(request: Request, exc: Exception):
         exc_info=True
     )
     
+    # Handle ValueError specifically to avoid JSON serialization issues
+    if isinstance(exc, ValueError):
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "success": False,
+                "error_code": ErrorCode.VALIDATION_ERROR,
+                "error_message": str(exc),
+                "request_id": getattr(request.state, "correlation_id", None)
+            }
+        )
+    
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
             "error_code": ErrorCode.INTERNAL_SERVER_ERROR,
             "error_message": "Internal server error" if settings.ENVIRONMENT == "production" else str(exc),
-            "request_id": getattr(request.state, "request_id", None)
+            "request_id": getattr(request.state, "correlation_id", None)
         }
     )
 

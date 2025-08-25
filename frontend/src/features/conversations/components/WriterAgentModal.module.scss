@@ -1,0 +1,440 @@
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  @include glass-effect;
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid rgb(var(--border));
+  overflow: hidden;
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  
+  @media (max-width: 768px) {
+    max-width: 95vw;
+    max-height: 95vh;
+    margin: 0.5rem;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: rgb(var(--surface) / 0.8);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgb(var(--border) / 0.5);
+}
+
+.titleSection {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.titleIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #fbbf24; // Yellow color for sparkle
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1) rotate(180deg);
+    opacity: 0.8;
+  }
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  margin: 0;
+}
+
+.closeButton {
+  @include focus-ring;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgb(var(--muted) / 0.5);
+    transform: scale(1.05);
+  }
+}
+
+.content {
+  padding: 1.5rem;
+  max-height: calc(90vh - 100px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--border)) transparent;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgb(var(--border));
+    border-radius: 3px;
+  }
+}
+
+.section {
+  margin-bottom: 1.5rem;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.sectionTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+  margin: 0 0 0.75rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.contextualButton {
+  @include button-base;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: rgb(var(--primary-foreground));
+  border: none;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.querySection {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.queryInput {
+  flex: 1;
+  background: rgb(var(--surface) / 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgb(var(--border) / 0.7);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  
+  &:focus {
+    @include focus-ring;
+    background: rgb(var(--surface) / 0.8);
+    border-color: rgb(var(--primary));
+  }
+  
+  &::placeholder {
+    color: rgb(var(--muted-foreground) / 0.7);
+  }
+}
+
+.queryButton {
+  @include button-base;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+  border: none;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: rgb(var(--primary) / 0.9);
+    transform: scale(1.05);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.errorSection {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgb(220, 38, 38, 0.1);
+  border: 1px solid rgb(220, 38, 38, 0.3);
+  border-radius: 12px;
+  color: rgb(220, 38, 38);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.errorDismiss {
+  margin-left: auto;
+  padding: 0.25rem;
+  width: auto;
+  height: auto;
+  min-height: auto;
+}
+
+.loadingSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: rgb(var(--muted-foreground));
+  font-size: 0.875rem;
+}
+
+.loadingMeta {
+  font-size: 0.75rem;
+  color: rgb(var(--muted-foreground) / 0.7);
+  font-style: italic;
+}
+
+.responseSection {
+  background: rgb(var(--surface) / 0.3);
+  border: 1px solid rgb(var(--border) / 0.5);
+  border-radius: 12px;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+
+.reasoningSection {
+  margin-bottom: 1rem;
+}
+
+.reasoningToggle {
+  @include button-base;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  
+  &:hover {
+    .sectionTitle {
+      color: rgb(var(--primary));
+    }
+    
+    .reasoningToggleIcon {
+      color: rgb(var(--primary));
+    }
+  }
+}
+
+.reasoningToggleContent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.reasoningToggleIcon {
+  width: 1rem;
+  height: 1rem;
+  color: rgb(var(--muted-foreground));
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-top: 0.125rem; // Fix vertical alignment
+}
+
+.reasoningContent {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.3s ease;
+  background: rgb(var(--surface) / 0.3);
+  border: 1px solid rgb(var(--border) / 0.5);
+  border-radius: 8px;
+  
+  &.reasoningContentExpanded {
+    max-height: 300px;
+    opacity: 1;
+    padding: 0.875rem;
+    margin-bottom: 1rem;
+  }
+}
+
+.responseHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.responseMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.responseMetaItem {
+  padding: 0.25rem 0.5rem;
+  background: rgb(var(--muted) / 0.5);
+  border-radius: 6px;
+  color: rgb(var(--muted-foreground));
+  font-weight: 500;
+}
+
+.responseTextarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 0.75rem;
+  background: rgb(var(--background) / 0.8);
+  border: 1px solid rgb(var(--border) / 0.7);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  
+  &:focus {
+    @include focus-ring;
+    background: rgb(var(--background));
+    border-color: rgb(var(--primary));
+  }
+}
+
+.responseTextareaReadOnly {
+  background: rgb(var(--muted) / 0.2);
+  color: rgb(var(--foreground) / 0.8);
+}
+
+.responseActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  
+  @media (max-width: 480px) {
+    flex-direction: column;
+  }
+}
+
+.sendButton {
+  @include button-base;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1rem;
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: rgb(var(--primary) / 0.9);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(var(--primary) / 0.3);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.helpSection {
+  padding: 1rem;
+  background: rgb(var(--muted) / 0.3);
+  border-radius: 12px;
+  border: 1px solid rgb(var(--border) / 0.5);
+}
+
+.helpText {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: rgb(var(--muted-foreground));
+  text-align: center;
+}
+
+// Glass effect mixin (if not already defined in mixins)
+@mixin glass-effect {
+  background: rgb(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+// Focus ring mixin (if not already defined in mixins)  
+@mixin focus-ring {
+  &:focus {
+    outline: 2px solid rgb(var(--primary));
+    outline-offset: 2px;
+  }
+}
+
+// Button base mixin (if not already defined in mixins)
+@mixin button-base {
+  cursor: pointer;
+  outline: none;
+  border: none;
+  font-family: inherit;
+  
+  &:focus {
+    @include focus-ring;
+  }
+}

@@ -1,0 +1,363 @@
+// Button.module.scss - SCSS Module for enhanced button styling
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.button {
+  @include button-base;
+  position: relative;
+  overflow: hidden;
+  
+  // Base gradient effect (reusable class)
+  &.gradient {
+    background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary) / 0.8)) !important;
+    border: none !important;
+    color: white !important;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    &:hover::before {
+      left: 100%;
+    }
+    
+    &:hover {
+      background: linear-gradient(135deg, rgb(var(--primary) / 0.9), rgb(var(--primary) / 0.7)) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(var(--primary), 0.3);
+      color: white !important;
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(var(--primary), 0.2);
+      color: white !important;
+    }
+  }
+  
+  // Neon glow effect
+  &.neon {
+    box-shadow: 0 0 5px rgb(var(--primary)), 0 0 10px rgb(var(--primary)), 0 0 15px rgb(var(--primary));
+    animation: neon-pulse 2s infinite;
+    color: white !important;
+    
+    &:hover {
+      box-shadow: 0 0 10px rgb(var(--primary)), 0 0 20px rgb(var(--primary)), 0 0 30px rgb(var(--primary));
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+  }
+  
+  // 3D button effect
+  &.threeD {
+    transform: translateY(0);
+    box-shadow: 0 4px 0 rgb(var(--primary) / 0.3);
+    color: white !important;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 rgb(var(--primary) / 0.3);
+    }
+    
+    &:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgb(var(--primary) / 0.3);
+    }
+  }
+  
+  // Ripple effect
+  &.ripple {
+    position: relative;
+    overflow: hidden;
+    color: white !important;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.3s, height 0.3s;
+    }
+    
+    &:active::after {
+      width: 300px;
+      height: 300px;
+    }
+  }
+  
+  // WhatsApp-style button
+  &.whatsapp {
+    background: #25D366;
+    color: white !important;
+    border-radius: $chat-bubble-radius;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    
+    &:hover {
+      background: #128C7E;
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+      transform: translateY(-1px);
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  // Loading state with custom spinner
+  &.loading {
+    position: relative;
+    color: transparent;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border: 2px solid transparent;
+      border-top: 2px solid currentColor;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
+  
+  // Disabled state
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  // Icon-only button
+  &.iconOnly {
+    padding: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    
+    .icon {
+      margin: 0;
+    }
+  }
+  
+  // Ghost variant with gradient effect (for three dots menu, etc.)
+  &.ghostGradient {
+    color: white !important;
+    background: rgba(255, 255, 255, 0.1);
+    
+    .icon {
+      color: white !important;
+    }
+    
+    &:hover {
+      color: white !important;
+      background: rgba(255, 255, 255, 0.2);
+      
+      .icon {
+        color: white !important;
+      }
+    }
+    
+    &:active {
+      color: white !important;
+      background: rgba(255, 255, 255, 0.3);
+      
+      .icon {
+        color: white !important;
+      }
+    }
+  }
+  
+  // Reusable classes for different button styles
+  
+  // Primary button with gradient (for main actions like "New Conversation")
+  &.btnPrimaryGradient {
+    @extend .gradient;
+  }
+  
+  // Secondary button without gradient (for sidebar navigation, etc.)
+  &.btnSecondary {
+    background: rgb(var(--secondary));
+    color: rgb(var(--secondary-foreground));
+    border: 1px solid rgb(var(--border));
+    
+    &:hover {
+      background: rgb(var(--secondary) / 0.8);
+      color: rgb(var(--secondary-foreground));
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  // Ghost button without gradient (for subtle actions)
+  &.btnGhost {
+    background: transparent;
+    color: rgb(var(--foreground));
+    border: none;
+    
+    &:hover {
+      background: rgb(var(--accent));
+      color: rgb(var(--accent-foreground));
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  // Ensure ghost buttons maintain text visibility
+  &.ghost {
+    color: rgb(var(--foreground)) !important;
+    
+    &:hover {
+      background: rgb(var(--accent));
+      color: rgb(var(--accent-foreground)) !important;
+    }
+    
+    &:active {
+      color: rgb(var(--accent-foreground)) !important;
+    }
+  }
+  
+  // Outline button without gradient
+  &.btnOutline {
+    background: transparent;
+    color: rgb(var(--foreground));
+    border: 1px solid rgb(var(--border));
+    
+    &:hover {
+      background: rgb(var(--accent));
+      color: rgb(var(--accent-foreground));
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  // Ensure outline buttons maintain proper styling
+  &.outline {
+    background: rgb(var(--background));
+    color: rgb(var(--foreground));
+    border: 1px solid rgb(var(--border));
+    
+    &:hover {
+      background: rgb(var(--accent));
+      color: rgb(var(--accent-foreground));
+      border-color: rgb(var(--border));
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+}
+
+// Neon pulse animation
+@keyframes neon-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgb(var(--primary)), 0 0 10px rgb(var(--primary)), 0 0 15px rgb(var(--primary));
+  }
+  50% {
+    box-shadow: 0 0 10px rgb(var(--primary)), 0 0 20px rgb(var(--primary)), 0 0 30px rgb(var(--primary));
+  }
+}
+
+// Spin animation for loading state
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Icon styles
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: $spacing-xs;
+  color: inherit;
+  
+  &.iconOnly {
+    margin-right: 0;
+  }
+}
+
+// Ensure icons are visible in gradient buttons
+.gradient .icon {
+  color: white !important;
+}
+
+// Ensure icons are visible in ghost buttons
+.ghost .icon {
+  color: inherit !important;
+}
+
+// Ensure icons are visible in outline buttons
+.outline .icon {
+  color: inherit !important;
+}
+
+// Button group styles
+.buttonGroup {
+  display: inline-flex;
+  
+  .button {
+    border-radius: 0;
+    
+    &:first-child {
+      border-top-left-radius: $border-radius-md;
+      border-bottom-left-radius: $border-radius-md;
+    }
+    
+    &:last-child {
+      border-top-right-radius: $border-radius-md;
+      border-bottom-right-radius: $border-radius-md;
+    }
+    
+    &:not(:last-child) {
+      border-right: 1px solid rgb(var(--border));
+    }
+  }
+}
+
+// Responsive adjustments
+@include mobile {
+  .button {
+    &.gradient,
+    &.neon,
+    &.threeD,
+    &.ripple,
+    &.whatsapp {
+      &:hover {
+        transform: none;
+      }
+      
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+  }
+}

@@ -13,7 +13,7 @@ def handle_database_error(error: Exception, operation: str, resource: str) -> HT
     if "duplicate key" in str(error).lower():
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=get_error_response(ErrorCode.RESOURCE_ALREADY_EXISTS)["message"]
+            detail=get_error_response(ErrorCode.TAG_ALREADY_EXISTS)["message"]
         )
     elif "not found" in str(error).lower():
         return HTTPException(

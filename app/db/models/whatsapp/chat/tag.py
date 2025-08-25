@@ -1,182 +1,72 @@
-"""
-Tag model for the WhatsApp Business Platform.
-Provides flexible labeling system for conversations, messages, and other entities.
-"""
+"""Enhanced tag model for conversation categorization."""
 
+from datetime import datetime, timezone
+from typing import Optional, List
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-from datetime import datetime
-from enum import Enum
+from bson import ObjectId
 from app.db.models.base import PyObjectId
 
-class TagType(str, Enum):
-    """Types of tags for different use cases."""
-    GENERAL = "general"
-    PRIORITY = "priority"
-    CATEGORY = "category"
-    STATUS = "status"
-    DEPARTMENT = "department"
-    PRODUCT = "product"
-    ISSUE = "issue"
-    SENTIMENT = "sentiment"
-    CUSTOM = "custom"
 
-class TagScope(str, Enum):
-    """Scope of tag application."""
-    CONVERSATION = "conversation"
-    MESSAGE = "message"
-    USER = "user"
-    DEPARTMENT = "department"
-    GLOBAL = "global"
+def generate_slug(name: str) -> str:
+    """Generate slug from tag name."""
+    import re
+    # Convert to lowercase, replace spaces and special chars with hyphens
+    slug = re.sub(r'[^\w\s-]', '', name.lower())
+    slug = re.sub(r'[-\s]+', '-', slug)
+    return slug.strip('-')
+
 
 class Tag(BaseModel):
-    """
-    Tag model for flexible labeling and categorization.
-    """
+    """Enhanced tag model to match frontend expectations."""
     id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
-    
-    # Core tag information
-    name: str = Field(..., min_length=1, max_length=50, description="Tag name (unique within scope)")
-    display_name: str = Field(..., min_length=1, max_length=100, description="Human-readable tag name")
-    description: Optional[str] = Field(None, max_length=500, description="Tag description")
-    
-    # Tag categorization
-    tag_type: TagType = Field(default=TagType.GENERAL, description="Type of tag")
-    scope: TagScope = Field(default=TagScope.CONVERSATION, description="Scope where tag can be applied")
-    
-    # Visual properties
-    color: str = Field(default="#6B7280", description="Tag display color (hex code)")
-    icon: Optional[str] = Field(None, description="Icon identifier for the tag")
-    
-    # Hierarchy and relationships
-    parent_tag_id: Optional[PyObjectId] = Field(None, description="Parent tag for hierarchical structure")
-    child_tags: List[PyObjectId] = Field(default_factory=list, description="Child tag IDs")
-    
-    # Configuration
-    is_system_tag: bool = Field(default=False, description="Whether this is a system-defined tag")
-    is_active: bool = Field(default=True, description="Whether tag is active and can be used")
-    is_required: bool = Field(default=False, description="Whether tag assignment is required in scope")
-    
-    # Access control
-    department_ids: List[PyObjectId] = Field(
-        default_factory=list, 
-        description="Departments that can use this tag (empty = all)"
-    )
-    role_ids: List[PyObjectId] = Field(
-        default_factory=list, 
-        description="Roles that can use this tag (empty = all)"
-    )
-    
-    # Automation and rules
-    auto_assignment_rules: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "keywords": [],
-            "conditions": [],
-            "enabled": False
-        },
-        description="Rules for automatic tag assignment"
-    )
-    
-    # Analytics and insights
-    analytics: Dict[str, Any] = Field(
-        default_factory=lambda: {
-            "usage_count": 0,
-            "last_used": None,
-            "trending_score": 0,
-            "sentiment_impact": None
-        },
-        description="Tag usage analytics"
-    )
-    
-    # Lifecycle management
-    expires_at: Optional[datetime] = Field(None, description="Tag expiration date")
-    archived_at: Optional[datetime] = Field(None, description="Tag archival date")
-    
-    # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    created_by: Optional[PyObjectId] = Field(None, description="User who created this tag")
-    updated_by: Optional[PyObjectId] = Field(None, description="User who last updated this tag")
-    
-    # Additional properties
-    properties: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional custom properties"
-    )
+    name: str = Field(..., description="Tag name")
+    slug: str = Field(..., description="URL-friendly slug")
+    display_name: Optional[str] = Field(None, description="Display name")
+    description: Optional[str] = Field(None, description="Tag description")
+    category: str = Field(default="general", description="Tag category")
+    color: str = Field(default="#2563eb", description="Hex color")
+    parent_tag_id: Optional[PyObjectId] = Field(None, description="Parent tag ID")
+    child_tags: List[PyObjectId] = Field(default=[], description="Child tag IDs")
+    status: str = Field(default="active", description="Tag status")
+    is_system_tag: bool = Field(default=False, description="Is system tag")
+    is_auto_assignable: bool = Field(default=True, description="Can be auto-assigned")
+    usage_count: int = Field(default=0, description="How many times used")
+    department_ids: List[PyObjectId] = Field(default=[], description="Department IDs")
+    user_ids: List[PyObjectId] = Field(default=[], description="User IDs")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: Optional[PyObjectId] = Field(None, description="Creator user ID")
+    updated_by: Optional[PyObjectId] = Field(None, description="Updater user ID")
     
     class Config:
         populate_by_name = True
         arbitrary_types_allowed = True
         json_encoders = {PyObjectId: str}
-        json_schema_extra = {
-            "example": {
-                "name": "urgent",
-                "display_name": "Urgent",
-                "description": "High priority conversations requiring immediate attention",
-                "tag_type": "priority",
-                "scope": "conversation",
-                "color": "#EF4444",
-                "is_system_tag": True
-            }
-        }
 
-class TagCreate(BaseModel):
-    """Schema for creating a new tag."""
-    name: str = Field(..., min_length=1, max_length=50)
-    display_name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    tag_type: TagType = TagType.GENERAL
-    scope: TagScope = TagScope.CONVERSATION
-    color: str = "#6B7280"
-    icon: Optional[str] = None
-    parent_tag_id: Optional[str] = None
-    department_ids: List[str] = Field(default_factory=list)
-    role_ids: List[str] = Field(default_factory=list)
-    auto_assignment_rules: Optional[Dict[str, Any]] = None
-    properties: Optional[Dict[str, Any]] = None
+    def __init__(self, **data):
+        # Auto-generate slug if not provided
+        if 'slug' not in data and 'name' in data:
+            data['slug'] = generate_slug(data['name'])
+        # Set display_name to name if not provided
+        if 'display_name' not in data and 'name' in data:
+            data['display_name'] = data['name']
+        super().__init__(**data)
 
-class TagUpdate(BaseModel):
-    """Schema for updating an existing tag."""
-    display_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    is_active: Optional[bool] = None
-    is_required: Optional[bool] = None
-    department_ids: Optional[List[str]] = None
-    role_ids: Optional[List[str]] = None
-    auto_assignment_rules: Optional[Dict[str, Any]] = None
-    properties: Optional[Dict[str, Any]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-class TagAssignment(BaseModel):
-    """Schema for assigning tags to entities."""
-    tag_id: str
-    entity_type: str  # conversation, message, user, etc.
-    entity_id: str
-    assigned_by: Optional[str] = None
-    notes: Optional[str] = Field(None, max_length=500)
-    auto_assigned: bool = False
-
-class TagResponse(BaseModel):
-    """Schema for tag responses."""
-    id: str = Field(alias="_id")
-    name: str
-    display_name: str
-    description: Optional[str]
-    tag_type: TagType
-    scope: TagScope
-    color: str
-    icon: Optional[str]
-    parent_tag_id: Optional[str]
-    is_system_tag: bool
-    is_active: bool
-    is_required: bool
-    department_ids: List[str]
-    role_ids: List[str]
-    analytics: Dict[str, Any]
-    created_at: datetime
-    updated_at: datetime
+class ConversationTag(BaseModel):
+    """Association between conversation and tag."""
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    conversation_id: PyObjectId = Field(..., description="Conversation ID")
+    tag_id: PyObjectId = Field(..., description="Tag ID")
+    tag_name: str = Field(..., description="Tag name for quick access")
+    tag_slug: str = Field(..., description="Tag slug for quick access")
+    tag_color: str = Field(..., description="Tag color for quick access")
+    tag_category: str = Field(default="general", description="Tag category for quick access")
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    assigned_by: Optional[PyObjectId] = Field(None, description="User who assigned")
+    auto_assigned: bool = Field(default=False, description="Was auto-assigned")
     
     class Config:
-        populate_by_name = True 
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {PyObjectId: str}

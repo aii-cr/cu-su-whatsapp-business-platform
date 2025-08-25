@@ -1,0 +1,45 @@
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+
+
+
+
+.modalContent {
+  max-width: 90vw;
+  width: 48rem; // 768px - larger for desktop
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  
+  @include mobile {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+  }
+  
+  @include tablet {
+    width: 36rem; // 576px
+  }
+}
+
+
+
+.modalBody {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+// Responsive adjustments
+@include mobile {
+  .modalContent {
+    margin: 0;
+    border-radius: 0;
+  }
+}

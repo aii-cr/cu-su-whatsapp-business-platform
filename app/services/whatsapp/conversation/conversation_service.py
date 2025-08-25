@@ -7,6 +7,7 @@ from bson import ObjectId
 from app.services.base_service import BaseService
 from app.core.logger import logger
 from app.config.error_codes import ErrorCode
+from app.services.audit.audit_service import audit_service
 
 
 class ConversationService(BaseService):
@@ -72,6 +73,7 @@ class ConversationService(BaseService):
             "metadata": metadata or {},
             "message_count": 0,
             "unread_count": 0,
+            "ai_autoreply_enabled": True,  # Default AI auto-reply to ON for new conversations
             "created_by": created_by,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
@@ -99,7 +101,40 @@ class ConversationService(BaseService):
         """
         try:
             db = await self._get_db()
-            return await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            if conversation:
+                # Ensure required fields have default values if missing
+                if "customer_type" not in conversation or conversation["customer_type"] is None:
+                    conversation["customer_type"] = "individual"
+                if "priority" not in conversation or conversation["priority"] is None:
+                    conversation["priority"] = "normal"
+                if "channel" not in conversation or conversation["channel"] is None:
+                    conversation["channel"] = "whatsapp"
+                if "status" not in conversation or conversation["status"] is None:
+                    conversation["status"] = "pending"
+                
+                # Get tags for this conversation
+                conversation_tags = await db.conversation_tags.find({
+                    "conversation_id": ObjectId(conversation_id)
+                }).sort("assigned_at", 1).to_list(length=None)
+                
+                # Convert to tag objects for frontend
+                tags = []
+                for conv_tag in conversation_tags:
+                    tags.append({
+                        "id": str(conv_tag["tag_id"]),
+                        "name": conv_tag["tag_name"],
+                        "slug": conv_tag.get("tag_slug", conv_tag["tag_name"].lower().replace(" ", "-")),
+                        "display_name": conv_tag["tag_name"],
+                        "category": conv_tag.get("tag_category", "general"),
+                        "color": conv_tag["tag_color"],
+                        "usage_count": 0  # Not relevant for conversation detail
+                    })
+                
+                conversation["tags"] = tags
+            
+            return conversation
         except Exception as e:
             logger.error(f"Error getting conversation {conversation_id}: {str(e)}")
             return None
@@ -127,6 +162,7 @@ class ConversationService(BaseService):
         assigned_agent_id: Optional[ObjectId] = None,
         customer_type: Optional[str] = None,
         has_unread: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
         tags: Optional[List[str]] = None,
@@ -166,6 +202,8 @@ class ConversationService(BaseService):
             query["customer_type"] = customer_type
         if has_unread is not None:
             query["unread_count"] = {"$gt": 0} if has_unread else {"$eq": 0}
+        if is_archived is not None:
+            query["is_archived"] = bool(is_archived)
         if created_from:
             query.setdefault("created_at", {})["$gte"] = created_from
         if created_to:
@@ -185,6 +223,40 @@ class ConversationService(BaseService):
         conversations = await db.conversations.find(query).sort(
             sort_by, sort_direction
         ).skip(skip).limit(per_page).to_list(per_page)
+        
+        # Populate tags for each conversation and ensure required fields
+        for conversation in conversations:
+            conversation_id = conversation["_id"]
+            
+            # Ensure required fields have default values if missing
+            if "customer_type" not in conversation or conversation["customer_type"] is None:
+                conversation["customer_type"] = "individual"
+            if "priority" not in conversation or conversation["priority"] is None:
+                conversation["priority"] = "normal"
+            if "channel" not in conversation or conversation["channel"] is None:
+                conversation["channel"] = "whatsapp"
+            if "status" not in conversation or conversation["status"] is None:
+                conversation["status"] = "pending"
+            
+            # Get tags for this conversation
+            conversation_tags = await db.conversation_tags.find({
+                "conversation_id": conversation_id
+            }).sort("assigned_at", 1).to_list(length=None)
+            
+            # Convert to tag objects for frontend
+            tags = []
+            for conv_tag in conversation_tags:
+                tags.append({
+                    "id": str(conv_tag["tag_id"]),
+                    "name": conv_tag["tag_name"],
+                    "slug": conv_tag.get("tag_slug", conv_tag["tag_name"].lower().replace(" ", "-")),
+                    "display_name": conv_tag["tag_name"],
+                    "category": conv_tag.get("tag_category", "general"),
+                    "color": conv_tag["tag_color"],
+                    "usage_count": 0  # Not relevant for conversation list
+                })
+            
+            conversation["tags"] = tags
         
         return {
             "conversations": conversations,
@@ -233,6 +305,127 @@ class ConversationService(BaseService):
             logger.error(f"Error updating conversation {conversation_id}: {str(e)}")
             return None
     
+    async def update_conversation_sentiment(
+        self,
+        conversation_id: str,
+        sentiment_emoji: str,
+        confidence: float,
+        updated_by: ObjectId = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update conversation sentiment data.
+        
+        Args:
+            conversation_id: Conversation ID
+            sentiment_emoji: Sentiment emoji
+            confidence: Confidence score
+            updated_by: User who made the update
+            
+        Returns:
+            Updated conversation document or None
+        """
+        try:
+            logger.info(f"😊 [SENTIMENT] Updating conversation sentiment: {conversation_id} -> {sentiment_emoji} (confidence: {confidence})")
+            
+            db = await self._get_db()
+            
+            update_data = {
+                "current_sentiment_emoji": sentiment_emoji,
+                "sentiment_confidence": confidence,
+                "last_sentiment_analysis_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+            
+            if updated_by:
+                update_data["updated_by"] = updated_by
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"😊 [SENTIMENT] No conversation updated for {conversation_id}")
+                return None
+            
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            logger.info(f"😊 [SENTIMENT] Successfully updated conversation sentiment: {conversation_id}")
+            
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error updating conversation sentiment {conversation_id}: {str(e)}")
+            return None
+    
+    async def toggle_ai_autoreply(
+        self,
+        conversation_id: str,
+        enabled: bool,
+        updated_by: ObjectId = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Toggle AI auto-reply for a conversation.
+        
+        Args:
+            conversation_id: Conversation ID
+            enabled: Whether to enable or disable AI auto-reply
+            updated_by: User who made the change
+            
+        Returns:
+            Updated conversation document or None
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current conversation to check current state
+            current_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not current_conversation:
+                logger.warning(f"No conversation found with ID {conversation_id}")
+                return None
+            
+            current_state = current_conversation.get("ai_autoreply_enabled", True)
+            
+            # Log the toggle action
+            action = "enabled" if enabled else "disabled"
+            logger.info(f"AI auto-reply {action} for conversation {conversation_id} (was: {current_state})")
+            
+            # Update the conversation
+            update_data = {
+                "ai_autoreply_enabled": enabled,
+                "updated_at": datetime.now(timezone.utc)
+            }
+            if updated_by:
+                update_data["updated_by"] = updated_by
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"No conversation found with ID {conversation_id}")
+                return None
+            
+            # Return updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log the audit event
+            await audit_service.log_event(
+                action="conversation.ai_autoreply.toggle",
+                actor_id=str(updated_by) if updated_by else None,
+                conversation_id=conversation_id,
+                payload={
+                    "ai_autoreply_enabled": enabled,
+                    "previous_state": current_state
+                }
+            )
+            
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error toggling AI auto-reply for conversation {conversation_id}: {str(e)}")
+            return None
+
     async def delete_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
         """
         Delete a conversation and all associated messages.
@@ -414,18 +607,373 @@ class ConversationService(BaseService):
                 messages = []
                 total_count = 0
             
-            logger.info(f"Retrieved conversation {conversation_id} with {len(messages)} messages (total: {total_count})")
+            # Calculate initial unread count for WhatsApp-like banner
+            # Count inbound messages that are not read and are from customers
+            unread_count = await db.messages.count_documents({
+                "conversation_id": ObjectId(conversation_id),
+                "direction": "inbound",
+                "status": "received",
+                "sender_role": "customer"
+            })
+            
+            logger.info(f"Retrieved conversation {conversation_id} with {len(messages)} messages (total: {total_count}, unread: {unread_count})")
             
             return {
                 "conversation": conversation,
                 "messages": messages,
                 "messages_total": total_count,
+                "initial_unread_count": unread_count,
                 "has_access": True
             }
             
         except Exception as e:
             logger.error(f"Error getting conversation with messages {conversation_id}: {str(e)}", exc_info=True)
             return None
+
+    # ----------------- Participants Management -----------------
+    async def add_participant(self, conversation_id: str, user_id: str, role: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            update = {
+                "$addToSet": {
+                    "participants": {
+                        "_id": ObjectId(),
+                        "user_id": ObjectId(user_id),
+                        "role": role,
+                        "added_at": datetime.now(timezone.utc)
+                    }
+                },
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+            result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, update)
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_added",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"user_id": user_id, "role": role},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error adding participant: {str(e)}")
+            return False
+
+    async def remove_participant(self, conversation_id: str, participant_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$pull": {"participants": {"_id": ObjectId(participant_id)}}, "$set": {"updated_at": datetime.now(timezone.utc)}}
+            )
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_removed",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"participant_id": participant_id},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error removing participant: {str(e)}")
+            return False
+
+    async def change_participant_role(self, conversation_id: str, participant_id: str, new_role: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        try:
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id), "participants._id": ObjectId(participant_id)},
+                {"$set": {"participants.$.role": new_role, "updated_at": datetime.now(timezone.utc)}}
+            )
+            if result.modified_count:
+                await audit_service.log_event(
+                    action="participant_role_changed",
+                    actor_id=actor_id,
+                    conversation_id=conversation_id,
+                    payload={"participant_id": participant_id, "new_role": new_role},
+                    correlation_id=correlation_id,
+                )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error changing participant role: {str(e)}")
+            return False
+
+    async def get_participants(self, conversation_id: str) -> List[Dict[str, Any]]:
+        db = await self._get_db()
+        conv = await db.conversations.find_one({"_id": ObjectId(conversation_id)}, {"participants": 1})
+        return conv.get("participants", []) if conv else []
+
+    async def get_participant_history(self, conversation_id: str) -> List[Dict[str, Any]]:
+        db = await self._get_db()
+        # Leverage audit logs for history
+        cursor = db.audit_logs.find({
+            "conversation_id": ObjectId(conversation_id),
+            "action": {"$in": ["participant_added", "participant_removed", "participant_role_changed"]}
+        }).sort("created_at", 1)
+        return await cursor.to_list(length=500)
+
+    # ----------------- Archiving / Soft Deletion -----------------
+    async def archive_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": True, "archived_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}})
+        if result.modified_count:
+            await audit_service.log_event(
+                action="conversation_archived",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.modified_count > 0
+
+    async def restore_conversation(self, conversation_id: str, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        db = await self._get_db()
+        result = await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"is_archived": False, "archived_at": None, "updated_at": datetime.now(timezone.utc)}})
+        if result.modified_count:
+            await audit_service.log_event(
+                action="conversation_restored",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.modified_count > 0
+
+    async def purge_conversation(self, conversation_id: str, confirm: bool, actor_id: Optional[str] = None, correlation_id: Optional[str] = None) -> bool:
+        if not confirm:
+            return False
+        db = await self._get_db()
+        conv = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+        if not conv:
+            return False
+        await db.messages.delete_many({"conversation_id": ObjectId(conversation_id)})
+        result = await db.conversations.delete_one({"_id": ObjectId(conversation_id)})
+        if result.deleted_count:
+            await audit_service.log_event(
+                action="conversation_purged",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                correlation_id=correlation_id,
+            )
+        return result.deleted_count > 0
+
+    # ----------------- Conversation Assignment Management -----------------
+    async def claim_conversation(
+        self, 
+        conversation_id: str, 
+        agent_id: str, 
+        actor_id: Optional[str] = None, 
+        correlation_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Claim a conversation by an agent.
+        
+        Args:
+            conversation_id: Conversation ID to claim
+            agent_id: ID of the agent claiming the conversation
+            actor_id: ID of the user performing the action
+            correlation_id: Request correlation ID for tracing
+            
+        Returns:
+            Updated conversation document or None if failed
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current conversation
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found for claiming")
+                return None
+            
+            # Check if conversation is already assigned
+            if conversation.get("assigned_agent_id"):
+                # If it's assigned to the same agent, just return the conversation
+                if str(conversation["assigned_agent_id"]) == agent_id:
+                    logger.info(f"Conversation {conversation_id} is already assigned to the requesting agent {agent_id}")
+                    return conversation
+                else:
+                    logger.warning(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
+                    return None
+            
+            # Update conversation with assigned agent
+            update_data = {
+                "assigned_agent_id": ObjectId(agent_id),
+                "updated_at": datetime.now(timezone.utc),
+                "status": "active"  # Activate the conversation when claimed
+            }
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"Failed to update conversation {conversation_id} for claiming")
+                return None
+            
+            # Get updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log audit event
+            await audit_service.log_event(
+                action="conversation_claimed",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                payload={
+                    "agent_id": agent_id,
+                    "previous_agent_id": None,
+                    "claim_method": "manual"
+                },
+                correlation_id=correlation_id,
+            )
+            
+            logger.info(f"Conversation {conversation_id} claimed by agent {agent_id}")
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error claiming conversation {conversation_id}: {str(e)}")
+            return None
+
+    async def auto_assign_conversation(
+        self, 
+        conversation_id: str, 
+        agent_id: str, 
+        actor_id: Optional[str] = None, 
+        correlation_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Automatically assign a conversation to an agent (e.g., when they send first message).
+        
+        Args:
+            conversation_id: Conversation ID to assign
+            agent_id: ID of the agent being assigned
+            actor_id: ID of the user performing the action
+            correlation_id: Request correlation ID for tracing
+            
+        Returns:
+            Updated conversation document or None if failed
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get current conversation
+            conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found for auto-assignment")
+                return None
+            
+            # Check if conversation is already assigned
+            if conversation.get("assigned_agent_id"):
+                logger.info(f"Conversation {conversation_id} is already assigned to {conversation['assigned_agent_id']}")
+                return conversation
+            
+            # Update conversation with assigned agent
+            update_data = {
+                "assigned_agent_id": ObjectId(agent_id),
+                "updated_at": datetime.now(timezone.utc),
+                "status": "active"  # Activate the conversation when assigned
+            }
+            
+            result = await db.conversations.update_one(
+                {"_id": ObjectId(conversation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count == 0:
+                logger.warning(f"Failed to update conversation {conversation_id} for auto-assignment")
+                return None
+            
+            # Get updated conversation
+            updated_conversation = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            
+            # Log audit event
+            await audit_service.log_event(
+                action="conversation_auto_assigned",
+                actor_id=actor_id,
+                conversation_id=conversation_id,
+                payload={
+                    "agent_id": agent_id,
+                    "previous_agent_id": None,
+                    "claim_method": "auto"
+                },
+                correlation_id=correlation_id,
+            )
+            
+            logger.info(f"Conversation {conversation_id} auto-assigned to agent {agent_id}")
+            return updated_conversation
+            
+        except Exception as e:
+            logger.error(f"Error auto-assigning conversation {conversation_id}: {str(e)}")
+            return None
+
+    async def get_conversation_stats(self) -> Dict[str, Any]:
+        """
+        Get conversation statistics for dashboard.
+        
+        Returns:
+            Dictionary containing conversation statistics
+        """
+        try:
+            db = await self._get_db()
+            
+            # Get conversation counts
+            total_conversations = await db.conversations.count_documents({})
+            active_conversations = await db.conversations.count_documents({"status": "active"})
+            closed_conversations = await db.conversations.count_documents({"status": "closed"})
+            unassigned_conversations = await db.conversations.count_documents({"assigned_agent_id": None})
+            
+            # Get conversations by status
+            status_pipeline = [
+                {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+            ]
+            status_stats = await db.conversations.aggregate(status_pipeline).to_list(None)
+            conversations_by_status = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in status_stats}
+            
+            # Get conversations by priority
+            priority_pipeline = [
+                {"$group": {"_id": "$priority", "count": {"$sum": 1}}}
+            ]
+            priority_stats = await db.conversations.aggregate(priority_pipeline).to_list(None)
+            conversations_by_priority = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in priority_stats}
+            
+            # Get conversations by channel
+            channel_pipeline = [
+                {"$group": {"_id": "$channel", "count": {"$sum": 1}}}
+            ]
+            channel_stats = await db.conversations.aggregate(channel_pipeline).to_list(None)
+            conversations_by_channel = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in channel_stats}
+            
+            stats = {
+                "total_conversations": total_conversations,
+                "active_conversations": active_conversations,
+                "closed_conversations": closed_conversations,
+                "unassigned_conversations": unassigned_conversations,
+                "conversations_by_status": conversations_by_status,
+                "conversations_by_priority": conversations_by_priority,
+                "conversations_by_channel": conversations_by_channel,
+                "average_response_time_minutes": 0.0,  # TODO: Calculate from messages
+                "average_resolution_time_minutes": 0.0,  # TODO: Calculate from closed conversations
+                "customer_satisfaction_rate": 0.0  # TODO: Calculate from surveys
+            }
+            
+            logger.info(f"📊 [STATS] Generated conversation stats: {total_conversations} total, {active_conversations} active")
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error getting conversation stats: {str(e)}")
+            # Return empty stats on error
+            return {
+                "total_conversations": 0,
+                "active_conversations": 0,
+                "closed_conversations": 0,
+                "unassigned_conversations": 0,
+                "conversations_by_status": {},
+                "conversations_by_priority": {},
+                "conversations_by_channel": {},
+                "average_response_time_minutes": 0.0,
+                "average_resolution_time_minutes": 0.0,
+                "customer_satisfaction_rate": 0.0
+            }
 
 
 # Global conversation service instance

@@ -5,7 +5,7 @@ Handles internal notes and annotations for conversations and other entities.
 
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from app.db.models.base import PyObjectId
 
@@ -126,8 +126,8 @@ class Note(BaseModel):
     last_edited_by: Optional[PyObjectId] = Field(None, description="Who last edited the note")
     
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_at: Optional[datetime] = Field(None, description="Soft deletion timestamp")
     
     # Search and indexing
@@ -191,7 +191,7 @@ class NoteUpdate(BaseModel):
     follow_up_assigned_to: Optional[str] = None
     is_resolved: Optional[bool] = None
     resolution_details: Optional[str] = Field(None, max_length=1000)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class NoteResponse(BaseModel):
     """Schema for note responses."""

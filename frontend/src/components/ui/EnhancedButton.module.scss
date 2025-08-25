@@ -1,0 +1,186 @@
+// EnhancedButton.module.scss - SCSS Module for complex button styling
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.button {
+  @include button-base;
+  position: relative;
+  overflow: hidden;
+  
+  // Gradient background effect
+  &.gradient {
+    background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary) / 0.8));
+    border: none;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    &:hover::before {
+      left: 100%;
+    }
+  }
+  
+  // Neon glow effect
+  &.neon {
+    box-shadow: 0 0 5px rgb(var(--primary)), 0 0 10px rgb(var(--primary)), 0 0 15px rgb(var(--primary));
+    animation: neon-pulse 2s infinite;
+  }
+  
+  // 3D button effect
+  &.threeD {
+    transform: translateY(0);
+    box-shadow: 0 4px 0 rgb(var(--primary) / 0.3);
+    
+    &:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 rgb(var(--primary) / 0.3);
+    }
+  }
+  
+  // Ripple effect
+  &.ripple {
+    position: relative;
+    overflow: hidden;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.3s, height 0.3s;
+    }
+    
+    &:active::after {
+      width: 300px;
+      height: 300px;
+    }
+  }
+  
+  // Loading state with custom spinner
+  &.loading {
+    position: relative;
+    color: transparent;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border: 2px solid transparent;
+      border-top: 2px solid currentColor;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+  }
+  
+  // WhatsApp-style button
+  &.whatsapp {
+    background: #25D366;
+    color: white;
+    border-radius: $chat-bubble-radius;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    
+    &:hover {
+      background: #128C7E;
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  // Size variants
+  &.size-sm {
+    height: 32px;
+    padding: 0 $spacing-sm;
+    font-size: $font-size-xs;
+  }
+  
+  &.size-md {
+    height: 40px;
+    padding: 0 $spacing-md;
+    font-size: $font-size-sm;
+  }
+  
+  &.size-lg {
+    height: 48px;
+    padding: 0 $spacing-lg;
+    font-size: $font-size-base;
+  }
+  
+  &.size-xl {
+    height: 56px;
+    padding: 0 $spacing-xl;
+    font-size: $font-size-lg;
+  }
+  
+  // Disabled state
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+}
+
+// Neon pulse animation
+@keyframes neon-pulse {
+  0%, 100% {
+    box-shadow: 0 0 5px rgb(var(--primary)), 0 0 10px rgb(var(--primary)), 0 0 15px rgb(var(--primary));
+  }
+  50% {
+    box-shadow: 0 0 10px rgb(var(--primary)), 0 0 20px rgb(var(--primary)), 0 0 30px rgb(var(--primary));
+  }
+}
+
+// Icon styles
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: $spacing-xs;
+  
+  &.iconOnly {
+    margin-right: 0;
+  }
+}
+
+// Button group styles
+.buttonGroup {
+  display: inline-flex;
+  
+  .button {
+    border-radius: 0;
+    
+    &:first-child {
+      border-top-left-radius: $border-radius-md;
+      border-bottom-left-radius: $border-radius-md;
+    }
+    
+    &:last-child {
+      border-top-right-radius: $border-radius-md;
+      border-bottom-right-radius: $border-radius-md;
+    }
+    
+    &:not(:last-child) {
+      border-right: 1px solid rgb(var(--border));
+    }
+  }
+}

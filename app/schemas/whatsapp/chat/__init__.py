@@ -9,13 +9,8 @@ from .conversation import (
 )
 
 from .message import (
-    MessageCreate, TextMessageCreate, MediaMessageCreate, TemplateMessageCreate,
-    LocationMessageCreate, ContactMessageCreate, InteractiveMessageCreate,
-    MessageUpdate, MessageResponse, MessageDetailResponse, MessageListResponse,
-    MessageQueryParams, MessageStatusUpdate, BulkMessageStatusUpdate,
-    MessageReadReceipt, MessageStatsResponse, MessageContentValidation,
-    MessageSearchParams, MessageExportRequest, QuickReply, MessageReaction,
-    WhatsAppWebhookMessage
+    MessageCreate, MessageUpdate, MessageSend, MessageReadRequest, MessageReadResponse,
+    MessageResponse, MessageListResponse, MessageStatusUpdate
 )
 from .message_in import *
 from .message_out import *
@@ -28,9 +23,8 @@ from .media import (
 )
 
 from .tag import (
-    TagCreate, TagUpdate, TagResponse, TagListResponse, GroupedTagsResponse,
-    TagQueryParams, TagAssignment, TagRemoval, BulkTagAssignment,
-    TagStatsResponse, TagUsageAnalytics, TagAutoAssignRule, TagExportRequest
+    TagCreate, TagAssign, TagUnassign, TagResponse, TagSearchResponse,
+    ConversationTagResponse, TagOperationResponse
 )
 
 from .note import (
@@ -48,13 +42,8 @@ __all__ = [
     "ConversationSLAStatus",
     
     # Message schemas
-    "MessageCreate", "TextMessageCreate", "MediaMessageCreate", "TemplateMessageCreate",
-    "LocationMessageCreate", "ContactMessageCreate", "InteractiveMessageCreate",
-    "MessageUpdate", "MessageResponse", "MessageDetailResponse", "MessageListResponse",
-    "MessageQueryParams", "MessageStatusUpdate", "BulkMessageStatusUpdate",
-    "MessageReadReceipt", "MessageStatsResponse", "MessageContentValidation",
-    "MessageSearchParams", "MessageExportRequest", "QuickReply", "MessageReaction",
-    "WhatsAppWebhookMessage",
+    "MessageCreate", "MessageUpdate", "MessageSend", "MessageReadRequest", "MessageReadResponse",
+    "MessageResponse", "MessageListResponse", "MessageStatusUpdate",
     
     # Media schemas
     "MediaUpload", "MediaUpdate", "MediaResponse", "MediaListResponse",
@@ -63,9 +52,8 @@ __all__ = [
     "MediaValidationResponse", "MediaProcessingJob",
     
     # Tag schemas
-    "TagCreate", "TagUpdate", "TagResponse", "TagListResponse", "GroupedTagsResponse",
-    "TagQueryParams", "TagAssignment", "TagRemoval", "BulkTagAssignment",
-    "TagStatsResponse", "TagUsageAnalytics", "TagAutoAssignRule", "TagExportRequest",
+    "TagCreate", "TagAssign", "TagUnassign", "TagResponse", "TagSearchResponse",
+    "ConversationTagResponse", "TagOperationResponse",
     
     # Note schemas
     "NoteCreate", "NoteUpdate", "NoteResponse", "NoteDetailResponse", "NoteListResponse",

@@ -1,0 +1,207 @@
+// Global SCSS file - Main entry point
+// Import SCSS partials first (must come before @tailwind)
+@use '../styles/variables' as *;
+@use '../styles/mixins' as *;
+@use '../styles/animations' as *;
+@use '../styles/typography' as *;
+
+// Import Tailwind directives
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// CSS Custom Properties (CSS Variables) for theming
+:root {
+  --background: 255 255 255;
+  --foreground: 15 23 42;
+  --card: 255 255 255;
+  --card-foreground: 15 23 42;
+  --popover: 255 255 255;
+  --popover-foreground: 15 23 42;
+  --primary: 37 99 235;
+  --primary-foreground: 255 255 255;
+  --secondary: 248 250 252;
+  --secondary-foreground: 15 23 42;
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --accent: 241 245 249;
+  --accent-foreground: 15 23 42;
+  --destructive: 220 38 38;
+  --destructive-foreground: 255 255 255;
+  --border: 226 232 240;
+  --input: 226 232 240;
+  --ring: 37 99 235;
+  --surface: 248 250 252;
+  --success: 5 150 105;
+  --warning: 217 119 6;
+  --error: 220 38 38;
+}
+
+.dark {
+  --background: 15 23 42;
+  --foreground: 248 250 252;
+  --card: 30 41 59;
+  --card-foreground: 248 250 252;
+  --popover: 30 41 59;
+  --popover-foreground: 248 250 252;
+  --primary: 59 130 246;
+  --primary-foreground: 15 23 42;
+  --secondary: 51 65 85;
+  --secondary-foreground: 248 250 252;
+  --muted: 51 65 85;
+  --muted-foreground: 148 163 184;
+  --accent: 51 65 85;
+  --accent-foreground: 248 250 252;
+  --destructive: 239 68 68;
+  --destructive-foreground: 255 255 255;
+  --border: 51 65 85;
+  --input: 51 65 85;
+  --ring: 59 130 246;
+  --surface: 30 41 59;
+  --success: 16 185 129;
+  --warning: 245 158 11;
+  --error: 239 68 68;
+}
+
+// Base styles
+* {
+  border-color: rgb(var(--border));
+}
+
+body {
+  color: rgb(var(--foreground));
+  background: rgb(var(--background));
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+// WhatsApp-style chat bubble styles (using SCSS mixins)
+.message-bubble {
+  @include chat-bubble(false);
+  
+  &.own-message {
+    @include chat-bubble(true);
+  }
+}
+
+// Custom scrollbar for chat (using SCSS mixin)
+.chat-scroll {
+  @include custom-scrollbar;
+}
+
+// Global utility classes that extend Tailwind
+@layer utilities {
+  // AI Agent glow animation
+  @keyframes glow {
+    from {
+      filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
+    }
+    to {
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.4));
+    }
+  }
+  
+  // WhatsApp-specific utilities
+  .chat-container {
+    @apply flex flex-col h-full;
+  }
+  
+  .chat-header {
+    @apply flex items-center justify-between p-4 border-b bg-card;
+    height: $chat-header-height;
+  }
+  
+  .chat-messages {
+    @apply flex-1 overflow-y-auto p-4 space-y-2;
+    @include custom-scrollbar;
+  }
+  
+  .chat-input-container {
+    @apply flex items-center gap-2 p-4 border-t bg-card;
+    min-height: $chat-input-height;
+  }
+  
+  .chat-input {
+    @apply flex-1 px-3 py-2 border rounded-lg bg-background text-foreground;
+    @include focus-ring;
+    
+    &::placeholder {
+      @apply text-muted-foreground;
+    }
+  }
+  
+  // Glass morphism utilities
+  .glass {
+    @include glass-effect;
+  }
+  
+  .glass-light {
+    @include glass-effect(5px, 0.05);
+  }
+  
+  .glass-heavy {
+    @include glass-effect(20px, 0.2);
+  }
+  
+  // Loading states
+  .skeleton {
+    @include skeleton-loading;
+  }
+  
+  // Focus utilities
+  .focus-ring {
+    @include focus-ring;
+  }
+  
+  .focus-ring-primary {
+    @include focus-ring(rgb(var(--primary)));
+  }
+  
+  .focus-ring-error {
+    @include focus-ring(rgb(var(--error)));
+  }
+}
+
+// Component-specific styles that can't be easily achieved with Tailwind
+@layer components {
+  // Custom button variants
+  .btn-primary {
+    @include button-base;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  
+  .btn-secondary {
+    @include button-base;
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .btn-outline {
+    @include button-base;
+    @apply border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-ghost {
+    @include button-base;
+    @apply hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .btn-destructive {
+    @include button-base;
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+  
+  // Card variants
+  .card {
+    @include card-base;
+    @apply p-6;
+  }
+  
+  .card-compact {
+    @include card-base;
+    @apply p-4;
+  }
+  
+  .card-interactive {
+    @include card-base;
+    @apply cursor-pointer hover:shadow-lg transition-shadow;
+  }
+}

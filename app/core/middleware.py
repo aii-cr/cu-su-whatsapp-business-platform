@@ -1,17 +1,16 @@
-"""
-Middleware for WhatsApp Business Platform.
-Handles correlation ID propagation, request context, and audit logging support.
-"""
+"""Custom middleware for request processing."""
 
 import time
 import uuid
-from contextvars import ContextVar
 from typing import Callable, Optional
-
-from fastapi import FastAPI, Request, Response
+from contextvars import ContextVar
+from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import StreamingResponse
 
 from app.core.logger import logger
+from app.core.config import settings
+from app.services.auth.utils.session_auth import update_session_activity, set_session_cookie
 
 # Context variables for request-scoped data
 correlation_id_var: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)
@@ -19,108 +18,99 @@ request_start_time_var: ContextVar[Optional[float]] = ContextVar("request_start_
 user_id_var: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
 
 
-class CorrelationIdMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to handle correlation ID propagation.
-
-    Extracts correlation ID from headers or generates a new one,
-    and makes it available throughout the request lifecycle.
-    """
-
-    def __init__(self, app: FastAPI):
-        super().__init__(app)
-
+class CorrelationMiddleware(BaseHTTPMiddleware):
+    """Middleware to add correlation ID to all requests."""
+    
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request with correlation ID handling."""
-
-        # Extract or generate correlation ID
-        correlation_id = (
-            request.headers.get("X-Correlation-ID")
-            or request.headers.get("x-correlation-id")
-            or str(uuid.uuid4())
-        )
-
+        # Generate correlation ID
+        correlation_id = str(uuid.uuid4())
+        request.state.correlation_id = correlation_id
+        
         # Store in context variable
         correlation_id_var.set(correlation_id)
-
+        
         # Record request start time
         start_time = time.time()
         request_start_time_var.set(start_time)
-
-        # Process request
-        try:
-            response = await call_next(request)
-
-            # Add correlation ID to response headers
-            response.headers["X-Correlation-ID"] = correlation_id
-
-            # Calculate request duration
-            duration = time.time() - start_time
-
-            # Log request completion
-            logger.info(
-                f"{request.method} {request.url.path} completed",
-                extra={
-                    "correlation_id": correlation_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "status_code": response.status_code,
-                    "duration_ms": round(duration * 1000, 2),
-                    "user_agent": request.headers.get("user-agent"),
-                    "client_ip": request.client.host if request.client else None,
-                },
-            )
-
-            return response
-
-        except Exception as e:
-            # Calculate request duration for error case
-            duration = time.time() - start_time
-
-            # Log request error
-            logger.error(
-                f"{request.method} {request.url.path} failed",
-                extra={
-                    "correlation_id": correlation_id,
-                    "method": request.method,
-                    "path": request.url.path,
-                    "error": str(e),
-                    "duration_ms": round(duration * 1000, 2),
-                    "user_agent": request.headers.get("user-agent"),
-                    "client_ip": request.client.host if request.client else None,
-                },
-                exc_info=True,
-            )
-
-            # Re-raise the exception
-            raise
-
-
-class UserContextMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to capture user context for audit logging.
-
-    Extracts user information from authenticated requests
-    and makes it available for audit logging.
-    """
-
-    def __init__(self, app: FastAPI):
-        super().__init__(app)
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request with user context handling."""
-
-        # Extract user ID from request state (set by authentication middleware)
-        user_id = getattr(request.state, "user_id", None)
-        if user_id:
-            user_id_var.set(str(user_id))
-
-        # Process request
+        
+        # Add correlation ID to response headers
         response = await call_next(request)
-
+        response.headers["X-Correlation-ID"] = correlation_id
+        
         return response
 
 
+class SessionActivityMiddleware(BaseHTTPMiddleware):
+    """Middleware to update session activity on each request."""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Get session token from cookies
+        session_token = request.cookies.get("session_token")
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # Only update session activity for successful authenticated requests
+        # Skip for login, logout, and other auth endpoints to prevent conflicts
+        if (session_token and 
+            response.status_code < 400 and 
+            not request.url.path.endswith('/login') and
+            not request.url.path.endswith('/logout') and
+            not request.url.path.endswith('/me')):
+            try:
+                updated_token = update_session_activity(session_token)
+                if updated_token:
+                    # Set the updated token in the response
+                    set_session_cookie(response, updated_token)
+            except Exception as e:
+                logger.warning(f"Failed to update session activity: {str(e)}")
+        
+        return response
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware to log request/response information."""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        start_time = time.time()
+        
+        # Log request
+        logger.info(
+            f"{request.method} {request.url.path} started",
+            extra={
+                "request_id": getattr(request.state, 'correlation_id', None),
+                "event_type": "api_request",
+                "method": request.method,
+                "path": request.url.path,
+                "user_id": getattr(request.state, 'user_id', None),
+                "user_agent": request.headers.get("user-agent"),
+                "ip_address": request.client.host if request.client else None,
+            }
+        )
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Calculate response time
+        response_time = (time.time() - start_time) * 1000
+        
+        # Log response
+        logger.info(
+            f"{request.method} {request.url.path} completed",
+            extra={
+                "request_id": getattr(request.state, 'correlation_id', None),
+                "event_type": "api_response",
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "response_time_ms": response_time,
+            }
+        )
+        
+        return response
+
+
+# Utility functions for backward compatibility
 def get_correlation_id() -> Optional[str]:
     """
     Get the current correlation ID from context.
@@ -162,19 +152,3 @@ def get_request_duration() -> Optional[float]:
     if start_time:
         return round((time.time() - start_time) * 1000, 2)
     return None
-
-
-def setup_middleware(app: FastAPI) -> None:
-    """
-    Setup all middleware for the application.
-
-    Args:
-        app: FastAPI application instance
-    """
-    # Add correlation ID middleware first
-    app.add_middleware(CorrelationIdMiddleware)
-
-    # Add user context middleware
-    app.add_middleware(UserContextMiddleware)
-
-    logger.info("Middleware setup completed")

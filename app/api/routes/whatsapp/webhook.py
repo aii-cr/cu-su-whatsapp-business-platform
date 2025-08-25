@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request, HTTPException, status, Depends, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from typing import Dict, Any, List
+import asyncio
 import hashlib
 import hmac
 import json
@@ -20,7 +21,9 @@ from app.services import audit_service
 from app.services import automation_service
 from app.services import message_service, conversation_service
 from app.services import websocket_service
+from app.services import sentiment_analyzer_service
 from app.services.websocket.websocket_service import manager
+from app.services.ai.agents.whatsapp_agent.agent_service import agent_service
 from app.core.error_handling import handle_database_error
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp Webhooks"])
@@ -328,6 +331,50 @@ async def process_incoming_message(
     # Process automation
     await automation_service.process_incoming_message(message)
     
+    # ===== SENTIMENT ANALYSIS PROCESSING =====
+    # Process sentiment analysis for customer messages
+    if incoming_msg.text and incoming_msg.text.body:
+        logger.info(f"😊 [SENTIMENT] Triggering sentiment analysis for conversation {conversation['_id']}")
+        
+        # Process sentiment analysis in background
+        asyncio.create_task(
+            process_sentiment_analysis(
+                conversation_id=str(conversation["_id"]),
+                message_id=str(message["_id"]),
+                message_text=incoming_msg.text.body,
+                customer_phone=phone_number,
+                is_first_message=is_new_conversation
+            )
+        )
+    else:
+        logger.info(f"🚫 [SENTIMENT] Skipping sentiment analysis (no text content)")
+    
+    # ===== AI AGENT PROCESSING =====
+    # Check if AI auto-reply is enabled for this conversation
+    ai_autoreply_enabled = conversation.get("ai_autoreply_enabled", True)
+    
+    if ai_autoreply_enabled and incoming_msg.text and incoming_msg.text.body:
+        logger.info(f"🤖 [AI] Triggering AI agent processing for conversation {conversation['_id']}")
+        
+        # Send immediate notification that AI processing has started
+        await websocket_service.notify_ai_processing_started(
+            conversation_id=str(conversation["_id"]),
+            message_id=str(message["_id"])
+        )
+        
+        # Process with AI agent in background
+        asyncio.create_task(
+            process_with_ai_agent(
+                conversation_id=str(conversation["_id"]),
+                message_id=str(message["_id"]),
+                user_text=incoming_msg.text.body,
+                customer_phone=phone_number,
+                is_first_message=is_new_conversation
+            )
+        )
+    else:
+        logger.info(f"🚫 [AI] Skipping AI processing (autoreply: {ai_autoreply_enabled}, has_text: {bool(incoming_msg.text and incoming_msg.text.body)})")
+
     # ===== SINGLE WEBSOCKET NOTIFICATION =====
     # Send a single notification that will trigger all necessary updates
     await websocket_service.notify_incoming_message_processed(
@@ -356,7 +403,7 @@ async def process_message_status(
         
         # Let's also check if there are any messages in the database for debugging
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         total_messages = await db.messages.count_documents({})
         messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
         logger.info(f"📊 [STATUS] Database stats - Total messages: {total_messages}, Messages with WhatsApp ID: {messages_with_whatsapp_id}")
@@ -380,12 +427,52 @@ async def process_message_status(
     
     logger.info(f"✅ [STATUS] Updated message {whatsapp_message_id} status to {status_obj.status}")
     
-    # Send WebSocket notification for status update
-    await websocket_service.notify_message_status_update(
+    # Get updated message data for optimized notification
+    updated_message = await message_service.get_message(str(message["_id"]))
+    
+    logger.info(f"🔍 [STATUS] Updated message data: {updated_message}")
+    logger.info(f"🔍 [STATUS] Message status in updated data: {updated_message.get('status') if updated_message else 'None'}")
+    
+    # Serialize the message data to handle ObjectId fields
+    if updated_message:
+        serialized_message = {}
+        for key, value in updated_message.items():
+            if key == '_id':
+                serialized_message[key] = str(value)
+            elif key == 'conversation_id':
+                serialized_message[key] = str(value)
+            elif key == 'sender_id':
+                serialized_message[key] = str(value) if value else None
+            elif key == 'reply_to_message_id':
+                serialized_message[key] = str(value) if value else None
+            elif key == 'media_id':
+                serialized_message[key] = str(value) if value else None
+            elif isinstance(value, datetime):
+                serialized_message[key] = value.isoformat()
+            elif hasattr(value, 'isoformat'):
+                serialized_message[key] = value.isoformat()
+            else:
+                serialized_message[key] = value
+        
+        logger.info(f"🔍 [STATUS] Serialized message data: {serialized_message}")
+        logger.info(f"🔍 [STATUS] Status in serialized data: {serialized_message.get('status')}")
+    else:
+        serialized_message = None
+    
+    # Send optimized WebSocket notification for status update
+    logger.info(f"🔔 [WEBHOOK] Sending WebSocket notification for status update: {whatsapp_message_id} -> {status_obj.status}")
+    logger.info(f"🔔 [WEBHOOK] Conversation ID: {message['conversation_id']}")
+    logger.info(f"🔔 [WEBHOOK] Message ID: {message['_id']}")
+    logger.info(f"🔔 [WEBHOOK] Serialized message data available: {serialized_message is not None}")
+    
+    await websocket_service.notify_message_status_update_optimized(
         conversation_id=str(message["conversation_id"]),
-        message_id=whatsapp_message_id,  # Use WhatsApp message ID for status updates
-        status=status_obj.status
+        message_id=str(message["_id"]),  # Use internal message ID for consistency
+        status=status_obj.status,
+        message_data=serialized_message
     )
+    
+    logger.info(f"✅ [WEBHOOK] WebSocket notification sent successfully for status update: {whatsapp_message_id} -> {status_obj.status}")
 
 def verify_webhook_signature(body: bytes, headers: dict) -> bool:
     """
@@ -498,7 +585,7 @@ async def debug_webhook_signature():
         
         # Get database statistics
         from app.db.client import database
-        db = await database._get_db()
+        db = await database.get_database()
         total_messages = await db.messages.count_documents({})
         messages_with_whatsapp_id = await db.messages.count_documents({"whatsapp_message_id": {"$exists": True, "$ne": None}})
         
@@ -539,4 +626,127 @@ async def debug_webhook_signature():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Webhook debug failed: {str(e)}"
-        ) 
+        )
+
+
+async def process_with_ai_agent(
+    conversation_id: str,
+    message_id: str,
+    user_text: str,
+    customer_phone: str,
+    is_first_message: bool = False
+):
+    """
+    Process customer message with AI agent and generate automatic response.
+    
+    Args:
+        conversation_id: Conversation identifier
+        message_id: Incoming message identifier
+        user_text: Customer message text
+        customer_phone: Customer phone number
+        is_first_message: Whether this is the first message in conversation
+    """
+    try:
+        logger.info(f"🤖 [AI] Starting AI agent processing for conversation {conversation_id}")
+        
+        # Process message through AI agent
+        result = await agent_service.process_whatsapp_message(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            user_text=user_text,
+            customer_phone=customer_phone,
+            ai_autoreply_enabled=True,
+            is_first_message=is_first_message
+        )
+        
+        if result["success"] and result["ai_response_sent"]:
+            logger.info(
+                f"✅ [AI] AI response sent successfully for conversation {conversation_id} "
+                f"(message_id: {result['ai_message_id']}, confidence: {result.get('confidence', 0):.2f})"
+            )
+            
+            # Notify that AI processing completed successfully
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=True,
+                response_sent=True
+            )
+            
+            # TODO: Send WhatsApp API message here if implementing outbound messaging
+            # For now, the response is stored and broadcasted via WebSocket
+            
+        elif result["success"] and not result["ai_response_sent"]:
+            logger.info(f"🚫 [AI] No AI response generated for conversation {conversation_id}: {result.get('reason', 'unknown')}")
+            
+            # Notify that AI processing completed but no response was sent
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=True,
+                response_sent=False
+            )
+            
+        else:
+            logger.error(f"❌ [AI] AI processing failed for conversation {conversation_id}: {result.get('error', 'unknown error')}")
+            
+            # Notify that AI processing failed
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=False,
+                response_sent=False
+            )
+            
+    except Exception as e:
+        logger.error(f"💥 [AI] Unexpected error in AI agent processing: {str(e)}")
+        
+        # Always send completion notification even on error
+        try:
+            await websocket_service.notify_ai_processing_completed(
+                conversation_id=conversation_id,
+                message_id=message_id,
+                success=False,
+                response_sent=False
+            )
+        except Exception as ws_error:
+            logger.warning(f"⚠️ [WS] Failed to send error completion notification: {str(ws_error)}")
+        
+        # Don't raise - AI processing failure shouldn't break webhook processing
+
+
+async def process_sentiment_analysis(
+    conversation_id: str,
+    message_id: str,
+    message_text: str,
+    customer_phone: str,
+    is_first_message: bool = False
+):
+    """
+    Process sentiment analysis for customer message.
+    
+    Args:
+        conversation_id: Conversation identifier
+        message_id: Message identifier
+        message_text: Customer message text
+        customer_phone: Customer phone number
+        is_first_message: Whether this is the first message in conversation
+    """
+    try:
+        logger.info(f"😊 [SENTIMENT] Starting sentiment analysis for conversation {conversation_id}")
+        
+        # Process sentiment analysis
+        await sentiment_analyzer_service.process_incoming_message_sentiment(
+            conversation_id=conversation_id,
+            message_id=message_id,
+            message_text=message_text,
+            customer_phone=customer_phone,
+            is_first_message=is_first_message
+        )
+        
+        logger.info(f"✅ [SENTIMENT] Sentiment analysis completed for conversation {conversation_id}")
+        
+    except Exception as e:
+        logger.error(f"💥 [SENTIMENT] Unexpected error in sentiment analysis: {str(e)}")
+        
+        # Don't raise - sentiment analysis failure shouldn't break webhook processing 

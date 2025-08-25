@@ -1,7 +1,9 @@
 """Service layer initialization and factory."""
 
 from app.services.whatsapp.message.message_service import message_service
+from app.services.whatsapp.message.cursor_message_service import cursor_message_service
 from app.services.whatsapp.conversation.conversation_service import conversation_service
+from app.services.whatsapp.tag_service import tag_service
 from app.services.audit.audit_service import audit_service
 from app.services.whatsapp.whatsapp_service import WhatsAppService
 from app.services.whatsapp.automation_service import automation_service
@@ -20,12 +22,17 @@ from app.services.auth import (
 # Import business services
 from app.services.business import department_service
 
+# Import AI services
+from app.services.ai import sentiment_analyzer_service
+
 # Service instances
 whatsapp_service = WhatsAppService()
 
 __all__ = [
     "message_service",
-    "conversation_service", 
+    "cursor_message_service",
+    "conversation_service",
+    "tag_service",
     "audit_service",
     "whatsapp_service",
     "automation_service",
@@ -38,5 +45,7 @@ __all__ = [
     "role_service", 
     "permission_service",
     # Business services
-    "department_service"
+    "department_service",
+    # AI services
+    "sentiment_analyzer_service"
 ]

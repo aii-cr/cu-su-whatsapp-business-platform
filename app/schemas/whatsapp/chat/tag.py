@@ -1,127 +1,162 @@
-"""Tag-related request/response schemas."""
+"""Tag schemas following frontend model expectations."""
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 from datetime import datetime
-from app.db.models.base import PyObjectId
+from typing import List, Optional
+from pydantic import BaseModel, Field
 
-# Tag Creation
+
+# Tag status and category enums to match frontend
+class TagStatus:
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
+class TagCategory:
+    GENERAL = "general"
+    DEPARTMENT = "department"  
+    PRIORITY = "priority"
+    CUSTOMER_TYPE = "customer_type"
+    ISSUE_TYPE = "issue_type"
+    PRODUCT = "product"
+    STATUS = "status"
+    CUSTOM = "custom"
+
+
+# REQUEST SCHEMAS
 class TagCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=50, description="Tag name")
-    category: str = Field(..., description="Tag category")
-    description: Optional[str] = Field(None, max_length=200, description="Tag description")
-    color: str = Field("#007bff", pattern="^#[0-9A-Fa-f]{6}$", description="Tag color hex code")
-    is_system_tag: bool = Field(False, description="Whether this is a system tag")
-    auto_assign_rules: List[Dict[str, Any]] = Field(default=[], description="Auto-assignment rules")
-    scope: str = Field("conversation", pattern="^(conversation|message|global)$", description="Tag scope")
+    """Schema for creating a new tag."""
+    name: str = Field(..., min_length=1, max_length=40, description="Tag name")
+    color: str = Field(default="#2563eb", description="Hex color code")
+    category: str = Field(default=TagCategory.GENERAL, description="Tag category")
+    description: Optional[str] = Field(None, description="Tag description")
 
-# Tag Update
+
 class TagUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=50, description="Updated tag name")
-    category: Optional[str] = Field(None, description="Updated tag category")
-    description: Optional[str] = Field(None, max_length=200, description="Updated tag description")
-    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$", description="Updated tag color")
-    auto_assign_rules: Optional[List[Dict[str, Any]]] = Field(None, description="Updated auto-assignment rules")
-    is_active: Optional[bool] = Field(None, description="Updated active status")
+    """Schema for updating a tag."""
+    name: Optional[str] = Field(None, min_length=1, max_length=40, description="Tag name")
+    color: Optional[str] = Field(None, description="Hex color code")
+    category: Optional[str] = Field(None, description="Tag category")
+    description: Optional[str] = Field(None, description="Tag description")
+    status: Optional[str] = Field(None, description="Tag status")
 
-# Tag Response
-class TagResponse(BaseModel):
-    id: PyObjectId = Field(alias="_id")
-    name: str
-    category: str
-    description: Optional[str] = None
-    color: str
-    is_system_tag: bool
-    is_active: bool
-    scope: str
-    auto_assign_rules: List[Dict[str, Any]] = []
-    usage_count: int = 0
-    created_at: datetime
-    updated_at: datetime
 
-    class Config:
-        populate_by_name = True
-        json_encoders = {
-            PyObjectId: str,
-            datetime: lambda v: v.isoformat()
-        }
+class TagAssign(BaseModel):
+    """Schema for assigning tags to conversation."""
+    tag_ids: List[str] = Field(..., min_items=1, description="Tag IDs to assign")
+    auto_assigned: bool = Field(default=False, description="Whether tags were auto-assigned")
 
-# Tag List Response
-class TagListResponse(BaseModel):
-    tags: List[TagResponse]
-    total: int
-    page: int
-    per_page: int
-    pages: int
 
-# Grouped Tags Response
-class GroupedTagsResponse(BaseModel):
-    categories: Dict[str, List[TagResponse]]
-    total: int
+class TagUnassign(BaseModel):
+    """Schema for unassigning tags from conversation."""
+    tag_ids: List[str] = Field(..., min_items=1, description="Tag IDs to unassign")
 
-# Tag Query Parameters
-class TagQueryParams(BaseModel):
-    page: int = Field(1, ge=1, description="Page number")
-    per_page: int = Field(50, ge=1, le=100, description="Items per page")
-    search: Optional[str] = Field(None, description="Search in tag name or description")
+
+class TagListRequest(BaseModel):
+    """Schema for listing tags with filters."""
+    limit: int = Field(default=20, ge=1, le=100, description="Number of tags to return")
+    offset: int = Field(default=0, ge=0, description="Number of tags to skip")
+    search: Optional[str] = Field(None, description="Search query")
     category: Optional[str] = Field(None, description="Filter by category")
-    scope: Optional[str] = Field(None, description="Filter by scope")
-    is_system_tag: Optional[bool] = Field(None, description="Filter by system tag status")
-    is_active: Optional[bool] = Field(None, description="Filter by active status")
-    group_by_category: bool = Field(False, description="Group tags by category")
-    sort_by: str = Field("name", description="Sort field")
-    sort_order: str = Field("asc", pattern="^(asc|desc)$", description="Sort order")
+    status: str = Field(default=TagStatus.ACTIVE, description="Filter by status")
+    sort_by: str = Field(default="usage_count", description="Sort field")
+    sort_order: str = Field(default="desc", description="Sort order (asc/desc)")
 
-# Tag Assignment
-class TagAssignment(BaseModel):
-    tag_ids: List[PyObjectId] = Field(..., min_items=1, description="Tag IDs to assign")
-    target_type: str = Field(..., pattern="^(conversation|message)$", description="Target type")
-    target_id: PyObjectId = Field(..., description="Target ID")
-    assigned_by: str = Field("manual", pattern="^(manual|auto|system)$", description="Assignment method")
-    notes: Optional[str] = Field(None, max_length=500, description="Assignment notes")
 
-# Tag Removal
-class TagRemoval(BaseModel):
-    tag_ids: List[PyObjectId] = Field(..., min_items=1, description="Tag IDs to remove")
-    target_type: str = Field(..., pattern="^(conversation|message)$", description="Target type")
-    target_id: PyObjectId = Field(..., description="Target ID")
+class TagSuggestRequest(BaseModel):
+    """Schema for tag suggestions/autocomplete."""
+    query: str = Field("", description="Search query")
+    limit: int = Field(default=10, ge=1, le=50, description="Number of suggestions")
+    category: Optional[str] = Field(None, description="Filter by category")
+    exclude_ids: Optional[List[str]] = Field(default=[], description="Tag IDs to exclude")
 
-# Bulk Tag Assignment
-class BulkTagAssignment(BaseModel):
-    tag_ids: List[PyObjectId] = Field(..., min_items=1, description="Tag IDs to assign")
-    target_type: str = Field(..., pattern="^(conversation|message)$", description="Target type")
-    target_ids: List[PyObjectId] = Field(..., min_items=1, max_items=100, description="Target IDs")
-    assigned_by: str = Field("manual", pattern="^(manual|auto|system)$", description="Assignment method")
 
-# Tag Statistics
-class TagStatsResponse(BaseModel):
-    total_tags: int
-    active_tags: int
-    system_tags: int
-    tags_by_category: Dict[str, int]
-    tags_by_scope: Dict[str, int]
-    most_used_tags: List[Dict[str, Any]]
-    least_used_tags: List[Dict[str, Any]]
+# RESPONSE SCHEMAS  
+class TagSummary(BaseModel):
+    """Schema for tag summary (lightweight)."""
+    id: str = Field(..., description="Tag ID")
+    name: str = Field(..., description="Tag name")
+    slug: str = Field(..., description="Tag slug")
+    display_name: Optional[str] = Field(None, description="Display name")
+    category: str = Field(..., description="Tag category")
+    color: str = Field(..., description="Tag color")
+    usage_count: int = Field(..., description="Usage count")
 
-# Tag Usage Analytics
-class TagUsageAnalytics(BaseModel):
-    tag_id: PyObjectId
-    tag_name: str
-    usage_over_time: List[Dict[str, Any]]  # Daily/weekly usage counts
-    usage_by_department: Dict[str, int]
-    usage_by_agent: Dict[str, int]
-    auto_assignments_count: int
-    manual_assignments_count: int
 
-# Tag Auto-Assignment Rule
-class TagAutoAssignRule(BaseModel):
-    tag_id: PyObjectId = Field(..., description="Tag to auto-assign")
-    conditions: List[Dict[str, Any]] = Field(..., description="Conditions for auto-assignment")
-    priority: int = Field(1, ge=1, le=10, description="Rule priority")
-    is_active: bool = Field(True, description="Whether rule is active")
+class TagResponse(BaseModel):
+    """Schema for full tag response."""
+    id: str = Field(..., description="Tag ID")
+    name: str = Field(..., description="Tag name")
+    slug: str = Field(..., description="Tag slug")
+    display_name: Optional[str] = Field(None, description="Display name")
+    description: Optional[str] = Field(None, description="Tag description")
+    category: str = Field(..., description="Tag category")
+    color: str = Field(..., description="Tag color")
+    parent_tag_id: Optional[str] = Field(None, description="Parent tag ID")
+    child_tags: List[str] = Field(default=[], description="Child tag IDs")
+    status: str = Field(..., description="Tag status")
+    is_system_tag: bool = Field(..., description="Is system tag")
+    is_auto_assignable: bool = Field(..., description="Can be auto-assigned")
+    usage_count: int = Field(..., description="Usage count")
+    department_ids: List[str] = Field(default=[], description="Department IDs")
+    user_ids: List[str] = Field(default=[], description="User IDs")
+    created_at: str = Field(..., description="Created timestamp")
+    updated_at: str = Field(..., description="Updated timestamp") 
+    created_by: Optional[str] = Field(None, description="Creator ID")
+    updated_by: Optional[str] = Field(None, description="Updater ID")
 
-# Tag Export Request
-class TagExportRequest(BaseModel):
-    tag_ids: Optional[List[PyObjectId]] = Field(None, description="Specific tags to export")
-    include_usage_data: bool = Field(False, description="Include usage statistics")
-    format: str = Field("csv", pattern="^(csv|json|xlsx)$", description="Export format") 
+
+class TagListResponse(BaseModel):
+    """Schema for tag list response."""
+    tags: List[TagResponse] = Field(..., description="List of tags")
+    total: int = Field(..., description="Total count")
+    limit: int = Field(..., description="Request limit")
+    offset: int = Field(..., description="Request offset")
+    has_more: bool = Field(..., description="Has more results")
+
+
+class TagSuggestResponse(BaseModel):
+    """Schema for tag suggestions response."""
+    suggestions: List[TagSummary] = Field(..., description="Tag suggestions")
+    total: int = Field(..., description="Total matches")
+
+
+class TagSearchResponse(BaseModel):
+    """Schema for tag search response."""
+    tags: List[TagResponse] = Field(..., description="Found tags")
+    total: int = Field(..., description="Total count")
+
+
+# CONVERSATION TAG SCHEMAS
+class ConversationTag(BaseModel):
+    """Schema for conversation tag (matches frontend expectations)."""
+    tag: TagSummary = Field(..., description="Tag information")
+    assigned_at: str = Field(..., description="Assignment timestamp")
+    assigned_by: Optional[str] = Field(None, description="User who assigned")
+    auto_assigned: bool = Field(default=False, description="Was auto-assigned")
+
+
+class ConversationTagResponse(BaseModel):
+    """Schema for conversation tag response (legacy, for backward compatibility)."""
+    id: str = Field(..., description="Tag ID")
+    name: str = Field(..., description="Tag name") 
+    color: str = Field(..., description="Tag color")
+    assigned_at: datetime = Field(..., description="Assignment timestamp")
+
+
+class TagOperationResponse(BaseModel):
+    """Schema for tag operations response."""
+    success: bool = Field(..., description="Operation success")
+    message: str = Field(..., description="Response message") 
+    tags: List[ConversationTag] = Field(default=[], description="Updated tags")
+
+
+class TagUnassignResponse(BaseModel):
+    """Schema for tag unassign response (matches frontend expectations)."""
+    message: str = Field(..., description="Response message")
+    unassigned_count: int = Field(..., description="Number of tags unassigned")
+
+
+class TagSettingsResponse(BaseModel):
+    """Schema for tag settings response."""
+    max_tags_per_conversation: int = Field(default=10, description="Max tags per conversation")
+    quick_add_tags_limit: int = Field(default=7, description="Number of quick add tags to show")

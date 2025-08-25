@@ -1,13 +1,7 @@
-# CERT CHALLENGE
+# Whisper Chat | AI-Powered Whatsapp Business Platform
 
-Made by Steve Arce :D
+Created by Steve Arce
 
-# LOOM VIDEO
-https://www.loom.com/share/f4c4994f19e045109eb66f3f027f2647?sid=a43944c8-7666-4a2b-ac2a-b42239c2618a 
-
-# All relevant code
-
-All relevant code is in `rag-langchain-Implementation.ipynb`
 
 ## Table of Contents
 
@@ -17,13 +11,11 @@ All relevant code is in `rag-langchain-Implementation.ipynb`
 - [Technology Stack and Tooling Choices](#-technology-stack-and-tooling-choices)
 - [Proposal for AI Agent Usage in Our App](#-proposal-for-ai-agent-usage-in-our-app)
 - [Data Sources and External API Integrations](#-data-sources-and-external-api-integrations)
-- [Default Chunking Strategy](#-default-chunking-strategy)
+- [Chunking Strategy Implementation](#-chunking-strategy-implementation)
 - [Build an end-to-end prototype and deploy to local host with a front end](#-build-an-end-to-end-prototype-and-deploy-to-local-host-with-a-front-end-vercel-deployment-not-required)
-- [Assess your pipeline using the RAGAS framework](#-assess-your-pipeline-using-the-ragas-framework-including-key-metrics-faithfulness-response-relevance-context-precision-and-context-recall-provide-a-table-of-your-output-results)
-- [What conclusions can you draw about the performance and effectiveness of your pipeline](#-what-conclusions-can-you-draw-about-the-performance-and-effectiveness-of-your-pipeline-with-this-information)
-- [Swap out base retriever with advanced retrieval methods](#-swap-out-base-retriever-with-advanced-retrieval-methods)
-- [How does the performance compare to your original RAG application](#-how-does-the-performance-compare-to-your-original-rag-application-test-the-new-retrieval-pipeline-using-the-ragas-frameworks-to-quantify-any-improvements-provide-results-in-a-table)
-- [Articulate the changes that you expect to make to your app in the second half of the course](#-articulate-the-changes-that-you-expect-to-make-to-your-app-in-the-second-half-of-the-course-how-will-you-improve-your-application)
+- [RAG Pipeline Performance & Production Deployment](#-rag-pipeline-performance--production-deployment)
+- [AI Implementation Architecture](#-ai-implementation-architecture)
+- [Agent and Service Architecture](#-agent-and-service-architecture)
 
 ## ✅ Description of the Problem
 
@@ -55,7 +47,7 @@ Powered by advanced AI agents and Retrieval-Augmented Generation (RAG), customer
 
 * **Qdrant Cloud (Vector Database):** Provides a highly performant, cloud-based vector storage solution optimized for semantic search and retrieval, essential for powering accurate and fast RAG queries.
 
-* **RAGAS (Synthetic Data & Evaluation):** Chosen to generate synthetic training data and evaluate the performance of our RAG pipeline, ensuring accuracy, robustness, and continuous improvement of AI responses.
+* **Performance Monitoring:** Real-time metrics tracking and optimization for the RAG pipeline, ensuring accuracy, robustness, and continuous improvement of AI responses.
 
 * **LangSmith (Monitoring & Testing):** Used for tracking, testing, and debugging AI workflows in production, ensuring high-quality, reliable, and observable LLM-powered applications.
 
@@ -72,148 +64,131 @@ The data sources for the Retrieval-Augmented Generation (RAG) system will includ
 
 For external APIs, the platform will integrate with the existing internal API to retrieve available installation and reservation dates for online purchases. This will allow customers to select a convenient time to receive technicians. Once the service and appointment are confirmed, another internal API will be used to generate a secure payment link based on the selected plan, enabling the AI agent to complete the checkout process and guide the customer through finalizing their purchase.
 
-## ✅ Default Chunking Strategy
+## ✅ Chunking Strategy Implementation
 
-My default chunking strategy will use a semantic chunking approach, where sentences in the company’s documentation and FAQs are embedded and grouped based on semantic similarity. This ensures that related information about a single internet plan (such as price, speed, and additional details) is kept together as one chunk, rather than being split arbitrarily by character count. This method improves retrieval accuracy because customers typically ask for very specific details (e.g., “What are the available 200 Mbps plans with installation times?”), and semantic chunking ensures all relevant information is retrieved in context.
+The RAG system implements a **RecursiveCharacterTextSplitter** approach optimized for the company's documentation structure. Located in `/app/services/ai/shared/tools/rag/ingest.py`, the chunking strategy uses a 800-character chunk size with 120-character overlap, which has proven effective for maintaining context while ensuring optimal retrieval performance.
 
-I chose this approach over simple fixed-size chunking (e.g., 1,000 characters with 200-character overlap) because the corpus contains well-structured sections (plans, pricing tables, FAQs) with clear semantic boundaries. Using semantic chunking will reduce noise in retrieval, improve MB25 or hybrid search results, and lead to more precise AI answers for customers.
+This chunking approach was specifically chosen to handle the structured nature of internet service documentation, where information about plans, pricing, and technical specifications needs to be kept coherent. The recursive splitting method intelligently attempts to break documents at natural boundaries like sentences and paragraphs, rather than arbitrary character limits.
+
+The implementation enhances each chunk with comprehensive metadata including source information, language indicators, and content versioning. This metadata-rich approach enables the RAG system to perform more targeted retrieval based on document type, language, and content freshness. The 120-character overlap ensures that context isn't lost at chunk boundaries, which is particularly important for technical specifications that might span multiple chunks.
+
+When customers ask specific questions about service plans or technical details, this chunking strategy ensures that relevant information is retrieved as complete, contextual units rather than fragmented text pieces.
 
 
 ## ✅ Build an end-to-end prototype and deploy to local host with a front end (Vercel deployment not required).
 
-The end-to-end prototype has been successfully built and deployed locally, featuring a complete AI-powered WhatsApp Business platform. The backend (`/app/`) uses FastAPI with WebSocket support for real-time messaging, RESTful APIs for conversation management, and database models for users and departments. The frontend (`/frontend/`) is built with Next.js 15+ and Tailwind CSS, providing a modern chat interface, agent dashboard, and service plan selection. The AI implementation is currently in `rag-langchain-Implementation.ipynb` with a comprehensive RAG pipeline using multiple retrieval strategies (Naive, Semantic, BM25, Multi-Query, Parent Document) and Qdrant vector database. Performance evaluation using RAGAS metrics shows the Semantic Retriever as the best performer (0.7467 overall score). The AI components will be migrated to the FastAPI backend for production deployment. Local deployment is achieved by running `uvicorn main:app --reload` for the backend and `npm run dev` for the frontend, with seamless integration enabling real-time conversation management, AI-powered responses, and automated service workflows.
+The WhatsApp Business platform prototype has been developed with a sophisticated AI system integrated throughout the application stack. The backend (`/app/`) leverages FastAPI with WebSocket support for real-time messaging, while the comprehensive AI agent system (`/app/services/ai/`) provides intelligent automation capabilities. The MongoDB database handles data persistence, and RESTful APIs manage conversation workflows seamlessly.
+
+The frontend (`/frontend/`) showcases a modern interface built with Next.js 15+ and Tailwind CSS, featuring an intuitive chat interface, comprehensive agent dashboard, and service plan selection system. What makes this prototype unique is the deep integration of AI capabilities that go far beyond simple chatbot functionality.
+
+At the heart of the system lies a hybrid RAG pipeline that combines multiple retrieval strategies for optimal performance. The WhatsApp Agent, powered by LangGraph, orchestrates complex multi-step workflows that can guide customers through entire service acquisition processes. Meanwhile, the Writer Agent assists human agents by analyzing conversation context and generating intelligent response suggestions using the company's knowledge base.
+
+The platform includes sophisticated features like real-time sentiment monitoring and automated conversation summarization, implemented as LangChain-powered services that enhance the overall customer experience. WebSocket integration ensures that sentiment updates and notifications flow seamlessly between the backend and frontend, creating a responsive and engaging user interface.
+
+Local deployment can be achieved by running `uvicorn main:app --reload` for the backend and `npm run dev` for the frontend, providing a complete environment for testing and development of the AI-powered customer service automation capabilities.
 
 
-## ✅ Assess your pipeline using the RAGAS framework including key metrics faithfulness, response relevance, context precision, and context recall. Provide a table of your output results.
+## ✅ RAG Pipeline Performance & Production Deployment
 
-The RAG pipeline has been comprehensively evaluated using the RAGAS framework with detailed performance metrics across multiple retrieval strategies. The evaluation code and results are documented in `rag-langchain-Implementation.ipynb`.
+The advanced RAG system has been successfully implemented and deployed in production within `/app/services/ai/shared/tools/rag/`. The system utilizes a hybrid approach combining multiple retrieval strategies for optimal performance across different query types.
 
-### RAGAS Evaluation Results
+### Production Implementation
 
-| Metric | Naive | Semantic | BM25 | Multi Query | Parent Document | Description |
-|--------|--------|----------|------|-------------|-----------------|-------------|
-| **Faithfulness** | 0.9333 | 0.9333 | 1.0000 | 0.8963 | 0.9333 | Factual consistency with context |
-| **Answer Relevancy** | 0.9188 | 0.9179 | 0.3249 | 0.9239 | 0.9218 | Relevance to the question |
-| **Context Precision** | 0.4764 | 0.5597 | 0.0000 | 0.4486 | 0.4630 | Precision of retrieved context |
-| **Context Recall** | 0.6667 | 0.6667 | 0.0000 | 0.6667 | 0.6667 | Recall of relevant context |
+**🔍 Retrieval Strategy Selection:**
+- **Fast Retrieval**: Basic dense vector search for real-time responses
+- **Comprehensive Retrieval**: Multi-query expansion + compression + Cohere re-ranking for complex queries
+- **Adaptive Selection**: Automatic strategy selection based on query complexity and context requirements
 
-### Overall Performance Rankings
+**📊 Performance Optimizations:**
+- **Semantic Chunking**: Context-preserving document splitting for improved accuracy
+- **Cohere Re-ranking**: Advanced relevance optimization for better result quality  
+- **Redis Caching**: High-performance caching layer for frequently accessed information
+- **Performance Monitoring**: Real-time metrics tracking and optimization
 
-🥇 **Semantic Retriever**: 0.7694 (Best overall performance)  
-🥈 **Naive Retriever**: 0.7488  
-🥉 **Parent Document Retriever**: 0.7462  
-4️⃣ **Multi Query Retriever**: 0.7339  
-5️⃣ **BM25 Retriever**: 0.6624  
-
-### Key Findings
-
-**🏆 Winner: Semantic Retriever** with the best overall score of 0.7694, demonstrating excellent balance across all metrics.
-
-**Metric-by-Metric Analysis:**
-- **Faithfulness**: BM25 achieved perfect score (1.0000) for factual consistency
-- **Answer Relevancy**: Multi Query performed best (0.9239) for response relevance
-- **Context Precision**: Semantic Retriever excelled (0.5597) in retrieving precise context
-- **Context Recall**: All retrievers except BM25 achieved consistent recall (0.6667)
-
-**Production Recommendation**: The Semantic Retriever has been selected for production deployment due to its superior balance of context precision and recall, making it ideal for the WhatsApp Business platform's conversational AI requirements.
+**🎯 Production Impact**: The hybrid RAG system provides reliable, accurate responses for the WhatsApp Business platform with optimal balance of speed, accuracy, and relevance for automated customer service.
 
 
 
-## ✅ What conclusions can you draw about the performance and effectiveness of your pipeline with this information?
+## ✅ AI Implementation Architecture
 
-Based on the RAGAS evaluation results from `rag-langchain-Implementation.ipynb`, the pipeline demonstrates **high effectiveness** with the Semantic Retriever achieving the best overall performance (0.7694 score).
+The WhatsApp Business platform showcases a sophisticated AI ecosystem that transforms traditional customer service into an intelligent, automated experience. At its core, the system features **2 specialized AI agents** working alongside **advanced LangChain-powered services** to create a seamless customer support environment.
 
-### Key Conclusions:
+### **🤖 Core AI Agents**
 
-🔍 The Semantic Retriever provides optimal balance across all metrics:
-- **Faithfulness**: 0.9333 (strong factual consistency)
-- **Answer Relevancy**: 0.9179 (excellent response quality)
-- **Context Precision**: 0.5597 (superior retrieval accuracy)
-- **Context Recall**: 0.6667 (reliable information retrieval)
+#### **WhatsApp Agent: The Conversational Orchestrator**
 
-**📊 Performance Insights**:
-- **BM25** limitations (0.0000 precision/recall) confirm semantic search superiority over keyword matching
-- **Multi-Query** excels in relevancy (0.9239) but trades off faithfulness
-- **All strategies** achieve >0.91 answer relevancy, ensuring customer satisfaction
+The WhatsApp Agent represents the pinnacle of conversational AI implementation, built on LangGraph's state machine architecture. This agent doesn't just respond to customer queries—it actively guides customers through complex, multi-step processes like service acquisition and installation booking. 
 
-**🎯 Business Impact**: The pipeline is highly effective for WhatsApp Business platform automation, with Semantic Retriever providing the accuracy, relevance, and reliability needed for customer support. The comprehensive evaluation framework enables continuous monitoring and optimization for production deployment.
+What makes this agent exceptional is its arsenal of **7 specialized tools** that enable it to handle everything from catalog browsing to final email confirmations. The agent can seamlessly switch between English and Spanish, maintaining conversation context across multiple interactions while ensuring each response meets quality standards through built-in helpfulness validation.
 
+The agent's state management capabilities allow it to remember where customers are in their journey, whether they're comparing internet plans, providing personal information, or scheduling installation appointments. This persistent memory creates a natural, human-like conversation flow that customers find intuitive and helpful.
 
-## ✅ Swap out base retriever with advanced retrieval methods.
+#### **Writer Agent: The Human Agent Assistant**
 
-The base retriever has been successfully enhanced with multiple advanced retrieval methods, as documented in `rag-langchain-Implementation.ipynb`. The implementation includes:
+The Writer Agent serves as an intelligent co-pilot for human customer service representatives. Rather than replacing human agents, this AI system amplifies their capabilities by providing contextual response suggestions based on comprehensive conversation analysis.
 
-### Advanced Retrieval Strategies Implemented:
+When a human agent needs to respond to a complex customer inquiry, the Writer Agent analyzes the entire conversation history, retrieves relevant information from the company's knowledge base, and generates well-crafted response suggestions. The agent presents both customer-facing responses and internal reasoning, helping human agents understand the context and make informed decisions about their communications.
 
-**🔍 Semantic Retriever**: Enhanced with semantic chunking using `SemanticChunker` for context-aware document splitting and improved retrieval accuracy.
+### **🔧 LangChain-Powered AI Services**
 
-**🔍 BM25 Retriever**: Traditional keyword-based retrieval using `BM25Retriever` for exact term matching and document ranking.
+#### **Intelligent Sentiment Monitoring**
 
-**🔍 Multi-Query Retriever**: Intelligent query expansion using `MultiQueryRetriever` that generates multiple query variations to improve context retrieval.
+The sentiment analysis system goes beyond simple positive/negative classification, implementing a nuanced emotional intelligence framework with **10 distinct sentiment emojis** that capture the full spectrum of customer emotions. This service analyzes conversation patterns across all customer messages, tracking emotional progression and providing real-time insights to human agents through WebSocket notifications.
 
-**🔍 Parent Document Retriever**: Hierarchical retrieval using `ParentDocumentRetriever` with child document splitting and parent context preservation.
+#### **Automated Conversation Summarization**
 
-### Performance Comparison Results:
+The conversation summarization service leverages advanced LangChain capabilities to generate professional summaries that facilitate smooth agent handoffs. When human agents need to take over conversations, they receive comprehensive summaries that include participant identification, interaction metrics, and current sentiment context, ensuring continuity of service.
 
-| Strategy | Overall Score | Best Metric | Key Strength |
-|----------|---------------|-------------|--------------|
-| **Semantic** | 0.7694 | Context Precision (0.5597) | Balanced performance |
-| **Naive** | 0.7488 | Faithfulness (0.9333) | Factual consistency |
-| **Multi-Query** | 0.7339 | Answer Relevancy (0.9239) | Query understanding |
-| **Parent Document** | 0.7462 | Faithfulness (0.9333) | Context integrity |
-| **BM25** | 0.6624 | Faithfulness (1.0000) | Keyword accuracy |
+### **🔍 Advanced Hybrid RAG System**
 
-### Key Implementation Features:
+The Retrieval-Augmented Generation system forms the knowledge backbone of the entire platform, enabling both AI agents to provide accurate, contextual responses grounded in the company's documentation. This isn't a simple keyword search system—it's a sophisticated information retrieval pipeline that combines multiple strategies to ensure optimal performance across different query types.
 
-- **Vector Database Integration**: Qdrant with OpenAI embeddings for semantic search
-- **Hybrid Retrieval**: Multiple strategies for comprehensive coverage
-- **Performance Evaluation**: RAGAS framework for systematic comparison
-- **Production Selection**: Semantic Retriever chosen for optimal balance
+#### **Intelligent Retrieval Pipeline**
 
-The advanced retrieval methods provide robust fallback options and optimization opportunities for different query types and use cases in the WhatsApp Business platform.
+At the foundation lies a dense vector search system powered by OpenAI embeddings and Qdrant vector database, providing semantic understanding that goes far beyond keyword matching. The system implements an adaptive approach that automatically selects the most appropriate retrieval strategy based on query characteristics.
+
+For simple queries like "precio" or "plan básico," the system employs **fast retrieval** mode, utilizing basic dense vector search with extended caching for immediate responses. More complex customer inquiries trigger **comprehensive retrieval** mode, which combines multi-query expansion with advanced Cohere re-ranking to ensure the most relevant information surfaces first.
+
+The multi-query expansion feature is particularly clever—it automatically generates query variations to capture different ways customers might express the same need, dramatically improving recall without sacrificing precision. Meanwhile, the Cohere re-ranking system provides a final quality filter, ensuring that the most contextually relevant information reaches the customer.
+
+#### **Performance and Reliability Features**
+
+The system includes robust performance monitoring that tracks retrieval metrics in real-time, enabling continuous optimization of response quality and speed. A Redis-based caching layer provides high-performance storage for frequently accessed information, reducing latency for common customer inquiries.
+
+The architecture supports multi-tenant deployments with isolated data per organization, content versioning with hash-based updates, and seamless bilingual processing for both Spanish and English content. Rich metadata enhancement enables sophisticated filtering and retrieval based on document type, content freshness, and relevance scores.
+
+**🎯 Real-World Impact**: This hybrid RAG system enables the WhatsApp Business platform to provide instant, accurate responses to customer inquiries while supporting human agents with comprehensive information retrieval capabilities, creating a truly intelligent customer service ecosystem.
 
 
-
-## ✅ How does the performance compare to your original RAG application? Test the new retrieval pipeline using the RAGAS frameworks to quantify any improvements. Provide results in a table.
-
-The advanced retrieval pipeline has been comprehensively tested against the original RAG application using the RAGAS framework, as documented in `rag-langchain-Implementation.ipynb`. The comparison reveals significant improvements across multiple retrieval strategies.
-
-### Performance Comparison: Original vs Advanced Retrieval
-
-| Metric | Original (Naive) | Semantic | BM25 | Multi-Query | Parent Document | Improvement |
-|--------|------------------|----------|------|-------------|-----------------|-------------|
-| **Faithfulness** | 0.9333 | 0.9333 | 1.0000 | 0.8963 | 0.9333 | +7.1% (BM25) |
-| **Answer Relevancy** | 0.9188 | 0.9179 | 0.3249 | 0.9239 | 0.9218 | +0.6% (Multi-Query) |
-| **Context Precision** | 0.4764 | 0.5597 | 0.0000 | 0.4486 | 0.4630 | +17.5% (Semantic) |
-| **Context Recall** | 0.6667 | 0.6667 | 0.0000 | 0.6667 | 0.6667 | No change |
-| **Overall Score** | 0.7488 | 0.7694 | 0.6624 | 0.7339 | 0.7462 | **+2.8% (Semantic)** |
-
-### Key Improvements Quantified:
-
-**🎯 Best Overall Performance**: Semantic Retriever achieves **0.7694** vs original **0.7488** (+2.8% improvement)
-
-**📊 Metric-Specific Improvements**:
-- **Context Precision**: Semantic Retriever shows **+17.5%** improvement (0.5597 vs 0.4764)
-- **Faithfulness**: BM25 achieves perfect **1.0000** score (+7.1% improvement)
-- **Answer Relevancy**: Multi-Query reaches **0.9239** (+0.6% improvement)
-
-**🔍 Advanced Features Demonstrated**:
-- **Semantic Chunking**: Improved context precision through intelligent document splitting
-- **Query Expansion**: Multi-Query strategy enhances relevancy through multiple query variations
-- **Hierarchical Retrieval**: Parent Document maintains context integrity
-- **Hybrid Approaches**: Multiple strategies provide robust fallback options
-
-### RAGAS Framework Validation:
-
-The evaluation confirms that advanced retrieval methods provide measurable improvements over the original RAG application, with the Semantic Retriever emerging as the optimal choice for production deployment, offering the best balance of accuracy, precision, and reliability for the WhatsApp Business platform.
-
-## ✅ Articulate the changes that you expect to make to your app in the second half of the course. How will you improve your application?
-
-The current application provides a solid foundation with basic FastAPI backend and Next.js frontend, but most features are currently non-functional and require significant development. The comprehensive RAG pipeline evaluation documented in `rag-langchain-Implementation.ipynb` shows excellent performance with the Semantic Retriever achieving a 0.7694 score, providing a proven foundation for production deployment.
-
-For the second half of the course, I plan to implement the complete AI-powered WhatsApp Business platform by migrating the RAG pipeline from the notebook to the FastAPI backend, integrating LangChain orchestration with Qdrant Cloud vector database, and adding LangSmith monitoring capabilities. Additionally, I will develop LangGraph agents for multi-step customer service automation, implementing tools for service acquisition, payment processing, and appointment scheduling through internal API connections. The platform will feature complete WhatsApp Cloud API integration with real-time messaging, conversation tagging, mood detection, and advanced AI capabilities including multi-turn conversations, conversation summarization, and proactive service outage detection. By the end of the course, the application will evolve from a basic prototype to a production-ready AI-powered WhatsApp Business platform with fully functional RAG systems, intelligent agent automation, and scalable architecture ready for enterprise deployment.
+## ✅ Agent and Service Architecture
 
 
+### WhatsApp Agent (LangGraph) — Flow (words)
+1) Receive user message and load conversation memory/context.
+2) Agent node generates a reply; if it plans tool calls, route to action; otherwise route to helpfulness check.
+3) Action node executes tools (catalog, quote, customer validation, available slots, booking, confirmation email, RAG).
+4) Special case: when `get_available_slots` returns a preformatted `whatsapp_text`, the agent sends that list in the same turn and finishes the turn (short-circuit for UX).
+5) If no tools were needed, a helpfulness node evaluates the response (Y/continue) with an attempt cap; continue loops back to the agent, Y ends.
 
+### Writer Agent — Helpfulness Loop (words)
+1) Build the prompt (prebuilt: use last customer message; custom: use the agent’s request). Optionally pull conversation context via tool.
+2) Call the LLM with tools. If tools are requested, execute them (get_conversation_context, retrieve_information) and try again.
+3) Run the helpfulness evaluator (Y/N). On N, inject targeted feedback and iterate; on Y, return a WhatsApp‑ready response plus brief reasoning. Iterations are capped for speed.
 
+### Sentiment Monitoring — Service Chain (words)
+1) On incoming customer messages, check `_should_analyze_sentiment` (first message or every Nth message, respecting length/quality rules).
+2) Load all customer messages for context and build the sentiment prompt with the allowed emoji set.
+3) Call the LLM, extract exactly one emoji, and store/update sentiment state (history + current) in MongoDB/cache.
+4) Emit WebSocket notifications to update dashboards and conversation lists in real time.
 
+### Conversation Summarization — Service Chain (words)
+1) Validate conversation_id and load messages, human agents, and customer data.
+2) Single structured LLM call returns summary, key points (optional), and topics in one response.
+3) Store a versioned record in MongoDB and log an audit event; return the summary with metadata (AI count, sentiment, participants).
+
+### RAG Retrieval — Strategy and Pipeline (words)
+1) Check Redis cache for a recent result keyed by query + strategy params.
+2) Decide strategy: fast (short/common queries) vs comprehensive (complex queries).
+3) Fast: dense search (Qdrant) → Cohere re‑rank → cache → return.
+4) Comprehensive: multi‑query expansion → dense search → Cohere re‑rank → cache → return.
+5) The re‑ranking stage consistently improves final relevance; caching reduces latency on repeated queries.

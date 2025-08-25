@@ -19,8 +19,11 @@ from .auth.permissions import router as permissions_router
 from .websocket import router as websocket_router
 from .whatsapp.chat.conversations import router as conversations_router
 from .whatsapp.chat.messages import router as messages_router
+from .whatsapp.chat.tags import router as tags_router
 from .whatsapp.webhook import router as webhook_router
 from .business import router as business_router
+from .ai import agent_router, memory_router, summarizer_router, writer_router
+from .reservations import router as reservations_router
 
 # Create main API router
 api_router = APIRouter()
@@ -36,9 +39,19 @@ api_router.include_router(webhook_router)
 # Include WhatsApp chat routes
 api_router.include_router(conversations_router)
 api_router.include_router(messages_router)
+api_router.include_router(tags_router)
 
 # Include business routes
 api_router.include_router(business_router)
+
+# Include reservations routes (open endpoints)
+api_router.include_router(reservations_router)
+
+# Include AI routes
+api_router.include_router(agent_router)
+api_router.include_router(memory_router)
+api_router.include_router(summarizer_router)
+api_router.include_router(writer_router, prefix="/ai/writer", tags=["AI Writer"])
 
 # Include WebSocket routes
 api_router.include_router(websocket_router)
@@ -55,8 +68,7 @@ async def health_check():
 
     # Check database connectivity
     try:
-        db = database.db
-        await db.admin.command("ping")
+        await database.client.admin.command("ping")
         database_status = "healthy"
     except Exception as e:
         database_status = f"unhealthy: {str(e)}"

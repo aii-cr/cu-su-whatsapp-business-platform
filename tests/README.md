@@ -14,7 +14,7 @@ Before running tests, you need to create a test user in your database:
 
 ```bash
 # Run the test user insertion script
-python tests/insert_test_user.py
+python tests/db_users/insert_test_user.py
 ```
 
 ### Running Tests
@@ -33,31 +33,29 @@ pytest --cov=app
 
 # Stop on first failure
 pytest --maxfail=1
+
+# Run AI tests specifically
+python tests/ai/run_all_tests.py
+python tests/ai/test_ai_agent.py
+python tests/ai/test_conversation_context.py
 ```
-
-## Database Fixes
-
-If you encounter database-related errors during testing, check the `tests/db_fixes/` folder for scripts to resolve common issues:
-
-### Common Issues and Fixes
-
-1. **Duplicate Key Error on `conversation_id`**
-   ```bash
-   python tests/db_fixes/fix_conversation_index.py
-   ```
-
-2. **Duplicate Key Error on `message_id`**
-   ```bash
-   python tests/db_fixes/fix_message_index.py
-   ```
-
-See `tests/db_fixes/README.md` for detailed information about each fix.
 
 ## Test Structure
 
+### Core Tests
 - `test_main.py` - Basic API health checks
 - `test_whatsapp_send.py` - WhatsApp message sending functionality
+- `test_auth_services.py` - Authentication and authorization tests
+- `test_session_management.py` - Session management and security tests
+
+### Feature Tests
+- `conversations/` - Conversation management tests
+- `audit/` - Audit logging tests
+- `ai/` - AI agent tests and setup scripts
+
+### Database Utilities
 - `db_fixes/` - Database schema fix scripts
+- `db_users/` - User management utilities
 
 ## Environment Variables
 

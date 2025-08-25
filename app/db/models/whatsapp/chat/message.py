@@ -5,7 +5,7 @@ Represents individual messages within conversations.
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from enum import Enum
 from app.db.models.base import PyObjectId
@@ -41,6 +41,7 @@ class SenderRole(str, Enum):
     """Message sender role."""
     CUSTOMER = "customer"
     AGENT = "agent"
+    AI_ASSISTANT = "ai_assistant"
     BOT = "bot"
     SYSTEM = "system"
 
@@ -168,9 +169,9 @@ class Message(BaseModel):
     )
     
     # Metadata
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Message timestamp")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Search and indexing
     searchable_content: Optional[str] = Field(None, description="Processed content for search indexing")
@@ -218,7 +219,7 @@ class MessageUpdate(BaseModel):
     language_detected: Optional[str] = None
     is_flagged: Optional[bool] = None
     moderation_data: Optional[Dict[str, Any]] = None
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class MessageSend(BaseModel):
     """Schema for sending a new message."""

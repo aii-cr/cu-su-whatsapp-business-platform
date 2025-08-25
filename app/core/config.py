@@ -3,6 +3,7 @@ Configuration settings for WhatsApp Business Platform Backend.
 All environment variables are loaded via Pydantic Settings.
 """
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
@@ -20,10 +21,38 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
     DOMAIN: str = "http://localhost:8000"
     
+    
+    # Email settings
+    SMTP_PAY_SERVER: str = Field(..., env="SMTP_PAY_SERVER")
+    SMTP_PAY_PORT: int = Field(587, env="SMTP_PAY_PORT")
+    SMTP_PAY_USERNAME: str = Field(..., env="SMTP_PAY_USERNAME")
+    SMTP_PAY_PASSWORD: str = Field(..., env="SMTP_PAY_PASSWORD")
+    
     # Security Settings
     SECRET_KEY: str = "development-secret-key-change-in-production"  # Default for development
     SESSION_EXPIRE_MINUTES: int = 160  # Session timeout in minutes
+    SESSION_INACTIVITY_MINUTES: int = 160  # Session inactivity timeout in minutes
     ALGORITHM: str = "HS256"
+    
+    
+    # Qdrant Settings
+    QDRANT_URL: str 
+    QDRANT_API_KEY: str
+    QDRANT_COLLECTION_NAME: str = "whatsapp_business_platform"
+    
+    # OpenAI Settings
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-large"
+    OPENAI_EMBEDDING_DIMENSION: int = 3072
+    
+    # langchain settings
+    LANGCHAIN_TRACING_V2: bool = True
+    LANGCHAIN_PROJECT: str = "whatsapp-business-platform"
+    LANGCHAIN_API_KEY: str
+    
+    # Cohere Settings
+    COHERE_API_KEY: str
     
     # WhatsApp Business API Settings
     WHATSAPP_ACCESS_TOKEN: str 
@@ -60,6 +89,9 @@ class Settings(BaseSettings):
     AUTO_CLOSE_ENABLED: bool = True
     SURVEY_ON_CLOSE_ENABLED: bool = True
     MAX_AGENT_TRANSFERS: int = 10
+    # Tagging
+    MAX_TAGS_PER_CONVERSATION: int = 10
+    QUICK_ADD_TAGS_LIMIT: int = 7
     
     # Notification Settings
     ENABLE_PUSH_NOTIFICATIONS: bool = True
@@ -138,7 +170,7 @@ class Settings(BaseSettings):
     # CORS Settings
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "https://your-frontend-domain.com"]
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: List[str] = ["*"]
     
     model_config = SettingsConfigDict(

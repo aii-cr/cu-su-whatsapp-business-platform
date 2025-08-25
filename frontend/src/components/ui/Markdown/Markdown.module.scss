@@ -1,0 +1,30 @@
+@use '../../../styles/variables' as *;
+@use '../../../styles/mixins' as *;
+
+.markdown {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgb(var(--muted-foreground));
+  
+  strong {
+    font-weight: 600;
+    color: rgb(var(--foreground));
+  }
+  
+  em {
+    font-style: italic;
+  }
+  
+  code {
+    background: rgb(var(--muted) / 0.6);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: var(--font-mono, 'Courier New', monospace);
+    font-size: 0.8125rem;
+  }
+  
+  // Spacing for multiline content
+  &:not(:empty) {
+    margin-bottom: 0;
+  }
+}

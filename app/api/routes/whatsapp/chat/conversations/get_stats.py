@@ -34,21 +34,21 @@ async def get_conversation_statistics(
             {"$group": {"_id": "$status", "count": {"$sum": 1}}}
         ]
         status_stats = await db.conversations.aggregate(status_pipeline).to_list(None)
-        conversations_by_status = {item["_id"]: item["count"] for item in status_stats}
+        conversations_by_status = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in status_stats}
         
         # Get conversations by priority
         priority_pipeline = [
             {"$group": {"_id": "$priority", "count": {"$sum": 1}}}
         ]
         priority_stats = await db.conversations.aggregate(priority_pipeline).to_list(None)
-        conversations_by_priority = {item["_id"]: item["count"] for item in priority_stats}
+        conversations_by_priority = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in priority_stats}
         
         # Get conversations by channel
         channel_pipeline = [
             {"$group": {"_id": "$channel", "count": {"$sum": 1}}}
         ]
         channel_stats = await db.conversations.aggregate(channel_pipeline).to_list(None)
-        conversations_by_channel = {item["_id"]: item["count"] for item in channel_stats}
+        conversations_by_channel = {str(item["_id"]) if item["_id"] is not None else "unknown": item["count"] for item in channel_stats}
         
         stats_response = ConversationStatsResponse(
             total_conversations=total_conversations,
