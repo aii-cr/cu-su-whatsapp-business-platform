@@ -471,6 +471,11 @@ class WriterAgent:
                     # Add assistant responses (but not tool calls or helpfulness evals)
                     messages.append(AIMessage(content=msg["content"]))
             
+            # Add explicit English-only instruction for the final call
+            if state["iteration_count"] > 1:
+                # Add a reminder to respond in English only
+                messages.append(HumanMessage(content="REMINDER: You must respond in ENGLISH ONLY. Do not use Spanish or any other language in your response."))
+            
             logger.info(f"Calling model with {len(messages)} messages (iteration {state['iteration_count']}, mode: {state.get('mode', 'unknown')})")
             
             # Call model with tools
@@ -597,6 +602,8 @@ class WriterAgent:
                     break
             
             if best_response:
+                # Force English response
+                best_response = self._force_english_response(best_response)
                 state["response"] = best_response
                 state["helpfulness_score"] = "Y"  # Accept what we have
             
@@ -625,6 +632,9 @@ class WriterAgent:
                 "content": "HELPFULNESS:N"
             })
             return state
+        
+        # Force English response
+        last_response = self._force_english_response(last_response)
         
         # Create helpfulness evaluation prompt
         helpfulness_prompt = """
@@ -681,7 +691,8 @@ Evaluation (Y/N):"""
                     "content": (
                         "The response needs improvement. Please revise it to be more helpful, "
                         "professional, and appropriate for customer service. Consider using "
-                        "available tools to get more relevant information if needed."
+                        "available tools to get more relevant information if needed. "
+                        "IMPORTANT: Make sure the response is in English only."
                     )
                 })
             
@@ -694,6 +705,132 @@ Evaluation (Y/N):"""
             })
         
         return state
+    
+    def _force_english_response(self, response: str) -> str:
+        """
+        Force the response to be in English by replacing Spanish content.
+        
+        Args:
+            response: The response to check and fix
+            
+        Returns:
+            English version of the response
+        """
+        try:
+            # Check if response contains Spanish indicators
+            spanish_indicators = [
+                "¡", "¿", "á", "é", "í", "ó", "ú", "ñ", "ü",
+                "hola", "gracias", "por favor", "perfecto", "excelente",
+                "claro", "entendido", "disculpa", "lo siento", "aqui", "tienes",
+                "informacion", "sobre", "nuestros", "planes", "internet", "ideal",
+                "para", "hogares", "pequenos", "streaming", "trabajo", "remoto",
+                "basico", "perfecto", "varios", "dispositivos", "clases", "linea",
+                "mas", "popular", "excelente", "juegos", "videollamadas", "alta",
+                "demanda", "simultanea", "creadores", "contenido", "todos", "incluyen",
+                "equipo", "firewall", "soporte", "tambien", "puedes", "agregar",
+                "cualquier", "dejame", "saber", "necesitas", "informacion"
+            ]
+            
+            has_spanish = any(indicator in response.lower() for indicator in spanish_indicators)
+            
+            if has_spanish:
+                logger.warning("Detected Spanish content in response, forcing English translation")
+                
+                # More comprehensive Spanish to English replacements
+                replacements = {
+                    # Common greetings and expressions
+                    "¡Hola": "Hello",
+                    "¡Perfecto": "Perfect",
+                    "¡Excelente": "Excellent",
+                    "¡Claro": "Of course",
+                    "Gracias": "Thank you",
+                    "Por favor": "Please",
+                    "Entendido": "Understood",
+                    "Disculpa": "Sorry",
+                    "Lo siento": "I'm sorry",
+                    
+                    # Common words
+                    "Aqui": "Here",
+                    "tienes": "you have",
+                    "informacion": "information",
+                    "sobre": "about",
+                    "nuestros": "our",
+                    "planes": "plans",
+                    "internet": "internet",
+                    "ideal": "ideal",
+                    "para": "for",
+                    "hogares": "homes",
+                    "pequenos": "small",
+                    "streaming": "streaming",
+                    "trabajo": "work",
+                    "remoto": "remote",
+                    "basico": "basic",
+                    "perfecto": "perfect",
+                    "varios": "multiple",
+                    "dispositivos": "devices",
+                    "clases": "classes",
+                    "linea": "online",
+                    "mas": "most",
+                    "popular": "popular",
+                    "excelente": "excellent",
+                    "juegos": "gaming",
+                    "videollamadas": "video calls",
+                    "alta": "high",
+                    "demanda": "demand",
+                    "simultanea": "simultaneous",
+                    "creadores": "creators",
+                    "contenido": "content",
+                    "todos": "all",
+                    "incluyen": "include",
+                    "equipo": "equipment",
+                    "firewall": "firewall",
+                    "soporte": "support",
+                    "tambien": "also",
+                    "puedes": "you can",
+                    "agregar": "add",
+                    "cualquier": "any",
+                    "dejame": "let me",
+                    "saber": "know",
+                    "necesitas": "need",
+                    "informacion": "information",
+                    
+                    # Special characters
+                    "¡": "",
+                    "¿": "",
+                    "á": "a",
+                    "é": "e", 
+                    "í": "i",
+                    "ó": "o",
+                    "ú": "u",
+                    "ñ": "n",
+                    "ü": "u"
+                }
+                
+                # Apply replacements (case-insensitive)
+                for spanish, english in replacements.items():
+                    # Replace both lowercase and title case versions
+                    response = response.replace(spanish, english)
+                    response = response.replace(spanish.title(), english.title())
+                    response = response.replace(spanish.lower(), english.lower())
+                
+                # Add a note that this was translated
+                if "customer_response:" in response:
+                    # Find the customer_response section and add a note
+                    lines = response.split('\n')
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith("customer_response:"):
+                            # Add note after the customer_response line
+                            lines.insert(i + 1, "# Note: Response translated to English")
+                            break
+                    response = '\n'.join(lines)
+                
+                logger.info("Response converted to English")
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error forcing English response: {str(e)}")
+            return response
     
     def _helpfulness_decision(self, state: WriterAgentState) -> str:
         """Decide whether to continue or end based on helpfulness."""
