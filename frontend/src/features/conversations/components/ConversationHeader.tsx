@@ -30,6 +30,7 @@ import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '@/features/conversations/api/conversationsApi';
 import { useQueryClient } from '@tanstack/react-query';
 import { AutoReplyToggle } from './AutoReplyToggle';
+import { useClaimConversation } from '../hooks/useConversations';
 import { CpuChipIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 export interface ConversationHeaderProps {
@@ -58,7 +59,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
   }, ref) => {
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
-    const [isClaiming, setIsClaiming] = useState(false);
+    const claimConversationMutation = useClaimConversation();
     const getStatusVariant = (status: string) => {
       switch (status) {
         case 'active':
@@ -82,22 +83,7 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
         return;
       }
 
-      if (isClaiming) return;
-
-      try {
-        setIsClaiming(true);
-        await ConversationsApi.claimConversation(String(conversation._id));
-        toast.success('Conversation claimed successfully! You have been assigned to this chat.');
-        
-        // Invalidate and refetch conversation data instead of reloading
-        queryClient.invalidateQueries({ queryKey: ['conversations', 'detail', String(conversation._id)] });
-        queryClient.invalidateQueries({ queryKey: ['conversations', 'list'] });
-      } catch (error) {
-        console.error('Error claiming conversation:', error);
-        toast.error('Failed to claim conversation. Please try again.');
-      } finally {
-        setIsClaiming(false);
-      }
+      claimConversationMutation.mutate(String(conversation._id));
     };
     
     // Get conversation tags
@@ -195,11 +181,11 @@ const ConversationHeader = React.forwardRef<HTMLDivElement, ConversationHeaderPr
               variant="default" 
               size="sm" 
               onClick={handleClaimConversation}
-              disabled={isClaiming}
+              disabled={claimConversationMutation.isPending}
               className="text-xs md:text-sm px-2 md:px-3 bg-primary hover:bg-primary/90"
               title="Claim this conversation"
             >
-              {isClaiming ? 'Claiming...' : 'Claim Chat'}
+              {claimConversationMutation.isPending ? 'Claiming...' : 'Claim Chat'}
             </Button>
           )}
           

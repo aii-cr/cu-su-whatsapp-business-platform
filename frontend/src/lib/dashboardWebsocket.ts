@@ -43,6 +43,23 @@ export interface DashboardWebSocketMessageData {
     unread_counts: Record<string, number>;
     timestamp: string;
   };
+  
+  // Sentiment analysis update
+  sentiment_update: {
+    conversation_id: string;
+    sentiment_emoji: string;
+    confidence: number;
+    message_id: string;
+    timestamp: string;
+  };
+  
+  // Auto-reply toggle notification
+  autoreply_toggled: {
+    conversation_id: string;
+    ai_autoreply_enabled: boolean;
+    changed_by?: string;
+    timestamp: string;
+  };
 }
 
 export type DashboardMessageHandler = (data: DashboardWebSocketMessageData[keyof DashboardWebSocketMessageData]) => void;
@@ -180,6 +197,14 @@ export class DashboardWebSocketClient extends WebSocketClient {
         
         case 'initial_unread_counts':
           this.handleInitialUnreadCounts(data);
+          break;
+        
+        case 'sentiment_update':
+          this.handleSentimentUpdate(data);
+          break;
+        
+        case 'autoreply_toggled':
+          this.handleAutoReplyToggle(data);
           break;
         
         case 'dashboard_subscription_confirmed':
@@ -385,6 +410,99 @@ export class DashboardWebSocketClient extends WebSocketClient {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Handle sentiment update notification
+   */
+  private handleSentimentUpdate(data: DashboardWebSocketMessageData['sentiment_update']) {
+    console.log('😊 [DASHBOARD_WS] handleSentimentUpdate called with data:', data);
+    
+    const { conversation_id, sentiment_emoji, confidence } = data;
+
+    // Update conversation list data with new sentiment
+    this.queryClient.setQueryData(
+      ['conversations', 'list'],
+      (oldData: any) => {
+        if (oldData?.conversations) {
+          return {
+            ...oldData,
+            conversations: oldData.conversations.map((conv: any) => 
+              conv._id === conversation_id 
+                ? { ...conv, current_sentiment_emoji: sentiment_emoji, sentiment_confidence: confidence }
+                : conv
+            )
+          };
+        }
+        return oldData;
+      }
+    );
+
+    // Also update conversation detail if it exists
+    this.queryClient.setQueryData(
+      ['conversations', 'detail', conversation_id],
+      (oldData: any) => {
+        if (oldData) {
+          return {
+            ...oldData,
+            current_sentiment_emoji: sentiment_emoji,
+            sentiment_confidence: confidence,
+            last_sentiment_analysis_at: data.timestamp
+          };
+        }
+        return oldData;
+      }
+    );
+
+    console.log('😊 [DASHBOARD_WS] Updated sentiment for conversation:', conversation_id);
+  }
+
+  /**
+   * Handle auto-reply toggle notification
+   */
+  private handleAutoReplyToggle(data: DashboardWebSocketMessageData['autoreply_toggled']) {
+    console.log('🔔 [DASHBOARD_WS] handleAutoReplyToggle called with data:', data);
+    
+    const { conversation_id, ai_autoreply_enabled } = data;
+
+    // Update conversation list data with new auto-reply status
+    this.queryClient.setQueryData(
+      ['conversations', 'list'],
+      (oldData: any) => {
+        if (oldData?.conversations) {
+          return {
+            ...oldData,
+            conversations: oldData.conversations.map((conv: any) => 
+              conv._id === conversation_id 
+                ? { ...conv, ai_autoreply_enabled }
+                : conv
+            )
+          };
+        }
+        return oldData;
+      }
+    );
+
+    // Also update conversation detail if it exists
+    this.queryClient.setQueryData(
+      ['conversations', 'detail', conversation_id],
+      (oldData: any) => {
+        if (oldData) {
+          return {
+            ...oldData,
+            ai_autoreply_enabled
+          };
+        }
+        return oldData;
+      }
+    );
+
+    // Invalidate auto-reply status query
+    this.queryClient.invalidateQueries({ 
+      queryKey: ['conversation-auto-reply', conversation_id] 
+    });
+
+    console.log('🔔 [DASHBOARD_WS] Updated auto-reply status for conversation:', conversation_id);
   }
 
   /**

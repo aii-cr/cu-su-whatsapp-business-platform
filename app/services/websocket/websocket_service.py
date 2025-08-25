@@ -539,7 +539,12 @@ class WebSocketService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        # Broadcast to conversation subscribers
         await manager.broadcast_to_conversation(notification, str(conversation_id))
+        
+        # Also broadcast to dashboard subscribers
+        await manager.broadcast_to_dashboard(notification)
+        
         logger.info(f"🔔 [WS] Broadcasted auto-reply toggle notification for conversation {conversation_id}: {enabled}")
 
     @staticmethod
@@ -597,7 +602,12 @@ class WebSocketService:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        # Broadcast to conversation subscribers
         await manager.broadcast_to_conversation(notification, str(conversation_id))
+        
+        # Also broadcast to dashboard subscribers
+        await manager.broadcast_to_dashboard(notification)
+        
         logger.info(f"😊 [WS] Broadcasted sentiment update for conversation {conversation_id}: {sentiment_emoji} (confidence: {confidence:.2f})")
     
     @staticmethod

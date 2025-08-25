@@ -90,6 +90,16 @@ body {
 
 // Global utility classes that extend Tailwind
 @layer utilities {
+  // AI Agent glow animation
+  @keyframes glow {
+    from {
+      filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
+    }
+    to {
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.4));
+    }
+  }
+  
   // WhatsApp-specific utilities
   .chat-container {
     @apply flex flex-col h-full;

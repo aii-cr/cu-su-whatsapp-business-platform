@@ -15,6 +15,7 @@ import {
 } from '../models/conversation';
 import { toast } from '@/components/feedback/Toast';
 import { createApiErrorHandler } from '@/lib/http';
+import { userQueryKeys } from '@/features/users/hooks/useUsers';
 
 // Query keys for conversations
 export const conversationQueryKeys = {
@@ -165,6 +166,29 @@ export function useTransferConversation() {
       });
       queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
       toast.success('Conversation transferred successfully');
+    },
+    onError: handleError,
+  });
+}
+
+/**
+ * Hook to claim a conversation
+ */
+export function useClaimConversation() {
+  const queryClient = useQueryClient();
+  const handleError = createApiErrorHandler((msg: string) => toast.error(msg));
+
+  return useMutation({
+    mutationFn: (conversationId: string) => ConversationsApi.claimConversation(conversationId),
+    onSuccess: (_, conversationId) => {
+      // Invalidate and refetch conversation details and list
+      queryClient.invalidateQueries({ 
+        queryKey: conversationQueryKeys.detail(conversationId) 
+      });
+      queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
+      // Also invalidate users query to refresh assigned agent data
+      queryClient.invalidateQueries({ queryKey: userQueryKeys.all });
+      toast.success('Conversation claimed successfully');
     },
     onError: handleError,
   });

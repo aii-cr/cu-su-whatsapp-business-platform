@@ -22,7 +22,8 @@ import {
   EllipsisVerticalIcon,
   EllipsisHorizontalIcon,
   TagIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  FaceSmileIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button/index';
 import { TagList } from '@/features/tags';
@@ -30,6 +31,9 @@ import { EditTagsModal } from '@/features/tags/components/EditTagsModal';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { toast } from '@/components/feedback/Toast';
 import { ConversationsApi } from '../api/conversationsApi';
+import { useClaimConversation } from '../hooks/useConversations';
+import { CompactAutoReplyToggle } from './CompactAutoReplyToggle';
+import { useQuery } from '@tanstack/react-query';
 
 interface ConversationListItemProps {
   conversation: Conversation;
@@ -50,10 +54,26 @@ export function ConversationListItem({
   const { user } = useAuthStore();
   const [showEditTags, setShowEditTags] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false);
   const [windowWidth, setWindowWidth] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
+  
+    // Use the claim conversation mutation hook
+  const claimConversationMutation = useClaimConversation();
+  
+  // Get current auto-reply status for real-time updates
+  const { data: autoReplyStatus } = useQuery({
+    queryKey: ['conversation-auto-reply', conversation._id],
+    queryFn: () => ConversationsApi.getAIAutoReplyStatus(conversation._id),
+    enabled: !!conversation._id,
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true,
+    retry: 2,
+    retryDelay: 1000,
+  });
+  
+  // Use the fetched status as the source of truth, fallback to conversation prop
+  const actualAutoReplyEnabled = autoReplyStatus?.ai_autoreply_enabled ?? conversation.ai_autoreply_enabled ?? true;
+  
   // Responsive tag display count
   const maxTagDisplay = useMemo(() => {
     if (windowWidth >= 1024) return 6; // lg screens
@@ -109,16 +129,7 @@ export function ConversationListItem({
       return;
     }
 
-    setIsClaiming(true);
-    try {
-      await ConversationsApi.claimConversation(conversation._id);
-      toast.success('Conversation claimed successfully');
-    } catch (error) {
-      console.error('Error claiming conversation:', error);
-      toast.error('Failed to claim conversation');
-    } finally {
-      setIsClaiming(false);
-    }
+    claimConversationMutation.mutate(conversation._id);
   };
 
   const getStatusVariant = (status: string) => {
@@ -182,6 +193,28 @@ export function ConversationListItem({
           {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
         </div>
       )}
+      
+      {/* Agent Status Indicator - positioned at bottom-left of conversation card */}
+      <div className="absolute bottom-2 left-2 z-10">
+        {actualAutoReplyEnabled ? (
+          <div 
+            className="text-lg cursor-default"
+            title="AI Agent Active"
+            style={{
+              animation: 'bounce 2s infinite, glow 2s ease-in-out infinite alternate'
+            }}
+          >
+            ✨
+          </div>
+        ) : (
+          <div 
+            className="text-lg cursor-default opacity-70"
+            title="Human Agent"
+          >
+            ✏️
+          </div>
+        )}
+      </div>
 
       {/* Main content - responsive layout */}
       <div className="flex-1 min-w-0 overflow-hidden">
@@ -190,10 +223,31 @@ export function ConversationListItem({
           {/* Header: Name, Phone, Timestamp */}
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-foreground text-sm truncate flex-1">
-                {customerName}
-              </h3>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <h3 className="font-semibold text-foreground text-sm truncate">
+                  {customerName}
+                </h3>
+                {/* Sentiment Icon */}
+                {conversation.current_sentiment_emoji && (
+                  <span 
+                    className="text-sm flex-shrink-0 cursor-default"
+                    title={`Sentiment: ${conversation.current_sentiment_emoji} (Confidence: ${Math.round((conversation.sentiment_confidence || 0) * 100)}%)`}
+                  >
+                    {conversation.current_sentiment_emoji}
+                  </span>
+                )}
+              </div>
             </div>
+            
+                          {/* Auto-reply Toggle - positioned below name */}
+              <div className="flex items-center justify-between">
+                <CompactAutoReplyToggle
+                  conversationId={conversation._id}
+                  initialEnabled={conversation.ai_autoreply_enabled ?? true}
+                  currentEnabled={actualAutoReplyEnabled}
+                  className="flex-shrink-0"
+                />
+              </div>
             
             {customerPhone && (
               <div className="flex items-center text-muted-foreground">
@@ -288,10 +342,10 @@ export function ConversationListItem({
                   size="sm"
                   variant="outline"
                   onClick={handleClaimConversation}
-                  disabled={isClaiming}
+                  disabled={claimConversationMutation.isPending}
                   className="text-xs px-2 py-1 h-7 w-full"
                 >
-                  {isClaiming ? 'Claiming...' : 'Claim'}
+                  {claimConversationMutation.isPending ? 'Claiming...' : 'Claim'}
                 </Button>
               </div>
             )}
@@ -303,9 +357,20 @@ export function ConversationListItem({
           {/* Top row: Customer name and timestamp */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
-              <h3 className="font-medium text-foreground truncate text-sm sm:text-base max-w-full min-w-0">
-                {customerName}
-              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-medium text-foreground truncate text-sm sm:text-base max-w-full min-w-0">
+                  {customerName}
+                </h3>
+                {/* Sentiment Icon */}
+                {conversation.current_sentiment_emoji && (
+                  <span 
+                    className="text-sm flex-shrink-0 cursor-default"
+                    title={`Sentiment: ${conversation.current_sentiment_emoji} (Confidence: ${Math.round((conversation.sentiment_confidence || 0) * 100)}%)`}
+                  >
+                    {conversation.current_sentiment_emoji}
+                  </span>
+                )}
+              </div>
               
               {customerPhone && (
                 <div className="flex items-center text-muted-foreground flex-shrink-0">
@@ -314,8 +379,16 @@ export function ConversationListItem({
                 </div>
               )}
             </div>
-            
-
+          </div>
+          
+          {/* Auto-reply Toggle - positioned below customer info */}
+          <div className="flex items-center mb-2">
+            <CompactAutoReplyToggle
+              conversationId={conversation._id}
+              initialEnabled={conversation.ai_autoreply_enabled ?? true}
+              currentEnabled={actualAutoReplyEnabled}
+              className="flex-shrink-0"
+            />
           </div>
           
           {/* Last message preview */}
@@ -420,10 +493,10 @@ export function ConversationListItem({
                     size="sm"
                     variant="outline"
                     onClick={handleClaimConversation}
-                    disabled={isClaiming}
+                    disabled={claimConversationMutation.isPending}
                     className="text-xs px-2 py-1 h-7 w-full sm:w-auto"
                   >
-                    {isClaiming ? 'Claiming...' : 'Claim'}
+                    {claimConversationMutation.isPending ? 'Claiming...' : 'Claim'}
                   </Button>
                 </div>
               )}
@@ -441,7 +514,7 @@ export function ConversationListItem({
       </div>
       
       {/* Action menu - positioned absolutely */}
-      <div className="absolute top-3 right-3">
+      <div className="absolute top-2 right-2">
         <div ref={dropdownRef} className="relative">
           <Button
             variant="outline"
@@ -450,14 +523,14 @@ export function ConversationListItem({
               e.stopPropagation();
               setShowDropdown(!showDropdown);
             }}
-            className="bg-background border-border hover:bg-accent hover:border-border text-foreground"
+            className="bg-background/80 backdrop-blur-sm border-border hover:bg-accent hover:border-border text-foreground shadow-sm"
             aria-label="More actions"
           >
             <EllipsisVerticalIcon className="w-4 h-4" />
           </Button>
           
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-20">
+            <div className="absolute right-0 top-full mt-1 w-48 bg-background/95 backdrop-blur-sm border border-border rounded-md shadow-lg z-20">
               <div className="py-1">
                 <button
                   onClick={(e) => {
