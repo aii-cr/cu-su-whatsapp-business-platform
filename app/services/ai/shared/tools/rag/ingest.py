@@ -209,9 +209,11 @@ async def ingest_documents() -> IngestionResult:
             return IngestionResult(
                 success=False,
                 documents_processed=0,
+                chunks_created=0,
                 chunks_stored=0,
+                processing_time_ms=0,
                 errors=["No JSONL files found"],
-                processing_time_seconds=0
+                collection_name=ai_config.qdrant_collection_name
             )
         
         start_time = datetime.now(timezone.utc)
@@ -227,8 +229,12 @@ async def ingest_documents() -> IngestionResult:
             prefer_grpc=True
         )
         
-        collection_info = client.get_collection(ai_config.qdrant_collection_name)
-        vectors_count = collection_info.vectors_count
+        try:
+            collection_info = client.get_collection(ai_config.qdrant_collection_name)
+            vectors_count = collection_info.vectors_count or 0
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get collection info: {str(e)}")
+            vectors_count = 0
         
         end_time = datetime.now(timezone.utc)
         processing_time = (end_time - start_time).total_seconds()
@@ -238,9 +244,11 @@ async def ingest_documents() -> IngestionResult:
         return IngestionResult(
             success=True,
             documents_processed=len(existing_paths),
+            chunks_created=vectors_count,  # Assume chunks created equals vectors stored
             chunks_stored=vectors_count,
+            processing_time_ms=int(processing_time * 1000),
             errors=[],
-            processing_time_seconds=processing_time
+            collection_name=ai_config.qdrant_collection_name
         )
         
     except Exception as e:
@@ -248,9 +256,11 @@ async def ingest_documents() -> IngestionResult:
         return IngestionResult(
             success=False,
             documents_processed=0,
+            chunks_created=0,
             chunks_stored=0,
+            processing_time_ms=0,
             errors=[str(e)],
-            processing_time_seconds=0
+            collection_name=ai_config.qdrant_collection_name
         )
 
 

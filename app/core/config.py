@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     # OpenAI Settings
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-4o-mini"
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    OPENAI_EMBEDDING_DIMENSION: int = 1536
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-large"
+    OPENAI_EMBEDDING_DIMENSION: int = 3072
     
     # langchain settings
     LANGCHAIN_TRACING_V2: bool = True

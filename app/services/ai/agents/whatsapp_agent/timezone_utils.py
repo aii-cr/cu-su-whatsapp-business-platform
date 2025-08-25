@@ -16,7 +16,7 @@ def get_costa_rica_time() -> datetime:
     return datetime.now(CR_TIMEZONE)
 
 
-def get_time_of_day_greeting(language: str = "es") -> str:
+def get_time_of_day_greeting(language: str = "en") -> str:
     """
     Get appropriate greeting based on current time in Costa Rica.
     
@@ -45,7 +45,7 @@ def get_time_of_day_greeting(language: str = "es") -> str:
             return "Buenas noches"
 
 
-def get_current_time_context(language: str = "es") -> Dict[str, str]:
+def get_current_time_context(language: str = "en") -> Dict[str, str]:
     """
     Get comprehensive time context for Costa Rica.
     
@@ -94,7 +94,7 @@ def get_current_time_context(language: str = "es") -> Dict[str, str]:
     }
 
 
-def get_contextual_time_info(language: str = "es") -> str:
+def get_contextual_time_info(language: str = "en") -> str:
     """
     Get formatted time context string for system prompt.
     
@@ -123,12 +123,12 @@ if __name__ == "__main__":
     print("Costa Rica Time Context:")
     print("="*50)
     
-    # Test Spanish
-    print("\nSpanish context:")
-    print(get_contextual_time_info("es"))
-    print(f"Current context: {get_current_time_context('es')}")
-    
-    # Test English  
+    # Test English (default)
     print("\nEnglish context:")
     print(get_contextual_time_info("en"))
     print(f"Current context: {get_current_time_context('en')}")
+    
+    # Test Spanish  
+    print("\nSpanish context:")
+    print(get_contextual_time_info("es"))
+    print(f"Current context: {get_current_time_context('es')}")

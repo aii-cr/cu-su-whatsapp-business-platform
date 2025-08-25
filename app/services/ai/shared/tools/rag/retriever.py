@@ -19,6 +19,57 @@ from app.services.ai.config import ai_config
 from app.core.logger import logger
 
 
+async def _check_and_ensure_collection() -> bool:
+    """Check if collection exists and has data, create if needed."""
+    try:
+        from qdrant_client import QdrantClient
+        
+        client = QdrantClient(
+            url=ai_config.qdrant_url,
+            api_key=ai_config.qdrant_api_key,
+            prefer_grpc=True
+        )
+        
+        # Check if collection exists
+        collection_exists = client.collection_exists(ai_config.qdrant_collection_name)
+        
+        if not collection_exists:
+            logger.info("🏗️ [RAG] Collection doesn't exist, creating and ingesting data...")
+            await _ingest_documents()
+            return True
+        
+        # Check if collection has data
+        collection_info = client.get_collection(ai_config.qdrant_collection_name)
+        if collection_info.vectors_count == 0:
+            logger.info("📦 [RAG] Collection is empty, ingesting data...")
+            await _ingest_documents()
+            return True
+        
+        logger.info(f"✅ [RAG] Collection healthy with {collection_info.vectors_count} vectors")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ [RAG] Failed to check/ensure collection: {str(e)}")
+        return False
+
+
+async def _ingest_documents():
+    """Ingest documents using the hybrid approach."""
+    try:
+        from .ingest import ingest_documents
+        
+        logger.info("🚀 [RAG] Starting document ingestion...")
+        result = await ingest_documents()
+        
+        if result.success:
+            logger.info(f"✅ [RAG] Ingestion completed: {result.chunks_stored} chunks stored")
+        else:
+            logger.error(f"❌ [RAG] Ingestion failed: {result.errors}")
+            
+    except Exception as e:
+        logger.error(f"❌ [RAG] Failed to ingest documents: {str(e)}")
+
+
 def _determine_retrieval_strategy(query: str) -> Dict[str, Any]:
     """Determine optimal retrieval strategy based on query characteristics."""
     query_lower = query.lower().strip()
@@ -103,7 +154,7 @@ async def _comprehensive_retrieve(query: str, strategy: Dict[str, Any]) -> List[
 
 
 def _format_docs(docs: List[Document]) -> str:
-    """Formatea contexto en texto compacto con etiquetas de origen."""
+    """Format context into compact text with source tags."""
     try:
         logger.info(f"📄 [RAG] Formatting {len(docs)} retrieved documents")
         
@@ -124,7 +175,7 @@ def _format_docs(docs: List[Document]) -> str:
 
 
 @tool("adn_retrieve", return_direct=False)
-async def retrieve_information(query: Annotated[str, "consulta del cliente"]) -> str:
+async def retrieve_information(query: Annotated[str, "customer query"]) -> str:
     """
     High-performance RAG retrieval with intelligent strategy selection.
     Uses caching and connection pooling for optimal speed while maintaining quality.
@@ -138,18 +189,23 @@ async def retrieve_information(query: Annotated[str, "consulta del cliente"]) ->
     try:
         logger.info(f"🔍 [RAG] Starting optimized retrieval for query: '{query[:100]}...'")
         
-        # Step 1: Determine optimal retrieval strategy
+        # Step 1: Ensure collection exists and has data
+        collection_ready = await _check_and_ensure_collection()
+        if not collection_ready:
+            return "NO_CONTEXT_AVAILABLE: The knowledge base is not available at this time."
+        
+        # Step 2: Determine optimal retrieval strategy
         strategy = _determine_retrieval_strategy(query)
         logger.info(f"📋 [RAG] Using {strategy['strategy']} strategy (multiquery: {strategy['use_multiquery']})")
         
-        # Step 2: Check cache first
+        # Step 3: Check cache first
         cached_results = retrieval_cache.get_cached_results(query, strategy)
         if cached_results:
             docs = cached_results
             cache_hit = True
             logger.info(f"🎯 [RAG] Cache hit! Retrieved {len(docs)} documents from cache")
         else:
-            # Step 3: Execute retrieval based on strategy
+            # Step 4: Execute retrieval based on strategy
             if strategy["use_multiquery"]:
                 docs = await _comprehensive_retrieve(query, strategy)
             else:
@@ -159,9 +215,9 @@ async def retrieve_information(query: Annotated[str, "consulta del cliente"]) ->
         
         if not docs:
             logger.warning("⚠️ [RAG] No documents found for query")
-            return "NO_CONTEXT_AVAILABLE: La base de conocimiento está vacía o no contiene información relevante para esta consulta."
+            return "NO_CONTEXT_AVAILABLE: The knowledge base is empty or doesn't contain relevant information for this query."
             
-        # Step 4: Format and return
+        # Step 5: Format and return
         formatted_context = _format_docs(docs)
         
         logger.info(f"✅ [RAG] Optimized retrieval completed successfully")
@@ -174,10 +230,10 @@ async def retrieve_information(query: Annotated[str, "consulta del cliente"]) ->
         # If it's a collection not found error, return no context signal
         if "doesn't exist" in error or "not found" in error.lower():
             logger.info("🏗️ [RAG] Collection doesn't exist yet, will be created on first use")
-            return "NO_CONTEXT_AVAILABLE: La base de conocimiento aún no ha sido inicializada. Será creada automáticamente."
+            return "NO_CONTEXT_AVAILABLE: The knowledge base hasn't been initialized yet. It will be created automatically."
         
         # For other errors, return error signal
-        return "ERROR_ACCESSING_KNOWLEDGE: No se pudo acceder a la información en este momento."
+        return "ERROR_ACCESSING_KNOWLEDGE: Could not access information at this time."
         
     finally:
         # Record performance metrics
@@ -203,4 +259,4 @@ def retrieve_information_sync(query: str) -> str:
         return asyncio.run(retrieve_information(query))
     except Exception as e:
         logger.error(f"❌ [RAG] Sync wrapper failed: {str(e)}")
-        return "ERROR_ACCESSING_KNOWLEDGE: No se pudo acceder a la información en este momento."
+        return "ERROR_ACCESSING_KNOWLEDGE: Could not access information at this time."

@@ -10,6 +10,7 @@ from datetime import timedelta
 
 import redis
 from langchain_core.documents import Document
+
 from app.core.config import settings
 from app.core.logger import logger
 
@@ -50,7 +51,7 @@ class RetrievalCache:
         """Get cached retrieval results."""
         if not self.enabled:
             return None
-            
+        
         try:
             cache_key = self._get_query_key(query, retrieval_params)
             cached_data = self.redis_client.get(cache_key)
@@ -81,7 +82,7 @@ class RetrievalCache:
         """Cache retrieval results."""
         if not self.enabled or not documents:
             return
-            
+        
         try:
             cache_key = self._get_query_key(query, retrieval_params)
             

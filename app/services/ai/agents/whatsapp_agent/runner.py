@@ -34,7 +34,7 @@ def _infer_language(text: str) -> str:
         
     except Exception as e:
         logger.error(f"❌ [RUNNER] Language detection failed: {str(e)}")
-        return "es"  # Default to Spanish
+        return "en"  # Default to English
 
 
 def _prepare_history_messages(history: List[dict], target_language: str) -> List:
@@ -42,9 +42,9 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
     try:
         logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with automatic language detection")
         
-        # Get current time context for Costa Rica
+        # Get current time context for Costa Rica - use English by default
         from .timezone_utils import get_contextual_time_info
-        time_context = get_contextual_time_info("es")  # Time context in Spanish for Costa Rica
+        time_context = get_contextual_time_info("en")  # Time context in English by default
         
         msgs: List = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(time_context=time_context))]
         

@@ -143,7 +143,7 @@ class WriterAgentService:
                 return WriterAgentResult(
                     success=False,
                     raw_response="",
-                    error="Lo siento, ocurrió un error generando la respuesta. Por favor, inténtalo de nuevo.",
+                    error="Sorry, an error occurred while generating the response. Please try again.",
                     metadata={
                         "processing_time_ms": int(processing_time),
                         "conversation_id": conversation_id,
@@ -189,7 +189,7 @@ class WriterAgentService:
             logger.error(error_msg)
             
             # Provide user-friendly error message
-            user_friendly_error = "Lo siento, ocurrió un error generando la respuesta. Por favor, inténtalo de nuevo."
+            user_friendly_error = "Sorry, an error occurred while generating the response. Please try again."
             
             return WriterAgentResult(
                 success=False,
