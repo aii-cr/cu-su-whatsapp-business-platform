@@ -8,47 +8,30 @@ import re
 from typing import Annotated, Optional
 from langchain_core.tools import tool
 from app.services.ai.agents.whatsapp_agent.services.email_client import email_client
+from app.services.ai.agents.whatsapp_agent.templates.email_templates import (
+    CONFIRMATION_EMAIL_HTML,
+    CONFIRMATION_EMAIL_TEXT
+)
 from app.core.logger import logger
 
-_EMAIL_TEMPLATE = """\
-Hi {full_name},
-
-Your American Data Networks installation is confirmed.
-
-Service:
-- Plan: {plan_name}
-- IPTV devices: {iptv_count}
-- VoIP Phone: {telefonia}
-
-Installation:
-- Date: {date}
-- Time: {time_slot}
-
-Billing:
-- First month pre-charge on installation day.
-- Installation cost: $0
-- Second month: FREE
-
-Confirmation Number: {confirmation_number}
-
-If you need any changes, just reply to this message.
-Thanks for choosing American Data Networks!
-"""
 
 def validate_email(email: str) -> bool:
     """Validate email format."""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 
+
 def validate_date_format(date: str) -> bool:
     """Validate date format YYYY-MM-DD."""
     pattern = r'^\d{4}-\d{2}-\d{2}$'
     return bool(re.match(pattern, date))
 
+
 def validate_time_slot(time_slot: str) -> bool:
     """Validate time slot format."""
     valid_slots = ["08:00", "13:00"]
     return time_slot in valid_slots
+
 
 @tool("generate_confirmation_number", return_direct=False)
 async def generate_confirmation_number() -> str:
@@ -71,6 +54,7 @@ async def generate_confirmation_number() -> str:
             "ok": False,
             "error": f"Failed to generate confirmation number: {str(e)}"
         }, ensure_ascii=False)
+
 
 @tool("send_confirmation_email", return_direct=False)
 async def send_confirmation_email(
@@ -143,24 +127,53 @@ async def send_confirmation_email(
                 "error": "Confirmation number cannot be empty"
             }, ensure_ascii=False)
         
-        # Format email body
-        body = _EMAIL_TEMPLATE.format(
-            full_name=full_name.strip(),
-            plan_name=plan_name.strip(),
-            iptv_count=iptv_count,
-            telefonia="Yes" if telefonia else "No",
-            date=date,
-            time_slot=time_slot,
-            confirmation_number=confirmation_number.strip(),
+        # Format data for template
+        telefonia_text = "Yes" if telefonia else "No"
+        
+        # Format date for display (convert YYYY-MM-DD to readable format)
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            formatted_date = date_obj.strftime("%B %d, %Y")
+        except:
+            formatted_date = date
+        
+        # Send HTML email using the enhanced template
+        logger.info(f"Sending confirmation email to {email} for {full_name}")
+        
+        # Try HTML email first
+        success = await email_client.send_html_email(
+            to=email,
+            subject="American Data Networks | Installation Confirmation",
+            html_content=CONFIRMATION_EMAIL_HTML.format(
+                full_name=full_name.strip(),
+                plan_name=plan_name.strip(),
+                iptv_count=iptv_count,
+                telefonia=telefonia_text,
+                date=formatted_date,
+                time_slot=time_slot,
+                confirmation_number=confirmation_number.strip(),
+            )
         )
         
-        # Send email
-        logger.info(f"Sending confirmation email to {email} for {full_name}")
-        success = await email_client.send(
-            to=email,
-            subject="ADN Installation Confirmation",
-            text=body
-        )
+        # If HTML fails, try text-only as fallback
+        if not success:
+            logger.warning(f"HTML email failed, trying text-only fallback for {email}")
+            text_content = CONFIRMATION_EMAIL_TEXT.format(
+                full_name=full_name.strip(),
+                plan_name=plan_name.strip(),
+                iptv_count=iptv_count,
+                telefonia=telefonia_text,
+                date=formatted_date,
+                time_slot=time_slot,
+                confirmation_number=confirmation_number.strip(),
+            )
+            
+            success = await email_client.send(
+                to=email,
+                subject="American Data Networks | Installation Confirmation",
+                text=text_content
+            )
         
         if success:
             logger.info(f"Confirmation email sent successfully to {email}")
@@ -182,6 +195,7 @@ async def send_confirmation_email(
             "ok": False,
             "error": f"Internal error: {str(e)}"
         }, ensure_ascii=False)
+
 
 @tool("send_confirmation_email_with_auto_number", return_direct=False)
 async def send_confirmation_email_with_auto_number(
