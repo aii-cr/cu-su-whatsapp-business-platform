@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { getLogoPath, getLogoAlt, getLogoClassName } from '@/lib/branding';
+import { getLogoPath, getLogoAlt, getLogoClassName, getLoginLogoPath, getLoginLogoAlt } from '@/lib/branding';
 
 interface BrandLogoProps {
   className?: string;
@@ -56,6 +56,22 @@ export function BrandLogoLarge({ className = '' }: { className?: string }) {
         height={80}
         priority
         className={getLogoClassName('h-16 w-auto')}
+      />
+    </div>
+  );
+}
+
+// Login-specific logo component for Whisper Chat branding
+export function LoginBrandLogo({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex items-center justify-center ${className}`}>
+      <Image
+        src={getLoginLogoPath()}
+        alt={getLoginLogoAlt()}
+        width={200}
+        height={80}
+        priority
+        className="h-16 w-auto"
       />
     </div>
   );

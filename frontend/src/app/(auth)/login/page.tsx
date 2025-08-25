@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Login page for ADN Contact Center.
+ * Login page for Whisper Chat.
  * Handles user authentication with session-based cookies.
  */
 
@@ -15,8 +15,8 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { FormField } from '@/components/forms/FormField';
 import { toast } from '@/components/feedback/Toast';
-import { BrandLogoLarge } from '@/components/layout/BrandLogo';
-import { getProductName, getCompanyName } from '@/lib/branding';
+import { LoginBrandLogo } from '@/components/layout/BrandLogo';
+import { getLoginProductName } from '@/lib/branding';
 import { ApiError } from '@/lib/http';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
@@ -105,12 +105,11 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <BrandLogoLarge />
+            <LoginBrandLogo />
           </div>
           <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold text-primary-500">{getProductName()}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-primary-500">{getLoginProductName()}</CardTitle>
             <CardDescription>Sign in to your account to manage conversations</CardDescription>
-            <p className="text-xs text-muted-foreground">Powered by {getCompanyName()}</p>
           </div>
         </CardHeader>
         <CardContent>

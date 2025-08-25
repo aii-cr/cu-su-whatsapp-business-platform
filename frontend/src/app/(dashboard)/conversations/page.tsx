@@ -90,7 +90,7 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6 pt-6 sm:pt-8">
       {/* Header Section - Mobile Responsive */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex-1 min-w-0">

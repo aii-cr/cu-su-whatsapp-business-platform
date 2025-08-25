@@ -1,5 +1,5 @@
 /**
- * Branding configuration for ADN Contact Center.
+ * Branding configuration for American Data Networks.
  * Centralized configuration for company branding and customization.
  */
 
@@ -18,7 +18,7 @@ export interface BrandingConfig {
 // Main branding configuration
 export const brandingConfig: BrandingConfig = {
   companyName: 'American Data Networks',
-  productName: 'ADN Contact Center',
+  productName: 'Whisper Chat | ADN',
   logoPath: '/images/business/logoADN2.svg',
   logoAlt: 'American Data Networks Logo',
   primaryColor: '#2563eb', // blue-600
@@ -26,6 +26,19 @@ export const brandingConfig: BrandingConfig = {
   contactEmail: 'support@americandatanetworks.com',
   supportPhone: '+1 (555) 123-4567',
   website: 'https://americandatanetworks.com',
+};
+
+// Login page specific branding
+export const loginBrandingConfig: BrandingConfig = {
+  companyName: 'Whisper Chat',
+  productName: 'Whisper Chat',
+  logoPath: '/images/logo/whisper-chat.png',
+  logoAlt: 'Whisper Chat Logo',
+  primaryColor: '#2563eb', // blue-600
+  secondaryColor: '#1d4ed8', // blue-700
+  contactEmail: 'support@whisperchat.com',
+  supportPhone: '+1 (555) 123-4567',
+  website: 'https://whisperchat.com',
 };
 
 // Branding utility functions
@@ -47,6 +60,19 @@ export function getLogoPath(): string {
 
 export function getLogoAlt(): string {
   return brandingConfig.logoAlt;
+}
+
+// Login page specific functions
+export function getLoginProductName(): string {
+  return loginBrandingConfig.productName;
+}
+
+export function getLoginLogoPath(): string {
+  return loginBrandingConfig.logoPath;
+}
+
+export function getLoginLogoAlt(): string {
+  return loginBrandingConfig.logoAlt;
 }
 
 // Theme-aware logo styling
