@@ -122,7 +122,8 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
                 "booking": {},
                 "confirmations": {"selection_confirmed": False, "booking_confirmed": False, "email_sent": False}
             },
-            "system_snapshot": None
+            "system_snapshot": None,
+            "last_action": None
         })
         graph_execution_time = time.time() - graph_start_time
         

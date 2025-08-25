@@ -8,6 +8,7 @@ Agent graph:
 
 from __future__ import annotations
 from typing import Dict, Any
+import json
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
@@ -185,7 +186,10 @@ def helpfulness_decision(state: AgentState):
 
 
 async def action_node(state: AgentState) -> Dict[str, Any]:
-    """Execute tool calls with proper error handling."""
+    """
+    Executes tool calls. For critical tools like `get_available_slots`, emit a final AI message
+    with a deterministic, user-ready string (do not rely on the LLM to render).
+    """
     try:
         last_message = state["messages"][-1]
         tool_calls = getattr(last_message, "tool_calls", [])
@@ -195,11 +199,14 @@ async def action_node(state: AgentState) -> Dict[str, Any]:
             return state
         
         tools = get_tool_belt()
-        tool_results = []
+        tool_messages = []
+        emitted_final = False
+        last_action = None
         
         for tool_call in tool_calls:
             tool_name = tool_call.get("name")
             tool_args = tool_call.get("args", {})
+            last_action = tool_name
             
             logger.info(f"🔧 [GRAPH] Executing tool: {tool_name} with args: {tool_args}")
             
@@ -210,57 +217,90 @@ async def action_node(state: AgentState) -> Dict[str, Any]:
                     tool = t
                     break
             
-            if tool:
-                try:
-                    # Execute the tool ASYNC (like Writer agent does)
-                    result = await tool.ainvoke(tool_args)
-                    
-                    # Check if tool execution returned an error (like Writer agent does)
-                    if isinstance(result, str) and result.startswith(("ERROR_ACCESSING_KNOWLEDGE:", "NO_CONTEXT_AVAILABLE:")):
-                        logger.warning(f"🔧 [GRAPH] Tool {tool_name} returned error: {result}")
-                    else:
-                        logger.info(f"🔧 [GRAPH] Tool {tool_name} executed successfully, result length: {len(str(result))}")
-                        
-                    tool_results.append({
-                        "role": "tool",
-                        "content": str(result),
-                        "tool_call_id": tool_call.get("id"),
-                        "name": tool_name
-                    })
-                    
-                except Exception as tool_error:
-                    logger.error(f"❌ [GRAPH] Tool {tool_name} failed: {str(tool_error)}")
-                    tool_results.append({
-                        "role": "tool", 
-                        "content": f"ERROR_ACCESSING_KNOWLEDGE: Tool execution failed - {str(tool_error)}",
-                        "tool_call_id": tool_call.get("id"),
-                        "name": tool_name
-                    })
-            else:
+            if not tool:
                 logger.warning(f"🔧 [GRAPH] Tool {tool_name} not found")
-                tool_results.append({
-                    "role": "tool",
-                    "content": f"ERROR: Tool {tool_name} not found",
-                    "tool_call_id": tool_call.get("id"),
-                    "name": tool_name
-                })
+                tool_messages.append(ToolMessage(
+                    content=f"ERROR: Tool {tool_name} not found",
+                    tool_call_id=tool_call.get("id")
+                ))
+                continue
+            
+            try:
+                # Execute the tool ASYNC
+                result = await tool.ainvoke(tool_args)
+                
+                # Check if tool execution returned an error
+                if isinstance(result, str) and result.startswith(("ERROR_ACCESSING_KNOWLEDGE:", "NO_CONTEXT_AVAILABLE:")):
+                    logger.warning(f"🔧 [GRAPH] Tool {tool_name} returned error: {result}")
+                else:
+                    logger.info(f"🔧 [GRAPH] Tool {tool_name} executed successfully, result length: {len(str(result))}")
+                
+                # Add tool result message
+                tool_messages.append(ToolMessage(
+                    content=str(result),
+                    tool_call_id=tool_call.get("id")
+                ))
+                
+                # Deterministic post-processing: slots must be shown in the SAME turn
+                if tool_name == "get_available_slots":
+                    try:
+                        data = json.loads(result) if isinstance(result, str) else result
+                        whatsapp_text = data.get("whatsapp_text")
+                        if whatsapp_text:
+                            # Emit final AI message with the preformatted list
+                            logger.info(f"🔧 [GRAPH] Emitting final WhatsApp message for slots: {whatsapp_text[:100]}...")
+                            tool_messages.append(AIMessage(content=whatsapp_text))
+                            emitted_final = True
+                        else:
+                            logger.warning("🔧 [GRAPH] No whatsapp_text found in get_available_slots result")
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ [GRAPH] Failed to parse slots result: {parse_error}")
+                        
+            except Exception as tool_error:
+                logger.error(f"❌ [GRAPH] Tool {tool_name} failed: {str(tool_error)}")
+                tool_messages.append(ToolMessage(
+                    content=f"ERROR_ACCESSING_KNOWLEDGE: Tool execution failed - {str(tool_error)}",
+                    tool_call_id=tool_call.get("id")
+                ))
         
-        # Convert tool results to ToolMessage objects for LangGraph compatibility
-        tool_messages = []
-        for result in tool_results:
-            tool_messages.append(ToolMessage(
-                content=result["content"],
-                tool_call_id=result.get("tool_call_id")
-            ))
+        # If we emitted a final user message, advance stage and short-circuit next hop to helpfulness
+        update: Dict[str, Any] = {"messages": state["messages"] + tool_messages}
+        if emitted_final:
+            update["stage"] = "schedule"
+            update["last_action"] = f"{last_action}_emit"
+            logger.info("🔧 [GRAPH] Emitted final message, setting stage to 'schedule' and marking for helpfulness routing")
+        elif last_action:
+            update["last_action"] = last_action
         
-        # Add tool results to state
-        return {"messages": state["messages"] + tool_messages}
+        return update
         
     except Exception as e:
         logger.error(f"❌ [GRAPH] Action node failed: {str(e)}")
         # Add error message as a regular AI message
         error_message = AIMessage(content=f"ERROR_ACCESSING_KNOWLEDGE: {str(e)}")
         return {"messages": state["messages"] + [error_message]}
+
+
+def route_after_action(state: AgentState):
+    """
+    If we already emitted a final user-facing payload (e.g., slots list),
+    go straight to helpfulness to end the turn; otherwise return to agent.
+    """
+    last_action = state.get("last_action", "")
+    has_final_message = False
+    
+    # Check if the last message is an AI message (indicating we emitted a final response)
+    if state.get("messages") and isinstance(state["messages"][-1], AIMessage):
+        # Check if this is from get_available_slots tool that emitted final message
+        if last_action.startswith("get_available_slots") and last_action.endswith("_emit"):
+            has_final_message = True
+    
+    if has_final_message:
+        logger.info(f"🔄 [GRAPH] Routing to helpfulness after emitting final message (last_action: {last_action})")
+        return "helpfulness"
+    else:
+        logger.info(f"🔄 [GRAPH] Routing back to agent (last_action: {last_action})")
+        return "agent"
 
 
 def build_graph():
@@ -284,8 +324,9 @@ def build_graph():
         graph.add_conditional_edges("helpfulness", helpfulness_decision,
                                     {"continue": "agent", "end": END, END: END})
         
-        # Add direct edge from action back to agent
-        graph.add_edge("action", "agent")
+        # NEW: post-action conditional routing (short-circuit when we already emitted the final message)
+        graph.add_conditional_edges("action", route_after_action, 
+                                    {"agent": "agent", "helpfulness": "helpfulness"})
         
         compiled_graph = graph.compile()
         logger.info("✅ [GRAPH] Agent graph compiled successfully")

@@ -60,3 +60,5 @@ class AgentState(TypedDict, total=False):
     contract: ContractState
     # Auxiliary field to inject snapshot into prompt
     system_snapshot: Optional[str]
+    # Controller hint to route after action
+    last_action: Optional[str]

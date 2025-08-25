@@ -6,24 +6,60 @@ Tools for installation slots and bookings (using services.http).
 from __future__ import annotations
 from typing import Annotated, List, Dict, Any
 import json
+from datetime import datetime
 from langchain_core.tools import tool
 from app.services.ai.agents.whatsapp_agent.services.http import reservations_http
+
+
+def _format_date_human(d: str) -> str:
+    """Return 'Month DD, YYYY' robustly on Linux/Windows."""
+    dt = datetime.strptime(d, "%Y-%m-%d")
+    # Avoid %-d portability; strip leading zero manually
+    day = str(int(dt.strftime("%d")))
+    return f"{dt.strftime('%B')} {day}, {dt.strftime('%Y')}"
+
+
+def _format_slots_whatsapp(closest_preview: Dict[str, List[str]]) -> str:
+    """Build the exact WhatsApp text required for slot preview."""
+    lines = []
+    lines.append("Here are the available installation slots:\n")
+    lines.append("Dates and Times:")
+    for iso_day, times in closest_preview.items():
+        human = _format_date_human(iso_day)
+        # Sort/unique and print as "08:00, 13:00"
+        tdisp = ", ".join(sorted(set(times)))
+        lines.append(f"• {human}: {tdisp}")
+    lines.append("\nPlease choose a date and a time slot (08:00 or 13:00) that works best for you! 📅")
+    return "\n".join(lines)
 
 @tool("get_available_slots", return_direct=False)
 async def get_available_slots() -> str:
     """
-    Gets available slots for the next 4 weeks. Returns JSON with 'available_slots' and 'period'.
+    Gets available slots for the next 4 weeks.
+    Returns JSON with:
+      - ok: bool
+      - available_slots: {YYYY-MM-DD: [HH:MM, ...]}
+      - period: {...}
+      - closest_preview: first 5 days for UX
+      - whatsapp_text: preformatted message to send directly
     """
     status, data = await reservations_http.get_json("/available-slots")
     if status != 200:
         return json.dumps({"ok": False, "status": status, "error": "Failed to fetch slots"}, ensure_ascii=False)
 
-    # Reorder dates by proximity (although backend already comes ordered)
     days = sorted(data.get("available_slots", {}).items(), key=lambda x: x[0])
-    closest_preview = days[:5]  # courtesy for the LLM when offering
-    data["closest_preview"] = dict(closest_preview)
-    data["ok"] = True
-    return json.dumps(data, ensure_ascii=False)
+    closest_preview = dict(days[:5]) if days else {}
+
+    payload = {
+        "ok": True,
+        "available_slots": data.get("available_slots", {}),
+        "period": data.get("period", {}),
+        "closest_preview": closest_preview,
+    }
+    payload["whatsapp_text"] = _format_slots_whatsapp(closest_preview) if closest_preview else \
+        "We couldn't find open slots right now. Please try again shortly."
+
+    return json.dumps(payload, ensure_ascii=False)
 
 @tool("book_installation", return_direct=False)
 async def book_installation(
