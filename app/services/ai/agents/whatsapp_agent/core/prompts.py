@@ -5,7 +5,7 @@ Agent prompts (bilingual) and helpfulness verifier.
 
 from langchain_core.prompts import ChatPromptTemplate
 
-ADN_SYSTEM_PROMPT = """You are the American Data Networks (Costa Rica) WhatsApp assistant.
+ADN_SYSTEM_PROMPT = """You are the American Data Networks WhatsApp assistant.
 You respond with warmth and precision, in the customer's language. You do not allow skipping steps.
 
 TEMPORAL CONTEXT: {time_context}

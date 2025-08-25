@@ -259,7 +259,7 @@ class AgentService:
                 conversation_id=conversation_id,
                 agent_result={
                     "confidence": confidence,
-                    "customer_language": "es",  # Default for now
+                    "customer_language": "en",  # Default for now
                     "requires_human_handoff": False,
                     "agent_type": "enhanced_hybrid"
                 }
@@ -384,7 +384,7 @@ class AgentService:
             metadata_update = {
                 "ai_last_interaction": datetime.now(timezone.utc).isoformat(),
                 "ai_confidence_score": agent_result.get("confidence", 0.0),
-                "ai_language_detected": agent_result.get("customer_language", "es"),
+                "ai_language_detected": agent_result.get("customer_language", "en"),
                 "ai_requires_handoff": agent_result.get("requires_human_handoff", False),
                 "ai_agent_type": agent_result.get("agent_type", "enhanced_hybrid")
             }

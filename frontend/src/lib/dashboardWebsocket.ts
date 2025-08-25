@@ -425,6 +425,7 @@ export class DashboardWebSocketClient extends WebSocketClient {
       ['conversations', 'list'],
       (oldData: any) => {
         if (oldData?.conversations) {
+          console.log('😊 [DASHBOARD_WS] Updating conversation list with sentiment:', conversation_id, sentiment_emoji);
           return {
             ...oldData,
             conversations: oldData.conversations.map((conv: any) => 
@@ -434,6 +435,7 @@ export class DashboardWebSocketClient extends WebSocketClient {
             )
           };
         }
+        console.log('😊 [DASHBOARD_WS] No conversation list data found, invalidating query');
         return oldData;
       }
     );
@@ -443,6 +445,7 @@ export class DashboardWebSocketClient extends WebSocketClient {
       ['conversations', 'detail', conversation_id],
       (oldData: any) => {
         if (oldData) {
+          console.log('😊 [DASHBOARD_WS] Updating conversation detail with sentiment:', conversation_id, sentiment_emoji);
           return {
             ...oldData,
             current_sentiment_emoji: sentiment_emoji,
@@ -453,6 +456,12 @@ export class DashboardWebSocketClient extends WebSocketClient {
         return oldData;
       }
     );
+
+    // Fallback: Always invalidate the conversation list to ensure the update is reflected
+    console.log('😊 [DASHBOARD_WS] Invalidating conversation list as fallback for sentiment update');
+    this.queryClient.invalidateQueries({
+      queryKey: ['conversations', 'list'],
+    });
 
     console.log('😊 [DASHBOARD_WS] Updated sentiment for conversation:', conversation_id);
   }

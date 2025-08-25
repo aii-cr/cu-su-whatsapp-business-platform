@@ -466,6 +466,15 @@ class SentimentAnalyzerService(BaseService):
                 message_id=sentiment_response.message_id
             )
             
+            # Also send a conversation list update to ensure dashboard is refreshed
+            try:
+                conversation = await conversation_service.get_conversation(sentiment_response.conversation_id)
+                if conversation:
+                    await websocket_service.notify_conversation_list_update(conversation, "updated")
+                    logger.info(f"🔄 [SENTIMENT] Sent conversation list update for sentiment change: {sentiment_response.conversation_id}")
+            except Exception as conv_error:
+                logger.warning(f"⚠️ Failed to send conversation list update for sentiment: {str(conv_error)}")
+            
             logger.info(f"🔔 Sent sentiment update notification for conversation {sentiment_response.conversation_id}")
             
         except Exception as e:
