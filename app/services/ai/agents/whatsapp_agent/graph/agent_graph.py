@@ -45,7 +45,7 @@ def call_model(state: AgentState) -> Dict[str, Any]:
     try:
         conversation_id = state.get("conversation_id", "unknown")
         current_attempt = state.get("attempts", 0)
-        target_lang = state.get("target_language", "es")
+        target_lang = state.get("target_language", "en")
 
         if current_attempt >= 3:
             fallback_message = ("I'm sorry, I don't have the specific information you need at this moment. "
@@ -54,8 +54,8 @@ def call_model(state: AgentState) -> Dict[str, Any]:
 
         model = _build_model_with_tools()
 
-        # Temporal context + stage/contract snapshot
-        time_context = get_contextual_time_info("es")
+        # Temporal context (English date only) + stage/contract snapshot
+        time_context = get_contextual_time_info("en")
         system_prompt = ADN_SYSTEM_PROMPT.format(time_context=time_context)
 
         # Build minimal snapshot that the model can read without excessive tokens

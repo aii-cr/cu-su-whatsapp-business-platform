@@ -3,13 +3,11 @@
 Agent execution by conversation:
 - LangSmith tracing
 - Mongo memory loading
-- Simple language detection
-- Graph invocation
+- Graph invocation (English-only)
 """
 
 from __future__ import annotations
 from typing import List
-import re
 import time
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -21,30 +19,19 @@ from .telemetry import setup_tracing
 from app.core.logger import logger
 
 
-def _infer_language(text: str) -> str:
-    """Light heuristic to detect 'en' vs 'es'."""
-    try:
-        t = text.lower()
-        en_hits = sum(1 for w in ("the","and","what","how","price","channel","plan","install","coverage") if w in t)
-        es_hits = sum(1 for w in ("el","la","los","las","qué","como","precio","canal","plan","instalación","cobertura") if w in t)
-        detected_lang = "en" if en_hits > es_hits else "es"
-        
-        logger.info(f"🌐 [RUNNER] Language detection - text: '{text[:50]}...', en_hits: {en_hits}, es_hits: {es_hits}, detected: {detected_lang}")
-        return detected_lang
-        
-    except Exception as e:
-        logger.error(f"❌ [RUNNER] Language detection failed: {str(e)}")
-        return "en"  # Default to English
+def _english_only_fallback() -> str:
+    """Consistent English fallback message."""
+    return "I'm sorry, I couldn't process your request right now. Please wait, a human agent will respond to you shortly."
 
 
-def _prepare_history_messages(history: List[dict], target_language: str) -> List:
-    """Converts history to messages (injects bilingual system)."""
+def _prepare_history_messages(history: List[dict]) -> List:
+    """Converts history to messages (injects English-only system)."""
     try:
-        logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages with automatic language detection")
+        logger.info(f"📚 [RUNNER] Preparing {len(history)} history messages (English-only)")
         
-        # Get current time context for Costa Rica - use English by default
+        # Get today's date (English) for context
         from .timezone_utils import get_contextual_time_info
-        time_context = get_contextual_time_info("en")  # Time context in English by default
+        time_context = get_contextual_time_info("en")
         
         msgs: List = [SystemMessage(content=ADN_SYSTEM_PROMPT.format(time_context=time_context))]
         
@@ -66,8 +53,8 @@ def _prepare_history_messages(history: List[dict], target_language: str) -> List
         
     except Exception as e:
         logger.error(f"❌ [RUNNER] Failed to prepare history messages: {str(e)}")
-        # Return minimal system message
-        return [SystemMessage(content=ADN_SYSTEM_PROMPT.format(target_language=target_language))]
+        # Return minimal system message with empty date
+        return [SystemMessage(content=ADN_SYSTEM_PROMPT.format(time_context=""))]
 
 
 async def run_agent(conversation_id: str, user_text: str) -> str:
@@ -94,16 +81,15 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         else:
             logger.info(f"📚 [RUNNER] Using full history: {len(history)} messages")
 
-        # Step 3: Language detection
-        logger.info("🌐 [RUNNER] Using automatic language detection...")
-        target_language = "auto"  # Let the model handle language automatically
+        # Step 3: English-only configuration
+        logger.info("🌐 [RUNNER] Using English-only configuration...")
 
         # Step 4: Graph setup and input preparation
         logger.info("🏗️ [RUNNER] Building agent graph...")
         graph = build_graph()
         
         logger.info("📝 [RUNNER] Preparing input messages...")
-        messages = _prepare_history_messages(history, target_language)
+        messages = _prepare_history_messages(history)
         messages.append(HumanMessage(content=user_text))
 
         # Step 5: Execute agent graph
@@ -114,7 +100,7 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
             "messages": messages,
             "conversation_id": conversation_id,
             "attempts": 0,
-            "target_language": target_language,
+            "target_language": "en",
             "stage": "idle",
             "contract": {
                 "selection": {},
@@ -143,19 +129,10 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
             if final_response:
                 answer = final_response
             else:
-                # Detect language for appropriate fallback message
-                target_lang = _infer_language(user_text)
-                if target_lang == "en":
-                    answer = "I'm sorry, I couldn't generate a complete response. Please wait, a human agent will respond to you shortly."
-                else:
-                    answer = "Lo siento, no se pudo completar la respuesta. Por favor espera que enseguida te responde un agente humano."
+                answer = _english_only_fallback()
         else:
-            # Detect language for appropriate fallback message  
-            target_lang = _infer_language(user_text)
-            if target_lang == "en":
-                answer = "I'm sorry, I couldn't process your request. Please wait, a human agent will respond to you shortly."
-            else:
-                answer = "Lo siento, no se pudo procesar tu solicitud. Por favor espera que enseguida te responde un agente humano."
+            # English-only fallback
+            answer = _english_only_fallback()
             logger.warning("⚠️ [RUNNER] No AI messages found in result")
 
         logger.info(f"💬 [RUNNER] Final answer: '{answer[:100]}...'")
@@ -173,10 +150,4 @@ async def run_agent(conversation_id: str, user_text: str) -> str:
         execution_time = time.time() - start_time
         logger.error(f"❌ [RUNNER] Agent execution failed after {execution_time:.2f}s: {str(e)}")
         
-        # Detect language for appropriate error message
-        target_lang = _infer_language(user_text)
-        
-        if target_lang == "en":
-            return "I'm sorry, I couldn't process your request right now. Please wait, a human agent will respond to you shortly."
-        else:
-            return "Lo siento, no se pudo procesar su solicitud ahora mismo. Por favor espera que enseguida te responde un agente humano."
+        return _english_only_fallback()
