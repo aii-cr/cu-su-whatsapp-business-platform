@@ -3,6 +3,7 @@ Configuration settings for WhatsApp Business Platform Backend.
 All environment variables are loaded via Pydantic Settings.
 """
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
@@ -19,6 +20,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
     DOMAIN: str = "http://localhost:8000"
+    
+    
+    # Email settings
+    SMTP_PAY_SERVER: str = Field(..., env="SMTP_PAY_SERVER")
+    SMTP_PAY_PORT: int = Field(587, env="SMTP_PAY_PORT")
+    SMTP_PAY_USERNAME: str = Field(..., env="SMTP_PAY_USERNAME")
+    SMTP_PAY_PASSWORD: str = Field(..., env="SMTP_PAY_PASSWORD")
     
     # Security Settings
     SECRET_KEY: str = "development-secret-key-change-in-production"  # Default for development
