@@ -64,7 +64,7 @@ export function useConversationSummarizer({
     mutationFn: async (request: ConversationSummaryRequest) => {
       const startTime = Date.now();
       // Show initial loading toast
-      toast.info('Starting conversation analysis...', { duration: 2000 });
+      toast.info('Starting conversation analysis...');
       
       const result = await SummarizerApi.summarizeConversation(request);
       const endTime = Date.now();
