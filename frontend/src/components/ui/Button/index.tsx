@@ -94,10 +94,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       }
     );
 
-    const Comp = asChild ? 'div' : 'button';
-    
+    if (asChild) {
+      return (
+        <div
+          className={buttonClasses}
+          {...(props as unknown as React.HTMLAttributes<HTMLDivElement>)}
+        >
+          {icon && (
+            <span className={iconClasses}>
+              {icon}
+            </span>
+          )}
+          {!iconOnly && children}
+        </div>
+      );
+    }
+
     return (
-      <Comp
+      <button
         className={buttonClasses}
         ref={ref}
         disabled={disabled || loading}
@@ -109,7 +123,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           </span>
         )}
         {!iconOnly && children}
-      </Comp>
+      </button>
     );
   }
 );

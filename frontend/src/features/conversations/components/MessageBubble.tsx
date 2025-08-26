@@ -280,6 +280,14 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       );
     }
 
+    // Safely extract template fields from loosely-typed template_data
+    const templateData = (message.template_data ?? undefined) as any;
+    const renderedContent = (templateData?.rendered_content ?? undefined) as any;
+    const templateHeader = typeof renderedContent?.header === 'string' ? renderedContent.header : undefined;
+    const templateBody = typeof renderedContent?.body === 'string' ? renderedContent.body : undefined;
+    const templateFooter = typeof renderedContent?.footer === 'string' ? renderedContent.footer : undefined;
+    const templateName = typeof templateData?.name === 'string' ? templateData.name : undefined;
+
     // Determine animation class based on message type and state
     const getAnimationClass = () => {
       if (isOptimistic) return 'animate-message-push-in';
@@ -344,55 +352,55 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
               shouldAlignRight
                 ? 'before:right-[-6px] before:top-2 before:border-l-[6px] before:border-l-blue-500 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent'
                 : 'before:left-[-6px] before:top-2 before:border-r-[6px] before:border-r-white dark:before:border-r-slate-700 before:border-t-[6px] before:border-t-transparent before:border-b-[6px] before:border-b-transparent',
-              // Animation states
+              // Animation states (only status updates animate inside)
               {
-                'optimistic': isOptimistic,
-                'new-message': isNewMessage,
                 'status-updating': message.status === 'delivered' || message.status === 'read'
               }
             )}
           >
             {/* Template message content */}
-            {message.type === 'template' && message.template_data && (
+            {message.type === 'template' && templateData && (
               <div className="space-y-3">
                 {/* Template Header (optional) */}
-                {message.template_data.rendered_content?.header && (
+                {templateHeader && (
                   <div className={cn(
                     "text-sm font-medium pb-2 border-b",
                     shouldAlignRight ? "border-white/20" : "border-slate-200 dark:border-slate-600"
                   )}>
-                    {renderMarkdown(message.template_data.rendered_content.header)}
+                    {renderMarkdown(templateHeader)}
                   </div>
                 )}
                 
                 {/* Template Body */}
-                {message.template_data.rendered_content?.body && (
+                {templateBody && (
                   <div className="text-sm leading-relaxed">
-                    {renderMarkdown(message.template_data.rendered_content.body)}
+                    {renderMarkdown(templateBody)}
                   </div>
                 )}
                 
                 {/* Template Footer (optional) */}
-                {message.template_data.rendered_content?.footer && (
+                {templateFooter && (
                   <div className={cn(
                     "text-xs opacity-75 pt-2 border-t",
                     shouldAlignRight ? "border-white/20" : "border-slate-200 dark:border-slate-600"
                   )}>
-                    {message.template_data.rendered_content.footer}
+                    {templateFooter}
                   </div>
                 )}
                 
                 {/* Template Name Badge */}
-                <div className="flex justify-end mt-2">
-                  <Badge variant="secondary" className={cn(
-                    "text-xs",
-                    shouldAlignRight 
-                      ? "bg-white/20 text-white border-white/30" 
-                      : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600"
-                  )}>
-                    📄 {message.template_data.name}
-                  </Badge>
-                </div>
+                {templateName && (
+                  <div className="flex justify-end mt-2">
+                    <Badge variant="secondary" className={cn(
+                      "text-xs",
+                      shouldAlignRight 
+                        ? "bg-white/20 text-white border-white/30" 
+                        : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600"
+                    )}>
+                      📄 {templateName}
+                    </Badge>
+                  </div>
+                )}
               </div>
             )}
 

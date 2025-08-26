@@ -21,7 +21,7 @@ export function DropdownMenu({
 }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const triggerRef = React.useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
   React.useEffect(() => {
@@ -60,7 +60,7 @@ export function DropdownMenu({
     <div className={cn('relative', className)}>
       {/* Trigger */}
       <div 
-        ref={triggerRef as React.RefObject<HTMLDivElement>}
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         role="button"
         tabIndex={0}
