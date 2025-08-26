@@ -78,7 +78,7 @@ The implementation enhances each chunk with comprehensive metadata including sou
 When customers ask specific questions about service plans or technical details, this chunking strategy ensures that relevant information is retrieved as complete, contextual units rather than fragmented text pieces.
 
 
-## ✅ Build an end-to-end prototype and deploy to local host with a front end (Vercel deployment not required).
+## ✅ Build an end-to-end prototype.
 
 The WhatsApp Business platform prototype has been developed with a sophisticated AI system integrated throughout the application stack. The backend (`/app/`) leverages FastAPI with WebSocket support for real-time messaging, while the comprehensive AI agent system (`/app/services/ai/`) provides intelligent automation capabilities. The MongoDB database handles data persistence, and RESTful APIs manage conversation workflows seamlessly.
 
@@ -166,30 +166,30 @@ The architecture supports multi-tenant deployments with isolated data per organi
 ## ✅ Agent and Service Architecture
 
 
-### WhatsApp Agent (LangGraph) — Flow (words)
+### WhatsApp Agent (LangGraph) — Flow
 1) Receive user message and load conversation memory/context.
 2) Agent node generates a reply; if it plans tool calls, route to action; otherwise route to helpfulness check.
 3) Action node executes tools (catalog, quote, customer validation, available slots, booking, confirmation email, RAG).
 4) Special case: when `get_available_slots` returns a preformatted `whatsapp_text`, the agent sends that list in the same turn and finishes the turn (short-circuit for UX).
 5) If no tools were needed, a helpfulness node evaluates the response (Y/continue) with an attempt cap; continue loops back to the agent, Y ends.
 
-### Writer Agent — Helpfulness Loop (words)
+### Writer Agent — Helpfulness Loop
 1) Build the prompt (prebuilt: use last customer message; custom: use the agent’s request). Optionally pull conversation context via tool.
 2) Call the LLM with tools. If tools are requested, execute them (get_conversation_context, retrieve_information) and try again.
 3) Run the helpfulness evaluator (Y/N). On N, inject targeted feedback and iterate; on Y, return a WhatsApp‑ready response plus brief reasoning. Iterations are capped for speed.
 
-### Sentiment Monitoring — Service Chain (words)
+### Sentiment Monitoring — Service Chain
 1) On incoming customer messages, check `_should_analyze_sentiment` (first message or every Nth message, respecting length/quality rules).
 2) Load all customer messages for context and build the sentiment prompt with the allowed emoji set.
 3) Call the LLM, extract exactly one emoji, and store/update sentiment state (history + current) in MongoDB/cache.
 4) Emit WebSocket notifications to update dashboards and conversation lists in real time.
 
-### Conversation Summarization — Service Chain (words)
+### Conversation Summarization — Service Chain
 1) Validate conversation_id and load messages, human agents, and customer data.
 2) Single structured LLM call returns summary, key points (optional), and topics in one response.
 3) Store a versioned record in MongoDB and log an audit event; return the summary with metadata (AI count, sentiment, participants).
 
-### RAG Retrieval — Strategy and Pipeline (words)
+### RAG Retrieval — Strategy and Pipeline
 1) Check Redis cache for a recent result keyed by query + strategy params.
 2) Decide strategy: fast (short/common queries) vs comprehensive (complex queries).
 3) Fast: dense search (Qdrant) → Cohere re‑rank → cache → return.
