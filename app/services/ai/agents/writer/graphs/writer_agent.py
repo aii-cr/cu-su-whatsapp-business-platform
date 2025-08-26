@@ -813,17 +813,6 @@ Evaluation (Y/N):"""
                     response = response.replace(spanish.title(), english.title())
                     response = response.replace(spanish.lower(), english.lower())
                 
-                # Add a note that this was translated
-                if "customer_response:" in response:
-                    # Find the customer_response section and add a note
-                    lines = response.split('\n')
-                    for i, line in enumerate(lines):
-                        if line.strip().startswith("customer_response:"):
-                            # Add note after the customer_response line
-                            lines.insert(i + 1, "# Note: Response translated to English")
-                            break
-                    response = '\n'.join(lines)
-                
                 logger.info("Response converted to English")
             
             return response

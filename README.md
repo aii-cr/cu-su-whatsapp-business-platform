@@ -2,6 +2,9 @@
 
 Created by Steve Arce
 
+# Demo Day Loom Video 🎦
+
+https://www.loom.com/share/811fc8d991684ae9a30b8b3093dd5585?sid=92f3335d-92f7-4c83-9875-043447c1f350
 
 ## Table of Contents
 

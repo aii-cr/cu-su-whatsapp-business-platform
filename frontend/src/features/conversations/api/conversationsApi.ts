@@ -71,7 +71,15 @@ export class ConversationsApi {
         messages_offset: String(messagesOffset),
       });
 
-      const response = await httpClient.get(
+      const response = await httpClient.get<{
+        conversation: Conversation;
+        messages: any[];
+        messages_total: number;
+        messages_limit: number;
+        messages_offset: number;
+        has_more_messages: boolean;
+        initial_unread_count: number;
+      }>(
         `/conversations/${conversationId}/with-messages?${params.toString()}`
       );
       return response;
@@ -208,7 +216,11 @@ export class ConversationsApi {
     updated_at: string;
   }> {
     try {
-      const response = await httpClient.patch(`/conversations/${conversationId}/ai-autoreply`, {
+      const response = await httpClient.patch<{
+        conversation_id: string;
+        ai_autoreply_enabled: boolean;
+        updated_at: string;
+      }>(`/conversations/${conversationId}/ai-autoreply`, {
         enabled
       });
       return response;
@@ -226,7 +238,11 @@ export class ConversationsApi {
     updated_at: string;
   }> {
     try {
-      const response = await httpClient.get(`/conversations/${conversationId}/ai-autoreply/status`);
+      const response = await httpClient.get<{
+        conversation_id: string;
+        ai_autoreply_enabled: boolean;
+        updated_at: string;
+      }>(`/conversations/${conversationId}/ai-autoreply/status`);
       return response;
     } catch (error) {
       throw error;

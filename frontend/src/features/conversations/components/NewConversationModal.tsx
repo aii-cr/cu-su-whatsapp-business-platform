@@ -221,7 +221,7 @@ export function NewConversationModal({
         // {{1}} = Customer name, {{2}} = Service/product name
         
         // Parameter 1: Customer name (prioritize form input, fallback to customer name field)
-        let customerNameParam = data.customerName || 'Customer';
+        const customerNameParam = data.customerName || 'Customer';
         
         // Parameter 2: Service/product from dynamic parameters
         let serviceParam = '';

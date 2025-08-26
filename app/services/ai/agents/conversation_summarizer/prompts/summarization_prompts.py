@@ -167,10 +167,6 @@ def get_key_points_prompt() -> PromptTemplate:
     """Get the key points extraction prompt."""
     return KEY_POINTS_PROMPT
 
-
-
-
-
 def get_topics_prompt() -> PromptTemplate:
     """Get the topic extraction prompt."""
     return TOPIC_EXTRACTION_PROMPT

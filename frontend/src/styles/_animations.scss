@@ -15,15 +15,12 @@
 // WhatsApp-style message push-in animation
 @keyframes messagePushIn {
   0% {
-    opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
   50% {
-    opacity: 0.8;
     transform: translateY(5px) scale(0.98);
   }
   100% {
-    opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
@@ -31,11 +28,9 @@
 // Message slide in animation (enhanced version)
 @keyframes messageSlideIn {
   from {
-    opacity: 0;
     transform: translateY(10px) scale(0.95);
   }
   to {
-    opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
@@ -43,11 +38,9 @@
 // Inbound message slide-in from left
 @keyframes inboundMessageSlideIn {
   0% {
-    opacity: 0;
     transform: translateX(-20px) scale(0.95);
   }
   100% {
-    opacity: 1;
     transform: translateX(0) scale(1);
   }
 }
@@ -55,11 +48,9 @@
 // Outbound message slide-in from right
 @keyframes outboundMessageSlideIn {
   0% {
-    opacity: 0;
     transform: translateX(20px) scale(0.95);
   }
   100% {
-    opacity: 1;
     transform: translateX(0) scale(1);
   }
 }
@@ -302,7 +293,7 @@
 
 // WhatsApp-specific animation utilities
 .message-animation-wrapper {
-  will-change: transform, opacity;
+  will-change: transform;
   backface-visibility: hidden;
   transform: translateZ(0);
 }
