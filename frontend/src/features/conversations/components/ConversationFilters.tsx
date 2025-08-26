@@ -333,7 +333,7 @@ export function ConversationFilters({
 
           {filters.assigned_agent_id && (
             <Badge variant="secondary" className="text-xs">
-              Agent: {agentOptions.find(opt => opt.value === filters.assigned_agent_id)?.label || filters.assigned_agent_id}
+              Agent: {agentOptions.find((opt: { value: string; label: string }) => opt.value === filters.assigned_agent_id)?.label || filters.assigned_agent_id}
               <button
                 onClick={() => handleFilterChange('assigned_agent_id', '')}
                 className="ml-1 hover:text-destructive"
